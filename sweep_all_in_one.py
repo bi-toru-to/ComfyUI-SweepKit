@@ -25,7 +25,7 @@ import re
 import itertools
 import torch
 import numpy as np
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw
 
 import folder_paths
 import comfy.samplers
