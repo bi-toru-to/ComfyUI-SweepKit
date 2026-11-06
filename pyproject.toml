@@ -1,0 +1,29 @@
+[project]
+name = "comfyui-sweepkit"
+version = "1.0.0"
+description = "Multi-dimensional parameter sweeps for ComfyUI: chainable sweep dimensions, zip/self-combine, an all-in-one generator, and modular grid/UpSet constructors."
+readme = "NODE_GUIDE.md"
+requires-python = ">=3.10"
+# No pip dependencies: torch, numpy and Pillow are provided by ComfyUI.
+# The modular pipeline additionally needs the godmt/ComfyUI-List-Utils node pack.
+dependencies = []
+# license: not chosen yet (see quality-review/FIX_PLAN.md, item 5.2).
+
+[tool.comfy]
+PublisherId = ""  # fill in your Comfy Registry publisher ID before publishing
+DisplayName = "SweepKit"
+Icon = ""
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "B", "C90", "PLR2004"]
+ignore = ["E501"]  # long tooltip strings are intentional; line length is handled by the formatter
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["PLR2004", "B", "C90"]

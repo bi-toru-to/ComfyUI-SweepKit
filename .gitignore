@@ -1,0 +1,5 @@
+__pycache__/
+*.py[cod]
+.ruff_cache/
+# Legacy in-repo test output location (tests now write to a temp dir)
+tests/stubs/fake_output/
