@@ -522,7 +522,7 @@ _, _ = UpsetNode.build(
     title_dim="none",
     max_columns_per_page=60,
 )
-upset_files = sorted(f for f in os.listdir("tests/stubs/fake_output/TestNoOverwrite/_upset") if f.startswith("matrix_"))
+upset_files = sorted(f for f in os.listdir(os.path.join(S.OUTPUT_DIR, "TestNoOverwrite", "_upset")) if f.startswith("matrix_"))
 assert upset_files == ["matrix_00001.png", "matrix_00002.png"], upset_files
 
 _, _ = GridNode.build(
@@ -547,7 +547,7 @@ _, _ = GridNode.build(
     grid_y_dim="auto",
     grid_title_dim="auto",
 )
-grid_files = sorted(f for f in os.listdir("tests/stubs/fake_output/TestNoOverwrite/_grids") if f.startswith("grid_"))
+grid_files = sorted(f for f in os.listdir(os.path.join(S.OUTPUT_DIR, "TestNoOverwrite", "_grids")) if f.startswith("grid_"))
 assert grid_files == ["grid_00001.png", "grid_00002.png"], grid_files
 print("PASS scenario O -", upset_files, grid_files)
 

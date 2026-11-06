@@ -5,7 +5,13 @@ cost ordering, lora/model socket resolution, grid building) without
 needing torch or a real ComfyUI install. Numpy stands in for torch.
 """
 
-import sys, types, os
+import atexit
+import os
+import shutil
+import sys
+import tempfile
+import types
+
 import numpy as np
 
 
@@ -60,8 +66,17 @@ sys.modules["torch"] = torch_mod
 
 # ---------------- fake folder_paths ----------------
 folder_paths_mod = types.ModuleType("folder_paths")
-_OUTPUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fake_output")
-os.makedirs(_OUTPUT_DIR, exist_ok=True)
+# Each test process writes into its own throwaway directory, so runs never
+# leave files in the repo and never see a previous run's files (the
+# no-overwrite scenarios assert exact _00001/_00002 counters). Set
+# SWEEPKIT_TEST_OUTPUT_DIR to keep the output somewhere for inspection.
+_KEEP_OUTPUT_DIR = os.environ.get("SWEEPKIT_TEST_OUTPUT_DIR")
+if _KEEP_OUTPUT_DIR:
+    _OUTPUT_DIR = os.path.abspath(_KEEP_OUTPUT_DIR)
+    os.makedirs(_OUTPUT_DIR, exist_ok=True)
+else:
+    _OUTPUT_DIR = tempfile.mkdtemp(prefix="sweepkit_test_output_")
+    atexit.register(shutil.rmtree, _OUTPUT_DIR, ignore_errors=True)
 _FAKE_LORAS = ["loraA.safetensors", "loraB.safetensors"]
 
 
