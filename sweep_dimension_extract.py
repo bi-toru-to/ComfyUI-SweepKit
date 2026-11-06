@@ -15,22 +15,30 @@ from .sweep_core import extract_values
 
 
 class SweepDimensionExtract:
-
     @classmethod
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "combo": ("SWEEP_COMBO", {
-                    "tooltip": "Connect SweepCombinationExpander's 'combo' output.",
-                }),
-                "dim_id": ("STRING", {
-                    "default": "",
-                    "tooltip": "Exact dim_id of the dimension to extract (the 'dim_id' field you gave its SweepDimension node, or its dim_type if left blank there).",
-                }),
-                "component": (["value", "model_strength", "clip_strength"], {
-                    "default": "value",
-                    "tooltip": "Only meaningful for a lora_strength-type dimension, whose values are (model_strength, clip_strength) tuples — pick which half to pull out as a scalar.",
-                }),
+                "combo": (
+                    "SWEEP_COMBO",
+                    {
+                        "tooltip": "Connect SweepCombinationExpander's 'combo' output.",
+                    },
+                ),
+                "dim_id": (
+                    "STRING",
+                    {
+                        "default": "",
+                        "tooltip": "Exact dim_id of the dimension to extract (the 'dim_id' field you gave its SweepDimension node, or its dim_type if left blank there).",
+                    },
+                ),
+                "component": (
+                    ["value", "model_strength", "clip_strength"],
+                    {
+                        "default": "value",
+                        "tooltip": "Only meaningful for a lora_strength-type dimension, whose values are (model_strength, clip_strength) tuples — pick which half to pull out as a scalar.",
+                    },
+                ),
             },
         }
 

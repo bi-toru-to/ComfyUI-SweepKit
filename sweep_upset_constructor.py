@@ -41,42 +41,82 @@ from .sweep_core import (
 
 
 class SweepUpsetConstructor:
-
     @classmethod
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "images": ("PYLIST", {
-                    "forceInput": True,
-                    "tooltip": "One image tensor per combo, same order as combo.combo_records — connect via List-Utils' 'List To PyList'.",
-                }),
-                "combo": ("SWEEP_COMBO", {
-                    "tooltip": "Connect SweepCombinationExpander's 'combo' output.",
-                }),
-                "dim_id": ("STRING", {
-                    "default": "",
-                    "tooltip": "dim_id of the SweepDimensionSelfCombine-produced dimension to visualize.",
-                }),
+                "images": (
+                    "PYLIST",
+                    {
+                        "forceInput": True,
+                        "tooltip": "One image tensor per combo, same order as combo.combo_records — connect via List-Utils' 'List To PyList'.",
+                    },
+                ),
+                "combo": (
+                    "SWEEP_COMBO",
+                    {
+                        "tooltip": "Connect SweepCombinationExpander's 'combo' output.",
+                    },
+                ),
+                "dim_id": (
+                    "STRING",
+                    {
+                        "default": "",
+                        "tooltip": "dim_id of the SweepDimensionSelfCombine-produced dimension to visualize.",
+                    },
+                ),
                 "filename_prefix": ("STRING", {"default": "SweepKit"}),
-                "cell_size": ("INT", {"default": 120, "min": 32, "max": 1024, "step": 8,
-                    "tooltip": "Target swatch size per column — exact meaning depends on cell_mode."}),
-                "cell_mode": (["fit", "square", "original"], {"default": "fit",
-                    "tooltip": "fit: scale preserving aspect ratio (recommended). square: stretch to cell_size x cell_size. original: no resizing at all."}),
-                "font_size": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.05,
-                    "tooltip": (
-                        "Text size as a fraction of the ACTUAL rendered swatch width (not the "
-                        "cell_size widget) — 1.0 means one character is about 1/16 of a swatch's "
-                        "width. Sized off the real swatch width specifically so cell_mode='original' "
-                        "(whose actual size can differ a lot from cell_size) doesn't end up with "
-                        "text that's disproportionately tiny or huge next to the images. Title, "
-                        "row-label, and column-label sizes stay proportionally distinct at every "
-                        "setting."
-                    ),
-                }),
-                "title_dim": (GRID_AXIS_OPTIONS, {"default": "none",
-                    "tooltip": "Which OTHER (non-target) dimension's value leads the matrix title, if any. Every other non-target dimension still page-splits normally regardless of this setting — it only reorders which one reads first."}),
-                "max_columns_per_page": ("INT", {"default": 60, "min": 5, "max": 500,
-                    "tooltip": "Safety valve for very large combo counts — splits into multiple numbered matrix files past this many columns."}),
+                "cell_size": (
+                    "INT",
+                    {
+                        "default": 120,
+                        "min": 32,
+                        "max": 1024,
+                        "step": 8,
+                        "tooltip": "Target swatch size per column — exact meaning depends on cell_mode.",
+                    },
+                ),
+                "cell_mode": (
+                    ["fit", "square", "original"],
+                    {
+                        "default": "fit",
+                        "tooltip": "fit: scale preserving aspect ratio (recommended). square: stretch to cell_size x cell_size. original: no resizing at all.",
+                    },
+                ),
+                "font_size": (
+                    "FLOAT",
+                    {
+                        "default": 1.0,
+                        "min": 0.0,
+                        "max": 1.0,
+                        "step": 0.05,
+                        "tooltip": (
+                            "Text size as a fraction of the ACTUAL rendered swatch width (not the "
+                            "cell_size widget) — 1.0 means one character is about 1/16 of a swatch's "
+                            "width. Sized off the real swatch width specifically so cell_mode='original' "
+                            "(whose actual size can differ a lot from cell_size) doesn't end up with "
+                            "text that's disproportionately tiny or huge next to the images. Title, "
+                            "row-label, and column-label sizes stay proportionally distinct at every "
+                            "setting."
+                        ),
+                    },
+                ),
+                "title_dim": (
+                    GRID_AXIS_OPTIONS,
+                    {
+                        "default": "none",
+                        "tooltip": "Which OTHER (non-target) dimension's value leads the matrix title, if any. Every other non-target dimension still page-splits normally regardless of this setting — it only reorders which one reads first.",
+                    },
+                ),
+                "max_columns_per_page": (
+                    "INT",
+                    {
+                        "default": 60,
+                        "min": 5,
+                        "max": 500,
+                        "tooltip": "Safety valve for very large combo counts — splits into multiple numbered matrix files past this many columns.",
+                    },
+                ),
             },
         }
 
@@ -90,7 +130,7 @@ class SweepUpsetConstructor:
     # SweepGridConstructor, so cell_mode behaves identically in both) ----
 
     def tensor_to_pil(self, tensor):
-        i = 255. * tensor.cpu().numpy()
+        i = 255.0 * tensor.cpu().numpy()
         return Image.fromarray(np.clip(i.squeeze(), 0, 255).astype(np.uint8))
 
     def pil_to_tensor(self, pil_img):
@@ -208,9 +248,7 @@ class SweepUpsetConstructor:
         # generous budget than before.
         row_label_left_x = max(12, round(base_px * 0.3))
         row_label_right_gap = max(8, round(base_px * 0.3))
-        measured_label_w = max(
-            (scratch.textbbox((0, 0), str(v), font=font_row)[2] for v in base_values), default=0
-        )
+        measured_label_w = max((scratch.textbbox((0, 0), str(v), font=font_row)[2] for v in base_values), default=0)
         row_label_cap = round(cell_w * 1.5)
         row_label_w = max(60, row_label_left_x + min(measured_label_w, row_label_cap) + row_label_right_gap)
 
@@ -234,7 +272,9 @@ class SweepUpsetConstructor:
         grid = Image.new("RGB", (W, H), (16, 16, 16))
         draw = ImageDraw.Draw(grid)
 
-        draw.text((W // 2, max(8, round(base_px * 0.2))), str(title), fill=(255, 255, 255), font=font_title, anchor="mt")
+        draw.text(
+            (W // 2, max(8, round(base_px * 0.2))), str(title), fill=(255, 255, 255), font=font_title, anchor="mt"
+        )
 
         # Arity group headers + dividers -- contiguous runs of equal arity.
         runs, start = [], 0
@@ -244,8 +284,13 @@ class SweepUpsetConstructor:
                 start = j
         for run_start, run_end, arity in runs:
             cx = row_label_w + (run_start + run_end) / 2 * col_w
-            draw.text((cx, y_group), f"Arity {arity} ({run_end - run_start})",
-                      fill=(160, 160, 160), font=font_group, anchor="mt")
+            draw.text(
+                (cx, y_group),
+                f"Arity {arity} ({run_end - run_start})",
+                fill=(160, 160, 160),
+                font=font_group,
+                anchor="mt",
+            )
             if run_start > 0:
                 bx = row_label_w + run_start * col_w
                 draw.line([(bx, y_group - 4), (bx, H - pad // 2)], fill=(70, 70, 70), width=1)
@@ -268,8 +313,7 @@ class SweepUpsetConstructor:
         for i, base_val in enumerate(base_values):
             y = y_dots0 + i * dot_gap
             txt = truncate_text_to_width(base_val, font_row, row_label_max_w, scratch)
-            draw.text((row_label_left_x, y), txt,
-                      fill=(210, 210, 210), font=font_row, anchor="lm")
+            draw.text((row_label_left_x, y), txt, fill=(210, 210, 210), font=font_row, anchor="lm")
 
         # Swatches + dot matrix + connecting lines + column labels
         for j in range(n_cols):
@@ -282,8 +326,13 @@ class SweepUpsetConstructor:
             else:
                 box = [sx, y_swatch, sx + cell_w, y_swatch + cell_h]
                 draw.rectangle(box, outline=(90, 30, 30), width=2)
-                draw.text(((box[0] + box[2]) // 2, (box[1] + box[3]) // 2), "missing",
-                          fill=(200, 120, 120), font=font_col, anchor="mm")
+                draw.text(
+                    ((box[0] + box[2]) // 2, (box[1] + box[3]) // 2),
+                    "missing",
+                    fill=(200, 120, 120),
+                    font=font_col,
+                    anchor="mm",
+                )
 
             members = set(col_meta[j]["members"])
             if len(members) >= 2:
@@ -298,15 +347,15 @@ class SweepUpsetConstructor:
                     draw.ellipse([cx - unfilled_r, y - unfilled_r, cx + unfilled_r, y + unfilled_r], fill=(70, 70, 70))
 
             for li, line in enumerate(wrapped[j]):
-                draw.text((cx, y_col_label + li * line_h), line,
-                          fill=(180, 180, 180), font=font_col, anchor="mt")
+                draw.text((cx, y_col_label + li * line_h), line, fill=(180, 180, 180), font=font_col, anchor="mt")
 
         return grid
 
     # ---- main ----
 
-    def build(self, images, combo, dim_id, filename_prefix,
-              cell_size, cell_mode, font_size, title_dim, max_columns_per_page):
+    def build(
+        self, images, combo, dim_id, filename_prefix, cell_size, cell_mode, font_size, title_dim, max_columns_per_page
+    ):
         dimensions, combo_records = combo["dimensions"], combo["combo_records"]
         output_dir = folder_paths.get_output_directory()
         # Sanitized to a single safe path component -- see the identical
@@ -369,10 +418,19 @@ class SweepUpsetConstructor:
             if picked is None:
                 print(f"[SweepUpsetConstructor] title_dim '{title_dim}' doesn't match any active dimension — ignoring.")
             elif picked["index"] == target["index"]:
-                print(f"[SweepUpsetConstructor] title_dim '{title_dim}' is the self-combine target dimension itself — ignoring (it already drives the matrix's columns).")
+                print(
+                    f"[SweepUpsetConstructor] title_dim '{title_dim}' is the self-combine target dimension itself — ignoring (it already drives the matrix's columns)."
+                )
             else:
-                rep = next((d for d in other_dims if d["index"] == picked["index"]
-                            or (picked.get("group") and d.get("group") == picked.get("group"))), None)
+                rep = next(
+                    (
+                        d
+                        for d in other_dims
+                        if d["index"] == picked["index"]
+                        or (picked.get("group") and d.get("group") == picked.get("group"))
+                    ),
+                    None,
+                )
                 if rep is not None:
                     other_dims = [rep] + [d for d in other_dims if d is not rep]
 
@@ -380,7 +438,7 @@ class SweepUpsetConstructor:
 
         matrices, paths = [], []
 
-        for other_combo in (itertools.product(*other_ranges) if other_dims else [()]):
+        for other_combo in itertools.product(*other_ranges) if other_dims else [()]:
             other_idx = {d["index"]: vi for d, vi in zip(other_dims, other_combo)}
 
             col_images = []
@@ -405,12 +463,21 @@ class SweepUpsetConstructor:
                 title_text = base_title if n_pages == 1 else f"{base_title} (page {page + 1}/{n_pages})"
 
                 matrix_pil = self.draw_matrix(
-                    col_images[lo:hi], base_values, target["values"][lo:hi], combo_meta[lo:hi],
-                    title_text, cell_size, cell_mode, font_size,
+                    col_images[lo:hi],
+                    base_values,
+                    target["values"][lo:hi],
+                    combo_meta[lo:hi],
+                    title_text,
+                    cell_size,
+                    cell_mode,
+                    font_size,
                 )
 
-                mat_dir = os.path.join(output_dir, prefix_folder, "_upset", *folder_parts[:-1]) if len(folder_parts) > 1 \
+                mat_dir = (
+                    os.path.join(output_dir, prefix_folder, "_upset", *folder_parts[:-1])
+                    if len(folder_parts) > 1
                     else os.path.join(output_dir, prefix_folder, "_upset")
+                )
                 # tail (and suffix) are used as a bare filename base here,
                 # never a path -- see the identical note in
                 # SweepGridConstructor about why filename_prefix must stay
@@ -441,9 +508,11 @@ class SweepUpsetConstructor:
             matrices = fixed
 
         dim_map = "; ".join(f"dim{d['index']}='{d['dim_id']}'" for d in active_dims_sorted) or "(no active dimensions)"
-        summary = (f"SweepUpsetConstructor: {len(paths)} matrix image(s) for '{dim_id}' "
-                   f"({n_cols_total} combo(s) of {len(base_values)} base value(s)) "
-                   f"under {os.path.join(output_dir, prefix_folder, '_upset')} | {dim_map}")
+        summary = (
+            f"SweepUpsetConstructor: {len(paths)} matrix image(s) for '{dim_id}' "
+            f"({n_cols_total} combo(s) of {len(base_values)} base value(s)) "
+            f"under {os.path.join(output_dir, prefix_folder, '_upset')} | {dim_map}"
+        )
         print(f"[SweepUpsetConstructor] {summary}")
         return (torch.cat(matrices, dim=0), summary)
 

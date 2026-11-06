@@ -22,17 +22,26 @@ from .sweep_core import build_dedupe_keys, dedupe_indices
 
 
 class SweepDedupeCombos:
-
     @classmethod
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "axis_values": ("PYLIST", {
-                    "forceInput": True,
-                    "tooltip": "A PyList of PyLists — one entry per axis to dedupe on, each itself a length-N list of str/int/float/bool values. Bundle with List-Utils' 'Create PyList' node.",
-                }),
-                "float_precision": ("INT", {"default": 4, "min": 0, "max": 15,
-                    "tooltip": "Floats are rounded to this many decimal places before comparing, so e.g. 7.5 and 7.5000000001 count as the same setting."}),
+                "axis_values": (
+                    "PYLIST",
+                    {
+                        "forceInput": True,
+                        "tooltip": "A PyList of PyLists — one entry per axis to dedupe on, each itself a length-N list of str/int/float/bool values. Bundle with List-Utils' 'Create PyList' node.",
+                    },
+                ),
+                "float_precision": (
+                    "INT",
+                    {
+                        "default": 4,
+                        "min": 0,
+                        "max": 15,
+                        "tooltip": "Floats are rounded to this many decimal places before comparing, so e.g. 7.5 and 7.5000000001 count as the same setting.",
+                    },
+                ),
             },
         }
 
@@ -46,8 +55,10 @@ class SweepDedupeCombos:
         unique_index_map, expand_indices = dedupe_indices(keys)
         n, m = len(keys), len(unique_index_map)
         if m < n:
-            print(f"[SweepDedupeCombos] {n} combo(s) -> {m} unique setting(s) "
-                  f"({n - m} duplicate(s) will be reused instead of resampled).")
+            print(
+                f"[SweepDedupeCombos] {n} combo(s) -> {m} unique setting(s) "
+                f"({n - m} duplicate(s) will be reused instead of resampled)."
+            )
         else:
             print(f"[SweepDedupeCombos] {n} combo(s), no duplicates found.")
         return (unique_index_map, expand_indices, m)

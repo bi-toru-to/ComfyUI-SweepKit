@@ -1,17 +1,23 @@
 """Pure-logic tests for sweep_core.py — no torch/comfy needed at all."""
+
 import sys, os
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 import sweep_core as core
+
 
 def test_parse_text_list():
     # Newline is the ONLY separator now — a comma-separated tag list must
     # survive intact as one value, since that's exactly how tag-based
     # prompts are normally written.
-    assert core.parse_text_list("masterpiece, highres, 1girl\nsecond value") == \
-        ["masterpiece, highres, 1girl", "second value"]
+    assert core.parse_text_list("masterpiece, highres, 1girl\nsecond value") == [
+        "masterpiece, highres, 1girl",
+        "second value",
+    ]
     assert core.parse_text_list("a\nb\nc") == ["a", "b", "c"]
     assert core.parse_text_list("") == []
     print("OK test_parse_text_list (comma preserved as content, newline-only separator)")
+
 
 def test_parse_number_range():
     assert core.parse_number_list("1-5", int, "seed", allow_range=True) == [1, 2, 3, 4, 5]
@@ -23,16 +29,20 @@ def test_parse_number_range():
         assert "seed" in str(e)
     print("OK test_parse_number_range")
 
+
 def test_cost_sort_order():
     active = [
-        {"index": 1, "type": "text"}, {"index": 2, "type": "seed"},
-        {"index": 3, "type": "model"}, {"index": 4, "type": "lora_strength"},
+        {"index": 1, "type": "text"},
+        {"index": 2, "type": "seed"},
+        {"index": 3, "type": "model"},
+        {"index": 4, "type": "lora_strength"},
         {"index": 5, "type": "cfg"},
     ]
     sorted_dims = sorted(active, key=lambda d: (core.COST_RANK.get(d["type"], 5), d["index"]))
     order = [d["type"] for d in sorted_dims]
     assert order == ["model", "lora_strength", "text", "seed", "cfg"], order
     print("OK test_cost_sort_order:", order)
+
 
 def test_grid_axes_auto():
     active = [{"index": 1, "type": "text"}, {"index": 2, "type": "text"}, {"index": 3, "type": "seed"}]
@@ -43,6 +53,7 @@ def test_grid_axes_auto():
     assert x["type"] == "seed" and y["index"] == 1 and t["index"] == 2 and other == [], (x, y, t, other)
     print("OK test_grid_axes_auto")
 
+
 def test_grid_axes_two_independent_always_one_grid():
     # Regression for the reported bug: with exactly 2 independent axes,
     # auto/auto and every explicit dimN assignment of the same two axes
@@ -50,13 +61,21 @@ def test_grid_axes_two_independent_always_one_grid():
     # other_dims is empty and title_dim is None in every case, so exactly
     # one grid results regardless of how the axes were picked.
     active = [{"index": 1, "type": "steps", "values": [10, 20]}, {"index": 2, "type": "cfg", "values": [4, 7, 10]}]
-    for gx, gy, gt in [("auto", "auto", "auto"), ("auto", "auto", "none"),
-                        ("dim1", "dim2", "none"), ("dim2", "dim1", "none"),
-                        ("dim1", "dim2", "auto"), ("dim2", "dim1", "auto")]:
+    for gx, gy, gt in [
+        ("auto", "auto", "auto"),
+        ("auto", "auto", "none"),
+        ("dim1", "dim2", "none"),
+        ("dim2", "dim1", "none"),
+        ("dim1", "dim2", "auto"),
+        ("dim2", "dim1", "auto"),
+    ]:
         x, y, t, other = core.resolve_grid_axes(active, gx, gy, gt)
         assert x is not None and y is not None, f"gx={gx},gy={gy},gt={gt}: x/y must both resolve, got x={x},y={y}"
-        assert t is None and other == [], f"gx={gx},gy={gy},gt={gt}: title/other must be empty for a 2-axis sweep, got t={t}, other={other}"
+        assert t is None and other == [], (
+            f"gx={gx},gy={gy},gt={gt}: title/other must be empty for a 2-axis sweep, got t={t}, other={other}"
+        )
     print("OK test_grid_axes_two_independent_always_one_grid")
+
 
 def test_grid_axes_explicit_conflict_falls_back_like_auto():
     # An explicit-but-conflicting pick (the non-representative half of an
@@ -74,17 +93,25 @@ def test_grid_axes_explicit_conflict_falls_back_like_auto():
     assert t is None and other == [], (t, other)
     print("OK test_grid_axes_explicit_conflict_falls_back_like_auto")
 
+
 def test_grid_axes_leftover():
-    active = [{"index": 1, "type": "text"}, {"index": 2, "type": "seed"}, {"index": 3, "type": "cfg"}, {"index": 4, "type": "model"}]
+    active = [
+        {"index": 1, "type": "text"},
+        {"index": 2, "type": "seed"},
+        {"index": 3, "type": "cfg"},
+        {"index": 4, "type": "model"},
+    ]
     x, y, t, other = core.resolve_grid_axes(active, "dim2", "dim4", "dim1")
     assert x["index"] == 2 and y["index"] == 4 and t["index"] == 1
     assert [d["index"] for d in other] == [3]
     print("OK test_grid_axes_leftover")
 
+
 def test_safe_component():
     assert core.safe_component("artist: alpha/beta") == "artist_ alpha_beta"
     assert core.safe_component("") == "_"
     print("OK test_safe_component")
+
 
 def test_resize_dimension_values():
     d = {"values": [1, 2, 3, 4]}
@@ -97,6 +124,7 @@ def test_resize_dimension_values():
     core.resize_dimension_values(d, 3)
     assert d["values"] == ["A", "B", "B"] and d["model_objs"] == ["ma", "mb", "mb"], d
     print("OK test_resize_dimension_values")
+
 
 def test_partition_and_sort_groups():
     dims = [
@@ -115,20 +143,27 @@ def test_partition_and_sort_groups():
     # the zipped group (lora_strength + cfg) must sort as if it were
     # lora_strength-expensive (rank 1), ahead of plain text (rank 2) and
     # seed (rank 3), even though cfg alone would be rank 3.
-    assert [g[0]["type"] for g in sorted_groups] == ["lora_strength", "text", "seed"], \
-        [g[0]["type"] for g in sorted_groups]
+    assert [g[0]["type"] for g in sorted_groups] == ["lora_strength", "text", "seed"], [
+        g[0]["type"] for g in sorted_groups
+    ]
     print("OK test_partition_and_sort_groups")
+
 
 def test_resolve_group_index():
     dim_a = {"index": 2, "type": "lora_strength", "values": [0.0, 1.0], "group": "g1"}
     dim_b = {"index": 3, "type": "cfg", "values": [4.5, 1.0], "group": "g1"}
-    all_dims = [{"index": 1, "type": "text", "values": ["x", "y"]}, dim_a, dim_b,
-                {"index": 4, "type": "seed", "values": [1, 2]}]
+    all_dims = [
+        {"index": 1, "type": "text", "values": ["x", "y"]},
+        dim_a,
+        dim_b,
+        {"index": 4, "type": "seed", "values": [1, 2]},
+    ]
     full_idx = {2: 1}  # only dim_a's index is present
     assert core.resolve_group_index(dim_b, full_idx, all_dims) == 1, "should fall back to groupmate dim_a's index"
     assert core.resolve_group_index(dim_a, full_idx, all_dims) == 1, "own index present -> use directly"
     assert core.resolve_group_index(all_dims[3], full_idx, all_dims) == 0, "ungrouped + unresolved -> 0"
     print("OK test_resolve_group_index")
+
 
 def test_grid_axes_group_aware():
     active = [
@@ -156,6 +191,7 @@ def test_grid_axes_group_aware():
     assert [d["index"] for d in other] == [1], other
     print("OK test_grid_axes_group_aware")
 
+
 def test_format_dim_value():
     lora_dim = {"type": "lora_strength", "values": [(0.5, 0.5), (0.7, 0.3)]}
     # equal model/clip strength -> single number, not a raw tuple repr
@@ -165,6 +201,7 @@ def test_format_dim_value():
     seed_dim = {"type": "seed", "values": [1, 2]}
     assert core.format_dim_value(seed_dim, 0) == "1"
     print("OK test_format_dim_value (lora_strength shows '0.5', not the raw tuple '(0.5, 0.5)')")
+
 
 def test_format_group_value():
     dim_a = {"index": 1, "type": "lora_strength", "values": [(0.5, 0.5), (1.0, 1.0)], "group": "g1"}
@@ -181,6 +218,7 @@ def test_format_group_value():
     assert core.dim_group_members(ungrouped, active + [ungrouped]) == [ungrouped]
     print("OK test_format_group_value (all zipped members shown together, e.g. '0.5, 15, 4.5', not just one)")
 
+
 def test_build_combo_records():
     dims = [
         {"index": 1, "type": "text", "dim_id": "style", "values": ["a", "b"]},
@@ -193,11 +231,12 @@ def test_build_combo_records():
     assert [r["combo_index"] for r in records] == list(range(6))
     print("OK test_build_combo_records")
 
+
 def test_build_combo_records_zipped():
     # A zipped pair must resolve to ONE shared index per combo, not be
     # cross-producted as if independent.
     dims = [
-        {"index": 1, "type": "lora_strength", "dim_id": "l,c", "values": [(0.0,0.0),(1.0,1.0)], "group": "g1"},
+        {"index": 1, "type": "lora_strength", "dim_id": "l,c", "values": [(0.0, 0.0), (1.0, 1.0)], "group": "g1"},
         {"index": 2, "type": "cfg", "dim_id": "l,c", "values": [4.5, 1.0], "group": "g1"},
         {"index": 3, "type": "seed", "dim_id": "seed", "values": [1, 2]},
     ]
@@ -206,6 +245,7 @@ def test_build_combo_records_zipped():
     for r in records:
         assert r["idx_by_dim"][1] == r["idx_by_dim"][2], "zipped pair must share one index"
     print("OK test_build_combo_records_zipped")
+
 
 def test_extract_values():
     dims = [
@@ -230,6 +270,7 @@ def test_extract_values():
         assert "matches 2 dimensions" in str(e)
     print("OK test_extract_values")
 
+
 def test_extract_values_lora_component():
     dims = [{"index": 1, "type": "lora_strength", "dim_id": "lora", "values": [(0.5, 0.8), (1.0, 1.0)]}]
     records, sorted_dims, groups = core.build_combo_records(dims)
@@ -244,6 +285,7 @@ def test_extract_values_lora_component():
         assert "only applies to" in str(e)
     print("OK test_extract_values_lora_component")
 
+
 def test_self_combine_combinations():
     vals, meta = core.self_combine(["A", "B", "C"], "combinations", 1, 2, ", ")
     assert vals == ["A", "B", "C", "A, B", "A, C", "B, C"], vals
@@ -251,16 +293,19 @@ def test_self_combine_combinations():
     assert meta[0] == {"arity": 1, "members": [0]}
     print("OK test_self_combine_combinations")
 
+
 def test_self_combine_permutations():
     vals, meta = core.self_combine(["A", "B"], "permutations", 2, 2, ",")
     assert vals == ["A,B", "B,A"], vals
     assert meta[0]["members"] == [0, 1] and meta[1]["members"] == [1, 0]
     print("OK test_self_combine_permutations")
 
+
 def test_self_combine_max_size_zero_means_full():
     vals, meta = core.self_combine(["A", "B", "C"], "combinations", 1, 0, ",")
     assert meta[-1] == {"arity": 3, "members": [0, 1, 2]}
     print("OK test_self_combine_max_size_zero_means_full")
+
 
 def test_self_combine_bad_range_raises():
     try:
@@ -269,6 +314,7 @@ def test_self_combine_bad_range_raises():
     except ValueError as e:
         assert "min_size" in str(e)
     print("OK test_self_combine_bad_range_raises")
+
 
 def test_dedupe_indices():
     keys = ["x", "y", "x", "z", "y"]
@@ -281,6 +327,7 @@ def test_dedupe_indices():
     reexpanded = core.gather(unique_only, exp)
     assert reexpanded == ["s0", "s1", "s0", "s3", "s1"], reexpanded
     print("OK test_dedupe_indices (round trip through gather)")
+
 
 def test_gather():
     src = ["p", "q", "r"]
@@ -297,6 +344,7 @@ def test_gather():
         pass
     print("OK test_gather")
 
+
 def test_cast_pylist_values():
     assert core.cast_pylist_values(["4", 5.0, 6], "seed", "seed") == [4, 5, 6]
     assert core.cast_pylist_values([1, "2.5"], "cfg", "cfg") == [1.0, 2.5]
@@ -309,6 +357,7 @@ def test_cast_pylist_values():
         assert "cfg" in str(e)
     print("OK test_cast_pylist_values")
 
+
 def test_build_dedupe_keys():
     keys = core.build_dedupe_keys([[1.00000001, 2.0], ["a", "b"]], float_precision=3)
     assert keys[0] != keys[1]
@@ -317,6 +366,7 @@ def test_build_dedupe_keys():
 
     class Opaque:
         pass
+
     try:
         core.build_dedupe_keys([[1, 2], [Opaque(), 3]])
         assert False
@@ -335,6 +385,7 @@ def test_build_dedupe_keys():
     except ValueError as e:
         assert "length" in str(e)
     print("OK test_build_dedupe_keys")
+
 
 def test_build_filenames_uniqueness_and_folders():
     dims = [
@@ -361,10 +412,16 @@ def test_build_filenames_uniqueness_and_folders():
     assert names_noidx[0] == "SweepKit/a/a_seed1" and names_noidx[3] == "SweepKit/b/b_seed1"
     print("OK test_build_filenames_uniqueness_and_folders")
 
+
 def test_build_filenames_blank_prefix_defaults_and_self_combine_no_folder():
     dims = [
-        {"index": 1, "type": "text", "dim_id": "artist (combinations)", "values": ["a", "b", "a, b"],
-         "combo_meta": [{"arity": 1, "members": [0]}, {"arity": 1, "members": [1]}, {"arity": 2, "members": [0, 1]}]},
+        {
+            "index": 1,
+            "type": "text",
+            "dim_id": "artist (combinations)",
+            "values": ["a", "b", "a, b"],
+            "combo_meta": [{"arity": 1, "members": [0]}, {"arity": 1, "members": [1]}, {"arity": 2, "members": [0, 1]}],
+        },
     ]
     records, sorted_dims, groups = core.build_combo_records(dims)
 
@@ -380,15 +437,18 @@ def test_build_filenames_blank_prefix_defaults_and_self_combine_no_folder():
     assert names[2].startswith("SweepKit/0002_a") and "b" in names[2], names[2]
     print("OK test_build_filenames_blank_prefix_defaults_and_self_combine_no_folder")
 
+
 def test_build_filenames_opaque_model_value():
     class FakeModelObj:
         pass
+
     dims = [{"index": 1, "type": "model", "dim_id": "ckpt", "values": [FakeModelObj(), FakeModelObj()]}]
     records, sorted_dims, groups = core.build_combo_records(dims)
     names = core.build_filenames(sorted_dims, records, "SweepKit", True)
     assert "ckpt0" in names[0] and "ckpt1" in names[1], names
     assert "0x" not in names[0], "must not leak a Python object repr/memory address into the filename"
     print("OK test_build_filenames_opaque_model_value (stable positional tag, not str(obj))")
+
 
 def test_find_dim_by_id():
     dims = [{"index": 1, "type": "text", "dim_id": "style", "values": ["a"]}]
@@ -400,6 +460,7 @@ def test_find_dim_by_id():
     except ValueError as e:
         assert "style" in str(e)
     print("OK test_find_dim_by_id")
+
 
 test_parse_text_list()
 test_parse_number_range()

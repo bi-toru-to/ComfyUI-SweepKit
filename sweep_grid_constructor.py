@@ -43,31 +43,43 @@ from .sweep_core import (
 
 
 class SweepGridConstructor:
-
     @classmethod
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "images": ("PYLIST", {
-                    "forceInput": True,
-                    "tooltip": "One image tensor per combo, same order as combo.combo_records — connect via List-Utils' 'List To PyList', fed from VAEDecode's IMAGE List output.",
-                }),
-                "combo": ("SWEEP_COMBO", {
-                    "tooltip": "Connect SweepCombinationExpander's 'combo' output.",
-                }),
+                "images": (
+                    "PYLIST",
+                    {
+                        "forceInput": True,
+                        "tooltip": "One image tensor per combo, same order as combo.combo_records — connect via List-Utils' 'List To PyList', fed from VAEDecode's IMAGE List output.",
+                    },
+                ),
+                "combo": (
+                    "SWEEP_COMBO",
+                    {
+                        "tooltip": "Connect SweepCombinationExpander's 'combo' output.",
+                    },
+                ),
                 "filename_prefix": ("STRING", {"default": "SweepKit"}),
                 "cell_size": ("INT", {"default": 512, "min": 64, "max": 4096, "step": 64}),
                 "cell_mode": (["fit", "square", "original"], {"default": "fit"}),
-                "font_size": ("FLOAT", {"default": 0.4, "min": 0.0, "max": 1.0, "step": 0.05,
-                    "tooltip": (
-                        "Text size as a fraction of the ACTUAL rendered cell width (not the "
-                        "cell_size widget) — 1.0 means one character is about 1/16 of a cell's "
-                        "width. Sized off the real cell width specifically so cell_mode='original' "
-                        "(whose actual size can differ a lot from cell_size) doesn't end up with "
-                        "text that's disproportionately tiny or huge next to the images. Title "
-                        "text stays proportionally larger than axis labels at every setting."
-                    ),
-                }),
+                "font_size": (
+                    "FLOAT",
+                    {
+                        "default": 0.4,
+                        "min": 0.0,
+                        "max": 1.0,
+                        "step": 0.05,
+                        "tooltip": (
+                            "Text size as a fraction of the ACTUAL rendered cell width (not the "
+                            "cell_size widget) — 1.0 means one character is about 1/16 of a cell's "
+                            "width. Sized off the real cell width specifically so cell_mode='original' "
+                            "(whose actual size can differ a lot from cell_size) doesn't end up with "
+                            "text that's disproportionately tiny or huge next to the images. Title "
+                            "text stays proportionally larger than axis labels at every setting."
+                        ),
+                    },
+                ),
                 "grid_x_dim": (GRID_AXIS_OPTIONS, {"default": "auto"}),
                 "grid_y_dim": (GRID_AXIS_OPTIONS, {"default": "auto"}),
                 "grid_title_dim": (GRID_AXIS_OPTIONS, {"default": "auto"}),
@@ -83,7 +95,7 @@ class SweepGridConstructor:
     # ---- tensor/PIL helpers (unchanged from the old monolith) ----
 
     def tensor_to_pil(self, tensor):
-        i = 255. * tensor.cpu().numpy()
+        i = 255.0 * tensor.cpu().numpy()
         return Image.fromarray(np.clip(i.squeeze(), 0, 255).astype(np.uint8))
 
     def pil_to_tensor(self, pil_img):
@@ -187,14 +199,17 @@ class SweepGridConstructor:
         grid = Image.new("RGB", (W, H), (16, 16, 16))
         draw = ImageDraw.Draw(grid)
 
-        draw.text((W // 2, max(8, round(base_px * 0.2))), str(title), fill=(255, 255, 255), font=font_title, anchor="mt")
+        draw.text(
+            (W // 2, max(8, round(base_px * 0.2))), str(title), fill=(255, 255, 255), font=font_title, anchor="mt"
+        )
 
         y_labels_top = title_h + title_gap
         for i, lines in enumerate(wrapped_x):
             x = label_w + i * cell_w + cell_w // 2
             for li, line in enumerate(lines):
-                draw.text((x, y_labels_top + li * x_line_spacing), line,
-                          fill=(210, 210, 210), font=font_x_label, anchor="mt")
+                draw.text(
+                    (x, y_labels_top + li * x_line_spacing), line, fill=(210, 210, 210), font=font_x_label, anchor="mt"
+                )
 
         grid_top = y_labels_top + label_h
         idx = 0
@@ -207,8 +222,13 @@ class SweepGridConstructor:
             # balanced around it.
             first_center_y = y + cell_h // 2 - (len(lines) - 1) * y_line_spacing / 2
             for li, line in enumerate(lines):
-                draw.text((y_left_x, round(first_center_y + li * y_line_spacing)), line,
-                          fill=(210, 210, 210), font=font_y_label, anchor="lm")
+                draw.text(
+                    (y_left_x, round(first_center_y + li * y_line_spacing)),
+                    line,
+                    fill=(210, 210, 210),
+                    font=font_y_label,
+                    anchor="lm",
+                )
             for c in range(cols):
                 img = images[idx] if idx < len(images) else None
                 cell_x = label_w + c * cell_w
@@ -220,15 +240,19 @@ class SweepGridConstructor:
                     draw.rectangle(box, outline=(90, 30, 30), width=3)
                     draw.text(
                         ((box[0] + box[2]) // 2, (box[1] + box[3]) // 2),
-                        "missing", fill=(200, 120, 120), font=font_x_label, anchor="mm",
+                        "missing",
+                        fill=(200, 120, 120),
+                        font=font_x_label,
+                        anchor="mm",
                     )
                 idx += 1
         return grid
 
     # ---- main ----
 
-    def build(self, images, combo, filename_prefix,
-              cell_size, cell_mode, font_size, grid_x_dim, grid_y_dim, grid_title_dim):
+    def build(
+        self, images, combo, filename_prefix, cell_size, cell_mode, font_size, grid_x_dim, grid_y_dim, grid_title_dim
+    ):
         dimensions, combo_records = combo["dimensions"], combo["combo_records"]
         output_dir = folder_paths.get_output_directory()
         # Sanitized to a single safe path component -- this is used
@@ -272,9 +296,11 @@ class SweepGridConstructor:
         total_grids = 1
         for r in axis_grouping_ranges:
             total_grids *= len(r)
-        print(f"[SweepGridConstructor] Building {total_grids} grid(s) "
-              f"(x={x_dim['dim_id'] if x_dim else '—'}, y={y_dim['dim_id'] if y_dim else '—'}"
-              f"{', title=' + title_dim['dim_id'] if title_dim else ''})")
+        print(
+            f"[SweepGridConstructor] Building {total_grids} grid(s) "
+            f"(x={x_dim['dim_id'] if x_dim else '—'}, y={y_dim['dim_id'] if y_dim else '—'}"
+            f"{', title=' + title_dim['dim_id'] if title_dim else ''})"
+        )
 
         axis_caption_bits = []
         if x_dim:
@@ -283,7 +309,7 @@ class SweepGridConstructor:
             axis_caption_bits.append(f"Y: {y_dim.get('group_label', y_dim['dim_id'])}")
         axis_caption = "   ".join(axis_caption_bits)
 
-        for axis_group_combo in (itertools.product(*axis_grouping_ranges) if axis_grouping_dims else [()]):
+        for axis_group_combo in itertools.product(*axis_grouping_ranges) if axis_grouping_dims else [()]:
             axis_group_idx = {d["index"]: vi for d, vi in zip(axis_grouping_dims, axis_group_combo)}
 
             cell_images = []
@@ -297,8 +323,16 @@ class SweepGridConstructor:
                     key = tuple(resolve_group_index(d, full_idx, active_dims_sorted) for d in active_dims_sorted)
                     cell_images.append(all_images.get(key))
 
-            x_labels = [format_group_value(dim_group_members(x_dim, active_dims_sorted), xi) for xi in x_range] if x_dim else [""]
-            y_labels = [format_group_value(dim_group_members(y_dim, active_dims_sorted), yi) for yi in y_range] if y_dim else [""]
+            x_labels = (
+                [format_group_value(dim_group_members(x_dim, active_dims_sorted), xi) for xi in x_range]
+                if x_dim
+                else [""]
+            )
+            y_labels = (
+                [format_group_value(dim_group_members(y_dim, active_dims_sorted), yi) for yi in y_range]
+                if y_dim
+                else [""]
+            )
 
             title_bits, folder_parts = [], []
             for d, vi in zip(axis_grouping_dims, axis_group_combo):
@@ -312,8 +346,11 @@ class SweepGridConstructor:
 
             grid_pil = self.make_grid(cell_images, x_labels, y_labels, title_text, cell_size, cell_mode, font_size)
 
-            grid_dir = os.path.join(output_dir, prefix_folder, "_grids", *folder_parts[:-1]) if len(folder_parts) > 1 \
+            grid_dir = (
+                os.path.join(output_dir, prefix_folder, "_grids", *folder_parts[:-1])
+                if len(folder_parts) > 1
                 else os.path.join(output_dir, prefix_folder, "_grids")
+            )
             # tail is used as a bare filename base here, never a path -- it
             # must never itself contain '/', which is exactly what used to
             # break when filename_prefix (now prefix_folder, kept
@@ -345,8 +382,10 @@ class SweepGridConstructor:
             grids = fixed
 
         dim_map = "; ".join(f"dim{d['index']}='{d['dim_id']}'" for d in active_dims_sorted) or "(no active dimensions)"
-        summary = (f"SweepGridConstructor: {len(grid_paths)} grid(s) built from {len(images)} image(s) "
-                   f"under {os.path.join(output_dir, prefix_folder, '_grids')} | {dim_map}")
+        summary = (
+            f"SweepGridConstructor: {len(grid_paths)} grid(s) built from {len(images)} image(s) "
+            f"under {os.path.join(output_dir, prefix_folder, '_grids')} | {dim_map}"
+        )
         print(f"[SweepGridConstructor] {summary}")
         return (torch.cat(grids, dim=0), summary)
 

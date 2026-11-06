@@ -20,30 +20,51 @@ from .sweep_core import self_combine
 
 
 class SweepDimensionSelfCombine:
-
     @classmethod
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "dimensions": ("SWEEP_DIMS", {
-                    "tooltip": "A chain of SweepDimension nodes — the LAST dimension in this chain is the one that gets recombined against itself.",
-                }),
-                "mode": (["combinations", "permutations"], {
-                    "default": "combinations",
-                    "tooltip": (
-                        "combinations: order doesn't matter, no repeats within a combo "
-                        "('cyberpunk, noir' only, not also 'noir, cyberpunk'). "
-                        "permutations: order matters too — use this if word order actually "
-                        "changes your output (it often does for prompts), at the cost of a "
-                        "much faster-growing result count."
-                    ),
-                }),
-                "min_size": ("INT", {"default": 1, "min": 1, "max": 20,
-                    "tooltip": "Smallest combo size to include (1 = also emit every base value on its own)."}),
-                "max_size": ("INT", {"default": 0, "min": 0, "max": 20,
-                    "tooltip": "Largest combo size to include. 0 = use every base value (the full-size combo)."}),
-                "joiner": ("STRING", {"default": ", ",
-                    "tooltip": "String used to join a combo's member values into one derived value."}),
+                "dimensions": (
+                    "SWEEP_DIMS",
+                    {
+                        "tooltip": "A chain of SweepDimension nodes — the LAST dimension in this chain is the one that gets recombined against itself.",
+                    },
+                ),
+                "mode": (
+                    ["combinations", "permutations"],
+                    {
+                        "default": "combinations",
+                        "tooltip": (
+                            "combinations: order doesn't matter, no repeats within a combo "
+                            "('cyberpunk, noir' only, not also 'noir, cyberpunk'). "
+                            "permutations: order matters too — use this if word order actually "
+                            "changes your output (it often does for prompts), at the cost of a "
+                            "much faster-growing result count."
+                        ),
+                    },
+                ),
+                "min_size": (
+                    "INT",
+                    {
+                        "default": 1,
+                        "min": 1,
+                        "max": 20,
+                        "tooltip": "Smallest combo size to include (1 = also emit every base value on its own).",
+                    },
+                ),
+                "max_size": (
+                    "INT",
+                    {
+                        "default": 0,
+                        "min": 0,
+                        "max": 20,
+                        "tooltip": "Largest combo size to include. 0 = use every base value (the full-size combo).",
+                    },
+                ),
+                "joiner": (
+                    "STRING",
+                    {"default": ", ", "tooltip": "String used to join a combo's member values into one derived value."},
+                ),
             },
         }
 
@@ -55,7 +76,9 @@ class SweepDimensionSelfCombine:
     def build(self, dimensions, mode, min_size, max_size, joiner):
         dims = [dict(d) for d in dimensions] if dimensions else []
         if not dims:
-            raise ValueError("[SweepDimensionSelfCombine] no dimensions connected — chain at least one SweepDimension first.")
+            raise ValueError(
+                "[SweepDimensionSelfCombine] no dimensions connected — chain at least one SweepDimension first."
+            )
 
         target = dims[-1]
         if target.get("group"):
@@ -80,8 +103,10 @@ class SweepDimensionSelfCombine:
         new_dim["dim_id"] = f"{target['dim_id']} ({mode})"
 
         dims[-1] = new_dim
-        print(f"[SweepDimensionSelfCombine] '{target['dim_id']}': {len(base_values)} base value(s) "
-              f"-> {len(combo_values)} {mode} (sizes {min_size}-{max_size or len(base_values)})")
+        print(
+            f"[SweepDimensionSelfCombine] '{target['dim_id']}': {len(base_values)} base value(s) "
+            f"-> {len(combo_values)} {mode} (sizes {min_size}-{max_size or len(base_values)})"
+        )
         return (dims,)
 
 

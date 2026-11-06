@@ -53,7 +53,7 @@ GRID_AXIS_OPTIONS = ["auto", "none"] + [f"dim{i}" for i in range(1, GRID_AXIS_PI
 
 def safe_component(s):
     """Sanitize a string for use as a folder or filename component."""
-    s = re.sub(r'[^\w\-. ]', '_', str(s)).strip().strip('.')
+    s = re.sub(r"[^\w\-. ]", "_", str(s)).strip().strip(".")
     s = s[:80]
     return s if s else "_"
 
@@ -92,10 +92,7 @@ def parse_number_list(raw, cast, dim_id, allow_range=False):
         try:
             out.append(cast(line))
         except ValueError:
-            raise ValueError(
-                f"[SweepKit] Dimension '{dim_id}': could not parse "
-                f"value '{line}' as {cast.__name__}."
-            )
+            raise ValueError(f"[SweepKit] Dimension '{dim_id}': could not parse value '{line}' as {cast.__name__}.")
     return out
 
 
@@ -288,11 +285,19 @@ def resolve_grid_axes(active_dims, grid_x_dim, grid_y_dim, grid_title_dim):
             return None
         d = by_token.get(token)
         if d is None:
-            print(f"[SweepAllInOne] grid_{role_name}_dim '{token}' doesn't match any active dimension — falling back to auto-selection for {role_name}.")
+            print(
+                f"[SweepAllInOne] grid_{role_name}_dim '{token}' doesn't match any active dimension — falling back to auto-selection for {role_name}."
+            )
             return None
         if not available(d):
-            reason = "its group is already used by another grid axis" if d.get("group") in used_groups else "it's already used by another grid axis"
-            print(f"[SweepAllInOne] grid_{role_name}_dim '{token}' ('{d['dim_id']}') can't be used here — {reason}. Falling back to auto-selection for {role_name}.")
+            reason = (
+                "its group is already used by another grid axis"
+                if d.get("group") in used_groups
+                else "it's already used by another grid axis"
+            )
+            print(
+                f"[SweepAllInOne] grid_{role_name}_dim '{token}' ('{d['dim_id']}') can't be used here — {reason}. Falling back to auto-selection for {role_name}."
+            )
             return None
         claim(d)
         return d
@@ -370,8 +375,7 @@ def cast_pylist_values(raw_list, dim_type, dim_id):
                 out.append(raw)
         except (ValueError, TypeError) as e:
             raise ValueError(
-                f"[SweepDimension] '{dim_id}': values_pylist element {i} "
-                f"({raw!r}) can't be cast to {dim_type} — {e}"
+                f"[SweepDimension] '{dim_id}': values_pylist element {i} ({raw!r}) can't be cast to {dim_type} — {e}"
             )
     return out
 
@@ -420,7 +424,9 @@ def find_dim_by_id(dimensions, dim_id):
         available = ", ".join(sorted({d["dim_id"] for d in dimensions})) or "(none)"
         raise ValueError(f"no dimension with dim_id '{dim_id}' — available dim_ids: {available}")
     if len(candidates) > 1:
-        raise ValueError(f"'{dim_id}' matches {len(candidates)} dimensions — dim_ids must be unique to look up by dim_id.")
+        raise ValueError(
+            f"'{dim_id}' matches {len(candidates)} dimensions — dim_ids must be unique to look up by dim_id."
+        )
     return candidates[0]
 
 
@@ -576,8 +582,7 @@ def gather(source, indices):
     for i in indices:
         if not isinstance(i, int) or i < 0 or i >= n:
             raise ValueError(
-                f"[SweepGather] index {i!r} out of range for source of length {n} "
-                f"(valid range 0..{n - 1})."
+                f"[SweepGather] index {i!r} out of range for source of length {n} (valid range 0..{n - 1})."
             )
         out.append(source[i])
     return out
@@ -733,6 +738,7 @@ def font_size_for_char_width(target_char_width_px, sample_px=200):
     that's disproportionately tiny or huge next to the images.
     """
     from PIL import Image, ImageDraw
+
     sample_font = find_font(sample_px)
     scratch = ImageDraw.Draw(Image.new("RGB", (1, 1)))
     sample_text = "AaMg0Wx1"
@@ -745,6 +751,7 @@ def font_size_for_char_width(target_char_width_px, sample_px=200):
 
 def find_font(size):
     from PIL import ImageFont
+
     candidates = [
         "arial.ttf",
         "Arial.ttf",

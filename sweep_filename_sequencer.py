@@ -18,17 +18,24 @@ from .sweep_core import build_filenames
 
 
 class SweepFilenameSequencer:
-
     @classmethod
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "combo": ("SWEEP_COMBO", {
-                    "tooltip": "Connect SweepCombinationExpander's 'combo' output.",
-                }),
+                "combo": (
+                    "SWEEP_COMBO",
+                    {
+                        "tooltip": "Connect SweepCombinationExpander's 'combo' output.",
+                    },
+                ),
                 "filename_prefix": ("STRING", {"default": "SweepKit"}),
-                "include_combo_index": ("BOOLEAN", {"default": True,
-                    "tooltip": "Prefix a zero-padded running number — guarantees every filename is unique regardless of which dimensions are active."}),
+                "include_combo_index": (
+                    "BOOLEAN",
+                    {
+                        "default": True,
+                        "tooltip": "Prefix a zero-padded running number — guarantees every filename is unique regardless of which dimensions are active.",
+                    },
+                ),
             },
         }
 

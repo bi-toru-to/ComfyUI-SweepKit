@@ -11,19 +11,24 @@ from .sweep_core import gather
 
 
 class SweepGather:
-
     @classmethod
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "source": ("PYLIST", {
-                    "forceInput": True,
-                    "tooltip": "The list to read from.",
-                }),
-                "indices": ("PYLIST", {
-                    "forceInput": True,
-                    "tooltip": "Integer indices into source — result[i] = source[indices[i]]. Out-of-range indices raise immediately.",
-                }),
+                "source": (
+                    "PYLIST",
+                    {
+                        "forceInput": True,
+                        "tooltip": "The list to read from.",
+                    },
+                ),
+                "indices": (
+                    "PYLIST",
+                    {
+                        "forceInput": True,
+                        "tooltip": "Integer indices into source — result[i] = source[indices[i]]. Out-of-range indices raise immediately.",
+                    },
+                ),
             },
         }
 

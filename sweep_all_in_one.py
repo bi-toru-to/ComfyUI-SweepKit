@@ -49,7 +49,6 @@ from .sweep_core import (
 
 
 class SweepAllInOne:
-
     @classmethod
     def INPUT_TYPES(cls):
         required = {
@@ -67,62 +66,121 @@ class SweepAllInOne:
             # position: this one (positive) comes first, negative_prompt
             # is the box directly below it. The tooltips below show on
             # hover as a workaround for that missing label.
-            "positive_prompt": ("STRING", {
-                "multiline": True,
-                "default": "masterpiece, best quality, {}, 1girl, {}, looking at viewer",
-                "tooltip": (
-                    "POSITIVE prompt (this is the first of the two text boxes; "
-                    "negative_prompt is the box right below it — ComfyUI doesn't "
-                    "label multiline boxes, same as CLIPTextEncode). "
-                    "Each {} is filled in, left to right, by your 'text'-type "
-                    "SweepDimension nodes in chain order — the first one fills "
-                    "the 1st {}, the next fills the 2nd {}, and so on. "
-                    "Non-text dimensions in between are skipped when counting."
-                ),
-            }),
-            "negative_prompt": ("STRING", {
-                "multiline": True,
-                "default": "worst quality, low quality",
-                "tooltip": "NEGATIVE prompt (the box below positive_prompt). Fixed — does not vary across the sweep.",
-            }),
+            "positive_prompt": (
+                "STRING",
+                {
+                    "multiline": True,
+                    "default": "masterpiece, best quality, {}, 1girl, {}, looking at viewer",
+                    "tooltip": (
+                        "POSITIVE prompt (this is the first of the two text boxes; "
+                        "negative_prompt is the box right below it — ComfyUI doesn't "
+                        "label multiline boxes, same as CLIPTextEncode). "
+                        "Each {} is filled in, left to right, by your 'text'-type "
+                        "SweepDimension nodes in chain order — the first one fills "
+                        "the 1st {}, the next fills the 2nd {}, and so on. "
+                        "Non-text dimensions in between are skipped when counting."
+                    ),
+                },
+            ),
+            "negative_prompt": (
+                "STRING",
+                {
+                    "multiline": True,
+                    "default": "worst quality, low quality",
+                    "tooltip": "NEGATIVE prompt (the box below positive_prompt). Fixed — does not vary across the sweep.",
+                },
+            ),
             "latent_image": ("LATENT",),
-
             "text_mode": (["curly", "regex"],),
             "text_regex": ("STRING", {"default": r"\{\}"}),
-
-            "fixed_seed": ("INT", {"default": 1, "min": 0, "max": 0xffffffffffffffff, "tooltip": "Used when no SweepDimension of type 'seed' is chained in — pins every image in the sweep to this one seed instead of always defaulting to 1."}),
-            "fixed_steps": ("INT", {"default": 35, "min": 1, "max": 10000, "tooltip": "Used when no SweepDimension of type 'steps' is chained in."}),
-            "fixed_cfg": ("FLOAT", {"default": 4.5, "min": 0.0, "max": 100.0, "step": 0.05, "tooltip": "Used when no SweepDimension of type 'cfg' is chained in."}),
-
+            "fixed_seed": (
+                "INT",
+                {
+                    "default": 1,
+                    "min": 0,
+                    "max": 0xFFFFFFFFFFFFFFFF,
+                    "tooltip": "Used when no SweepDimension of type 'seed' is chained in — pins every image in the sweep to this one seed instead of always defaulting to 1.",
+                },
+            ),
+            "fixed_steps": (
+                "INT",
+                {
+                    "default": 35,
+                    "min": 1,
+                    "max": 10000,
+                    "tooltip": "Used when no SweepDimension of type 'steps' is chained in.",
+                },
+            ),
+            "fixed_cfg": (
+                "FLOAT",
+                {
+                    "default": 4.5,
+                    "min": 0.0,
+                    "max": 100.0,
+                    "step": 0.05,
+                    "tooltip": "Used when no SweepDimension of type 'cfg' is chained in.",
+                },
+            ),
             "sampler_name": (comfy.samplers.KSampler.SAMPLERS, {"default": comfy.samplers.KSampler.SAMPLERS[0]}),
             "scheduler": (comfy.samplers.KSampler.SCHEDULERS, {"default": comfy.samplers.KSampler.SCHEDULERS[0]}),
             "denoise": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01}),
-
             "filename_prefix": ("STRING", {"default": "SweepKit"}),
             "save_individuals": ("BOOLEAN", {"default": True}),
             "create_grids": ("BOOLEAN", {"default": True}),
-            "cell_size": ("INT", {"default": 512, "min": 64, "max": 4096, "step": 64, "tooltip": "Meaning depends on cell_mode: the fixed width/height for 'square', the larger dimension's target size for 'fit'. Ignored by 'original'."}),
-            "cell_mode": (["fit", "square", "original"], {
-                "default": "fit",
-                "tooltip": (
-                    "How each image is placed into its grid cell. 'fit' scales to cell_size "
-                    "preserving aspect ratio (recommended — no distortion, bounded grid size). "
-                    "'square' stretches to a cell_size×cell_size square (may distort non-square "
-                    "images — this was the only behavior before). 'original' uses each image's "
-                    "native resolution with no resizing at all (sharpest, but the grid image can "
-                    "get very large)."
-                ),
-            }),
-
-            "grid_x_dim": (GRID_AXIS_OPTIONS, {"default": "auto", "tooltip": "Which chained dimension (by chain position, dim1..dimN) is the grid's X axis. 'auto' prefers a seed-type dimension; 'none' = single column."}),
-            "grid_y_dim": (GRID_AXIS_OPTIONS, {"default": "auto", "tooltip": "Which dimension is the grid's Y axis. 'auto' picks whatever's left after X/Title; 'none' = single row."}),
-            "grid_title_dim": (GRID_AXIS_OPTIONS, {"default": "auto", "tooltip": "Which dimension's value becomes the grid's title + top output folder. 'auto' prefers the first text/static dimension. Any dimension not used for X/Y/Title still produces its own set of extra grids — chain more than the picker lists and they'll still work, just as automatic grouping axes."}),
+            "cell_size": (
+                "INT",
+                {
+                    "default": 512,
+                    "min": 64,
+                    "max": 4096,
+                    "step": 64,
+                    "tooltip": "Meaning depends on cell_mode: the fixed width/height for 'square', the larger dimension's target size for 'fit'. Ignored by 'original'.",
+                },
+            ),
+            "cell_mode": (
+                ["fit", "square", "original"],
+                {
+                    "default": "fit",
+                    "tooltip": (
+                        "How each image is placed into its grid cell. 'fit' scales to cell_size "
+                        "preserving aspect ratio (recommended — no distortion, bounded grid size). "
+                        "'square' stretches to a cell_size×cell_size square (may distort non-square "
+                        "images — this was the only behavior before). 'original' uses each image's "
+                        "native resolution with no resizing at all (sharpest, but the grid image can "
+                        "get very large)."
+                    ),
+                },
+            ),
+            "grid_x_dim": (
+                GRID_AXIS_OPTIONS,
+                {
+                    "default": "auto",
+                    "tooltip": "Which chained dimension (by chain position, dim1..dimN) is the grid's X axis. 'auto' prefers a seed-type dimension; 'none' = single column.",
+                },
+            ),
+            "grid_y_dim": (
+                GRID_AXIS_OPTIONS,
+                {
+                    "default": "auto",
+                    "tooltip": "Which dimension is the grid's Y axis. 'auto' picks whatever's left after X/Title; 'none' = single row.",
+                },
+            ),
+            "grid_title_dim": (
+                GRID_AXIS_OPTIONS,
+                {
+                    "default": "auto",
+                    "tooltip": "Which dimension's value becomes the grid's title + top output folder. 'auto' prefers the first text/static dimension. Any dimension not used for X/Y/Title still produces its own set of extra grids — chain more than the picker lists and they'll still work, just as automatic grouping axes.",
+                },
+            ),
         }
 
         optional = {
-            "dimensions": ("SWEEP_DIMS", {
-                "tooltip": "Connect the end of a chain of SweepDimension nodes here. Leave unconnected for a single fixed-parameter generation with no sweep.",
-            }),
+            "dimensions": (
+                "SWEEP_DIMS",
+                {
+                    "tooltip": "Connect the end of a chain of SweepDimension nodes here. Leave unconnected for a single fixed-parameter generation with no sweep.",
+                },
+            ),
         }
 
         return {"required": required, "optional": optional}
@@ -139,7 +197,7 @@ class SweepAllInOne:
     # ------------------------------------------------------------------
 
     def tensor_to_pil(self, tensor):
-        i = 255. * tensor.cpu().numpy()
+        i = 255.0 * tensor.cpu().numpy()
         return Image.fromarray(np.clip(i.squeeze(), 0, 255).astype(np.uint8))
 
     def pil_to_tensor(self, pil_img):
@@ -158,7 +216,7 @@ class SweepAllInOne:
                 return prompt
             result = prompt
             for match, rep in zip(reversed(matches), reversed(replacements)):
-                result = result[:match.start()] + str(rep) + result[match.end():]
+                result = result[: match.start()] + str(rep) + result[match.end() :]
             return result
 
     def encode(self, clip, text):
@@ -209,10 +267,7 @@ class SweepAllInOne:
         path = folder_paths.get_full_path("loras", lora_name)
         if path is None:
             available = ", ".join(folder_paths.get_filename_list("loras")) or "(none found)"
-            raise ValueError(
-                f"[SweepAllInOne] LoRA '{lora_name}' was not found. "
-                f"Available LoRAs: {available}"
-            )
+            raise ValueError(f"[SweepAllInOne] LoRA '{lora_name}' was not found. Available LoRAs: {available}")
         sd = load_torch_file(path, safe_load=True)
         lora_cache[lora_name] = sd
         return sd
@@ -227,9 +282,9 @@ class SweepAllInOne:
 
     def sample(self, model, positive, negative, latent, seed, steps, cfg, sampler_name, scheduler, denoise):
         from nodes import common_ksampler
+
         return common_ksampler(
-            model, seed, steps, cfg, sampler_name, scheduler,
-            positive, negative, latent, denoise=denoise
+            model, seed, steps, cfg, sampler_name, scheduler, positive, negative, latent, denoise=denoise
         )[0]
 
     def _hw_from_tensor(self, img):
@@ -331,7 +386,10 @@ class SweepAllInOne:
                     draw.rectangle(box, outline=(90, 30, 30), width=3)
                     draw.text(
                         ((box[0] + box[2]) // 2, (box[1] + box[3]) // 2),
-                        "missing", fill=(200, 120, 120), font=font_label, anchor="mm",
+                        "missing",
+                        fill=(200, 120, 120),
+                        font=font_label,
+                        anchor="mm",
                     )
                 idx += 1
         return grid
@@ -375,7 +433,11 @@ class SweepAllInOne:
                 if dtype == "seed":
                     has_seed_dim = True
 
-        folder = os.path.join(output_dir, safe_prefix, *folder_parts) if folder_parts else os.path.join(output_dir, safe_prefix)
+        folder = (
+            os.path.join(output_dir, safe_prefix, *folder_parts)
+            if folder_parts
+            else os.path.join(output_dir, safe_prefix)
+        )
         base = "_".join(name_parts) if name_parts else "image"
         filename_base = f"{safe_prefix}_{base}" if has_seed_dim else f"{safe_prefix}_{base}_seed{seed}"
         if len(filename_base) > 220:
@@ -393,12 +455,33 @@ class SweepAllInOne:
     # Main
     # ------------------------------------------------------------------
 
-    def generate(self, model, clip, vae, positive_prompt, negative_prompt, latent_image,
-                 text_mode, text_regex,
-                 fixed_seed, fixed_steps, fixed_cfg, sampler_name, scheduler, denoise,
-                 filename_prefix, save_individuals, create_grids, cell_size, cell_mode,
-                 grid_x_dim, grid_y_dim, grid_title_dim,
-                 dimensions=None, **kwargs):
+    def generate(
+        self,
+        model,
+        clip,
+        vae,
+        positive_prompt,
+        negative_prompt,
+        latent_image,
+        text_mode,
+        text_regex,
+        fixed_seed,
+        fixed_steps,
+        fixed_cfg,
+        sampler_name,
+        scheduler,
+        denoise,
+        filename_prefix,
+        save_individuals,
+        create_grids,
+        cell_size,
+        cell_mode,
+        grid_x_dim,
+        grid_y_dim,
+        grid_title_dim,
+        dimensions=None,
+        **kwargs,
+    ):
 
         output_dir = folder_paths.get_output_directory()
 
@@ -439,13 +522,19 @@ class SweepAllInOne:
             total_images = 1
 
         print("=" * 60)
-        print(f"[SweepAllInOne] {len(active_dims)} active dimension(s) in {len(groups)} group(s), {total_images} image(s) total")
+        print(
+            f"[SweepAllInOne] {len(active_dims)} active dimension(s) in {len(groups)} group(s), {total_images} image(s) total"
+        )
         for d in active_dims_sorted:
             preview = d["values"][:6]
             group_note = f" (zipped with group '{d['group']}')" if d.get("group") else ""
-            print(f"   dim{d['index']} [{d['type']}] '{d['dim_id']}'{group_note}: {preview}{' ...' if len(d['values']) > 6 else ''}")
+            print(
+                f"   dim{d['index']} [{d['type']}] '{d['dim_id']}'{group_note}: {preview}{' ...' if len(d['values']) > 6 else ''}"
+            )
         if total_images > 500:
-            print(f"[SweepAllInOne] WARNING: {total_images} images is a lot — double check this is intended before walking away.")
+            print(
+                f"[SweepAllInOne] WARNING: {total_images} images is a lot — double check this is intended before walking away."
+            )
         print("=" * 60)
 
         pbar = comfy.utils.ProgressBar(max(total_images, 1))
@@ -514,7 +603,9 @@ class SweepAllInOne:
             steps = steps_dim["values"][idx_by_dim_index[steps_dim["index"]]] if steps_dim else fixed_steps
             cfg = cfg_dim["values"][idx_by_dim_index[cfg_dim["index"]]] if cfg_dim else fixed_cfg
 
-            latent = self.sample(cur_model, positive, negative, latent_image, seed, steps, cfg, sampler_name, scheduler, denoise)
+            latent = self.sample(
+                cur_model, positive, negative, latent_image, seed, steps, cfg, sampler_name, scheduler, denoise
+            )
             image = vae.decode(latent["samples"])
 
             key = tuple(idx_by_dim_index[d["index"]] for d in active_dims_sorted)
@@ -552,9 +643,11 @@ class SweepAllInOne:
             total_grids = 1
             for r in axis_grouping_ranges:
                 total_grids *= len(r)
-            print(f"[SweepAllInOne] Building {total_grids} grid(s) "
-                  f"(x={x_dim['dim_id'] if x_dim else '—'}, y={y_dim['dim_id'] if y_dim else '—'}"
-                  f"{', title=' + title_dim['dim_id'] if title_dim else ''})")
+            print(
+                f"[SweepAllInOne] Building {total_grids} grid(s) "
+                f"(x={x_dim['dim_id'] if x_dim else '—'}, y={y_dim['dim_id'] if y_dim else '—'}"
+                f"{', title=' + title_dim['dim_id'] if title_dim else ''})"
+            )
 
             # X/Y axis names shown once, near the top of the grid, rather
             # than repeated on every column/row — same convention as a
@@ -570,7 +663,7 @@ class SweepAllInOne:
                 axis_caption_bits.append(f"Y: {y_dim.get('group_label', y_dim['dim_id'])}")
             axis_caption = "   ".join(axis_caption_bits)
 
-            for axis_group_combo in (itertools.product(*axis_grouping_ranges) if axis_grouping_dims else [()]):
+            for axis_group_combo in itertools.product(*axis_grouping_ranges) if axis_grouping_dims else [()]:
                 axis_group_idx = {d["index"]: vi for d, vi in zip(axis_grouping_dims, axis_group_combo)}
 
                 images = []
@@ -595,8 +688,16 @@ class SweepAllInOne:
                 # member happened to represent the group (and formats
                 # lora_strength as "0.5" / "0.5/0.3" instead of Python's
                 # raw tuple repr "(0.5, 0.5)").
-                x_labels = [format_group_value(dim_group_members(x_dim, active_dims_sorted), xi) for xi in x_range] if x_dim else [""]
-                y_labels = [format_group_value(dim_group_members(y_dim, active_dims_sorted), yi) for yi in y_range] if y_dim else [""]
+                x_labels = (
+                    [format_group_value(dim_group_members(x_dim, active_dims_sorted), xi) for xi in x_range]
+                    if x_dim
+                    else [""]
+                )
+                y_labels = (
+                    [format_group_value(dim_group_members(y_dim, active_dims_sorted), yi) for yi in y_range]
+                    if y_dim
+                    else [""]
+                )
 
                 title_bits = []
                 folder_parts = []
@@ -611,8 +712,11 @@ class SweepAllInOne:
 
                 grid_pil = self.make_grid(images, x_labels, y_labels, title_text, cell_size, cell_mode)
 
-                grid_dir = os.path.join(output_dir, safe_prefix, "_grids", *folder_parts[:-1]) if len(folder_parts) > 1 \
+                grid_dir = (
+                    os.path.join(output_dir, safe_prefix, "_grids", *folder_parts[:-1])
+                    if len(folder_parts) > 1
                     else os.path.join(output_dir, safe_prefix, "_grids")
+                )
                 # next_versioned_path appends a 5-digit auto-incrementing
                 # counter (matching stock SaveImage's own convention, and
                 # also creates grid_dir if needed) so rerunning this node
@@ -640,19 +744,19 @@ class SweepAllInOne:
             f"SweepAllInOne: {count} image(s) generated across {len(active_dims)} dimension(s).",
         ]
         if save_individuals:
-            summary_lines.append(f"Saved {len(saved_paths)} individual file(s) under {os.path.join(output_dir, safe_prefix)}")
+            summary_lines.append(
+                f"Saved {len(saved_paths)} individual file(s) under {os.path.join(output_dir, safe_prefix)}"
+            )
         if create_grids and grid_paths:
-            summary_lines.append(f"Saved {len(grid_paths)} grid(s) under {os.path.join(output_dir, safe_prefix, '_grids')}")
+            summary_lines.append(
+                f"Saved {len(grid_paths)} grid(s) under {os.path.join(output_dir, safe_prefix, '_grids')}"
+            )
         summary = "\n".join(summary_lines)
         print(f"[SweepAllInOne] Done. {summary}")
 
         return (torch.cat(grids, dim=0), summary)
 
 
-NODE_CLASS_MAPPINGS = {
-    "SweepAllInOne": SweepAllInOne
-}
+NODE_CLASS_MAPPINGS = {"SweepAllInOne": SweepAllInOne}
 
-NODE_DISPLAY_NAME_MAPPINGS = {
-    "SweepAllInOne": "Sweep All-in-One (Modular Text Injection)"
-}
+NODE_DISPLAY_NAME_MAPPINGS = {"SweepAllInOne": "Sweep All-in-One (Modular Text Injection)"}

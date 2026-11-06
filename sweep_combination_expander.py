@@ -23,14 +23,16 @@ from .sweep_core import build_combo_records
 
 
 class SweepCombinationExpander:
-
     @classmethod
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "dimensions": ("SWEEP_DIMS", {
-                    "tooltip": "Connect the end of a chain of SweepDimension (and optionally SweepDimensionZip / SweepDimensionSelfCombine) nodes.",
-                }),
+                "dimensions": (
+                    "SWEEP_DIMS",
+                    {
+                        "tooltip": "Connect the end of a chain of SweepDimension (and optionally SweepDimensionZip / SweepDimensionSelfCombine) nodes.",
+                    },
+                ),
             },
         }
 
@@ -46,18 +48,24 @@ class SweepCombinationExpander:
 
         dim_map_lines = []
         print("=" * 60)
-        print(f"[SweepCombinationExpander] {len(active_dims_sorted)} active dimension(s) "
-              f"in {len(sorted_groups)} group(s), {total} combination(s) total")
+        print(
+            f"[SweepCombinationExpander] {len(active_dims_sorted)} active dimension(s) "
+            f"in {len(sorted_groups)} group(s), {total} combination(s) total"
+        )
         for d in active_dims_sorted:
             preview = d["values"][:6]
             group_note = f" (zipped with group '{d['group']}')" if d.get("group") else ""
-            line = (f"dim{d['index']}: '{d['dim_id']}' [{d['type']}]{group_note} = {preview}"
-                    f"{' ...' if len(d['values']) > 6 else ''}")
+            line = (
+                f"dim{d['index']}: '{d['dim_id']}' [{d['type']}]{group_note} = {preview}"
+                f"{' ...' if len(d['values']) > 6 else ''}"
+            )
             print(f"   {line}")
             dim_map_lines.append(line)
         if total > 500:
-            print(f"[SweepCombinationExpander] WARNING: {total} combinations is a lot — "
-                  f"double check this is intended before it reaches your sampler.")
+            print(
+                f"[SweepCombinationExpander] WARNING: {total} combinations is a lot — "
+                f"double check this is intended before it reaches your sampler."
+            )
         print("=" * 60)
 
         combo = {"dimensions": active_dims_sorted, "combo_records": combo_records}

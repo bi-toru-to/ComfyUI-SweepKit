@@ -34,27 +34,35 @@ from .sweep_core import resize_dimension_values
 
 
 class SweepDimensionZip:
-
     @classmethod
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "dimensions_a": ("SWEEP_DIMS", {
-                    "tooltip": "A chain of SweepDimension nodes — the LAST dimension in this chain is the one that gets paired.",
-                }),
-                "dimensions_b": ("SWEEP_DIMS", {
-                    "tooltip": "A second chain — its LAST dimension is paired index-for-index with dimensions_a's last dimension.",
-                }),
-                "mode": (["shortest", "longest", "strict"], {
-                    "default": "shortest",
-                    "tooltip": (
-                        "shortest: stop at the shorter list, like zip() (extra values on "
-                        "the longer side are dropped, with a warning). "
-                        "longest: like itertools.zip_longest() — the shorter list is padded "
-                        "by repeating its own last value. "
-                        "strict: raise an error if the two lists don't have the same length."
-                    ),
-                }),
+                "dimensions_a": (
+                    "SWEEP_DIMS",
+                    {
+                        "tooltip": "A chain of SweepDimension nodes — the LAST dimension in this chain is the one that gets paired.",
+                    },
+                ),
+                "dimensions_b": (
+                    "SWEEP_DIMS",
+                    {
+                        "tooltip": "A second chain — its LAST dimension is paired index-for-index with dimensions_a's last dimension.",
+                    },
+                ),
+                "mode": (
+                    ["shortest", "longest", "strict"],
+                    {
+                        "default": "shortest",
+                        "tooltip": (
+                            "shortest: stop at the shorter list, like zip() (extra values on "
+                            "the longer side are dropped, with a warning). "
+                            "longest: like itertools.zip_longest() — the shorter list is padded "
+                            "by repeating its own last value. "
+                            "strict: raise an error if the two lists don't have the same length."
+                        ),
+                    },
+                ),
             },
         }
 
@@ -84,9 +92,13 @@ class SweepDimensionZip:
         list_a = list(dimensions_a) if dimensions_a else []
         list_b = list(dimensions_b) if dimensions_b else []
         if not list_a:
-            raise ValueError("[SweepDimensionZip] dimensions_a has no dimensions — connect a chain with at least one SweepDimension in it.")
+            raise ValueError(
+                "[SweepDimensionZip] dimensions_a has no dimensions — connect a chain with at least one SweepDimension in it."
+            )
         if not list_b:
-            raise ValueError("[SweepDimensionZip] dimensions_b has no dimensions — connect a chain with at least one SweepDimension in it.")
+            raise ValueError(
+                "[SweepDimensionZip] dimensions_b has no dimensions — connect a chain with at least one SweepDimension in it."
+            )
 
         group_a, passthrough_a = self._group_members(list_a)
         group_b, passthrough_b = self._group_members(list_b)
@@ -116,13 +128,17 @@ class SweepDimensionZip:
         elif mode == "longest":
             target_len = max(len_a, len_b)
             if len_a != len_b:
-                print(f"[SweepDimensionZip] '{label_a}' ({len_a}) and '{label_b}' ({len_b}) "
-                      f"differ in length — padding the shorter one by repeating its last value to {target_len}.")
+                print(
+                    f"[SweepDimensionZip] '{label_a}' ({len_a}) and '{label_b}' ({len_b}) "
+                    f"differ in length — padding the shorter one by repeating its last value to {target_len}."
+                )
         else:  # "shortest"
             target_len = min(len_a, len_b)
             if len_a != len_b:
-                print(f"[SweepDimensionZip] '{label_a}' ({len_a}) and '{label_b}' ({len_b}) "
-                      f"differ in length — truncating both to {target_len} (shortest mode).")
+                print(
+                    f"[SweepDimensionZip] '{label_a}' ({len_a}) and '{label_b}' ({len_b}) "
+                    f"differ in length — truncating both to {target_len} (shortest mode)."
+                )
 
         for d in group_a:
             resize_dimension_values(d, target_len)
