@@ -1,0 +1,456 @@
+import sys, os, importlib
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "stubs"))
+import build_stubs as S
+
+import importlib.util
+# The package folder is "ComfyUI-SweepKit" (not a valid Python identifier), so load
+# it by path under the name "sweepkit" instead of via a plain `import`.
+_pkg_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+_spec = importlib.util.spec_from_file_location(
+    "sweepkit", os.path.join(_pkg_dir, "__init__.py"), submodule_search_locations=[_pkg_dir])
+pkg = importlib.util.module_from_spec(_spec)
+sys.modules["sweepkit"] = pkg
+_spec.loader.exec_module(pkg)
+
+DimNode = pkg.NODE_CLASS_MAPPINGS["SweepDimension"]
+MainNode = pkg.NODE_CLASS_MAPPINGS["SweepAllInOne"]
+print("Package imported OK. Nodes:", list(pkg.NODE_CLASS_MAPPINGS.keys()))
+
+# ---- sanity check INPUT_TYPES for both ----
+dim_it = DimNode.INPUT_TYPES()
+assert "dim_type" in dim_it["required"]
+assert "values" in dim_it["required"]
+assert "lora_name" in dim_it["required"]
+assert "prev_dimensions" in dim_it["optional"]
+print("SweepDimension INPUT_TYPES OK")
+
+main_it = MainNode.INPUT_TYPES()
+assert "num_dimensions" not in main_it["required"], "num_dimensions should be GONE from the main node"
+assert "dim1_type" not in main_it["required"], "dimN_type widgets should be GONE from the main node"
+assert "dimensions" in main_it["optional"]
+print("SweepAllInOne INPUT_TYPES OK -", len(main_it["required"]), "required entries (down from 53)")
+
+dim_node = DimNode()
+main_node = MainNode()
+
+def base_kwargs(**overrides):
+    d = dict(
+        model=S.FAKE_MODEL, clip=S.FAKE_CLIP, vae=S.FAKE_VAE,
+        positive_prompt="masterpiece, {}, 1girl, {}",
+        negative_prompt="worst quality",
+        latent_image=S.make_fake_latent(8, 8),
+        text_mode="curly", text_regex=r"\{\}",
+        fixed_seed=1, fixed_steps=20, fixed_cfg=5.0,
+        sampler_name="euler", scheduler="normal", denoise=1.0,
+        filename_prefix="TestXY", save_individuals=True, create_grids=True, cell_size=64, cell_mode="fit",
+        grid_x_dim="auto", grid_y_dim="auto", grid_title_dim="auto",
+    )
+    d.update(overrides)
+    return d
+
+def build_chain(*dim_kwargs_list):
+    """Chain N SweepDimension.build() calls the way the graph would."""
+    prev = None
+    for dk in dim_kwargs_list:
+        full = dict(dim_type="text", dim_id="", values="", lora_name="", prev_dimensions=prev)
+        full.update(dk)
+        (prev,) = dim_node.build(**full)
+    return prev
+
+# ------------------------------------------------------------------
+print("\n--- Scenario 1: no dimensions connected (degenerate single image) ---")
+kw = base_kwargs(dimensions=None)
+grids, summary = main_node.generate(**kw)
+print(summary)
+assert grids.arr.shape[0] == 1
+print("PASS scenario 1")
+
+# ------------------------------------------------------------------
+print("\n--- Scenario 2: text x seed via two chained SweepDimension nodes ---")
+dims = build_chain(
+    dict(dim_type="text", values="artist_a\nartist_b", dim_id="artist"),
+    dict(dim_type="seed", values="1,2,3"),
+)
+assert len(dims) == 2 and dims[0]["index"] == 1 and dims[1]["index"] == 2
+S.sample_counter["n"] = 0
+kw = base_kwargs(dimensions=dims)
+grids, summary = main_node.generate(**kw)
+print(summary)
+assert S.sample_counter["n"] == 6, S.sample_counter["n"]
+# With exactly 2 independent axes (text x seed), X+Y now claim both and
+# title is left with nothing -- ONE combined 2x3 grid, not one grid per
+# artist. (This is the fixed behavior: title used to auto-fill first and
+# grab the text axis before X/Y got a turn, splitting a 2-axis sweep into
+# multiple single-row grids by default.)
+assert grids.arr.shape[0] == 1, f"expected one combined X/Y grid for a 2-axis sweep, got {grids.arr.shape[0]}"
+print("PASS scenario 2 - sample() called", S.sample_counter["n"], "times, grids:", grids.arr.shape[0])
+
+# ------------------------------------------------------------------
+print("\n--- Scenario 3: skipped (empty) dimension in the middle renumbers cleanly ---")
+dims = build_chain(
+    dict(dim_type="text", values="a\nb", dim_id="artist"),
+    dict(dim_type="seed", values=""),          # empty -> skipped, doesn't consume an index
+    dict(dim_type="cfg", values="4,7"),
+)
+assert len(dims) == 2, "the empty seed dimension should have been dropped, got %d dims" % len(dims)
+assert dims[0]["type"] == "text" and dims[0]["index"] == 1
+assert dims[1]["type"] == "cfg" and dims[1]["index"] == 2, "cfg should renumber to index 2, not 3, got %d" % dims[1]["index"]
+print("PASS scenario 3 - skipped dimension does not leave a gap:", [(d['type'], d['index']) for d in dims])
+
+# ------------------------------------------------------------------
+print("\n--- Scenario 4: 'model' dimension via dynamically-named sockets on the DIMENSION node ---")
+model_base = S.new_fake_model("Base")
+model_turbo = S.new_fake_model("Turbo")
+(single_model_dim,) = dim_node.build(
+    dim_type="model", dim_id="checkpoint", values="Base\nTurbo\nUnwired", lora_name="",
+    prev_dimensions=None, model_1=model_base, model_2=model_turbo,  # model_3 deliberately unconnected
+)
+assert len(single_model_dim) == 1
+md = single_model_dim[0]
+assert md["type"] == "model" and md["values"] == ["Base", "Turbo", "Unwired"]
+assert md["model_objs"] == [model_base, model_turbo, None], "unconnected slot must come through as None from SweepDimension, resolved later by the main node"
+S.sample_counter["n"] = 0
+kw = base_kwargs(dimensions=single_model_dim)
+grids, summary = main_node.generate(**kw)
+print(summary)
+assert S.sample_counter["n"] == 3
+print("PASS scenario 4 - main node resolved the unconnected 3rd slot to its own base model")
+
+# ------------------------------------------------------------------
+print("\n--- Scenario 5: lora_strength dimension ---")
+dims = build_chain(
+    dict(dim_type="lora_strength", values="0.0\n0.5\n1.0", dim_id="lora_str", lora_name="loraA.safetensors"),
+)
+S.sample_counter["n"] = 0
+kw = base_kwargs(dimensions=dims)
+grids, summary = main_node.generate(**kw)
+print(summary)
+assert S.sample_counter["n"] == 3
+print("PASS scenario 5")
+
+# ------------------------------------------------------------------
+print("\n--- Scenario 6: caching sanity — model(outer) x lora_strength x seed(inner), chained across 3 nodes ---")
+model_a = S.new_fake_model("A")
+model_b = S.new_fake_model("B")
+(after_model,) = dim_node.build(dim_type="model", dim_id="ckpt", values="A\nB", lora_name="",
+                                 prev_dimensions=None, model_1=model_a, model_2=model_b)
+(after_lora,) = dim_node.build(dim_type="lora_strength", dim_id="lora_str", values="0.5,1.0",
+                                lora_name="loraA.safetensors", prev_dimensions=after_model)
+(after_seed,) = dim_node.build(dim_type="seed", dim_id="", values="1,2,3", lora_name="",
+                                prev_dimensions=after_lora)
+assert [d["index"] for d in after_seed] == [1, 2, 3]
+
+S.sample_counter["n"] = 0
+S.lora_apply_counter["n"] = 0
+S.encode_counter["n"] = 0
+kw = base_kwargs(dimensions=after_seed, grid_x_dim="dim3", grid_y_dim="dim2", grid_title_dim="dim1")
+grids, summary = main_node.generate(**kw)
+print(summary)
+assert S.sample_counter["n"] == 12, S.sample_counter["n"]
+assert S.lora_apply_counter["n"] == 4, S.lora_apply_counter["n"]  # not 12
+assert S.encode_counter["n"] == 8, S.encode_counter["n"]          # not 24
+print(f"PASS scenario 6 - sample()={S.sample_counter['n']}, lora_apply={S.lora_apply_counter['n']} (not 12!), clip_encode={S.encode_counter['n']} (not 24!)")
+
+# ------------------------------------------------------------------
+print("\n--- Scenario 7: bad seed value raises a clear error (now right at the SweepDimension node itself) ---")
+try:
+    build_chain(dict(dim_type="seed", values="1,2,notanumber", dim_id="seed"))
+    print("FAIL: expected ValueError")
+    sys.exit(1)
+except ValueError as e:
+    assert "seed" in str(e) and "notanumber" in str(e)
+    print("PASS scenario 7 - raised:", e)
+
+# ------------------------------------------------------------------
+print("\n--- Scenario 8: seed range syntax '1-5' ---")
+dims = build_chain(dict(dim_type="seed", values="1-5", dim_id="seed"))
+S.sample_counter["n"] = 0
+main_node.generate(**base_kwargs(dimensions=dims))
+assert S.sample_counter["n"] == 5
+print("PASS scenario 8")
+
+# ------------------------------------------------------------------
+print("\n--- Scenario 9: unknown lora file raises a clear error ---")
+dims = build_chain(dict(dim_type="lora_strength", values="1.0", dim_id="lora_str", lora_name="doesNotExist.safetensors"))
+try:
+    main_node.generate(**base_kwargs(dimensions=dims))
+    print("FAIL: expected ValueError")
+    sys.exit(1)
+except ValueError as e:
+    assert "doesNotExist" in str(e)
+    print("PASS scenario 9 - raised:", e)
+
+# ------------------------------------------------------------------
+print("\n--- Scenario 10: many chained dimensions (beyond the old 8-dimension cap) ---")
+kwargs_list = [dict(dim_type="static", values=f"tag{i}", dim_id=f"d{i}") for i in range(1, 11)]  # 10 dims
+dims = build_chain(*kwargs_list)
+assert len(dims) == 10
+S.sample_counter["n"] = 0
+main_node.generate(**base_kwargs(dimensions=dims))
+assert S.sample_counter["n"] == 1  # static dims each contribute exactly 1 value -> 1 combo total
+print("PASS scenario 10 - 10 chained dimensions handled fine, no MAX_DIMENSIONS constraint anymore")
+
+print("\nALL INTEGRATION SCENARIOS PASSED")
+
+# ------------------------------------------------------------------
+print("\n--- Scenario 11: fixed_seed pins the seed when no seed dimension is chained ---")
+dims = build_chain(dict(dim_type="static", values="only", dim_id="d"))
+kw = base_kwargs(dimensions=dims, fixed_seed=777, save_individuals=True)
+main_node.generate(**kw)
+saved = os.listdir(S.OUTPUT_DIR + "/TestXY/only") if os.path.isdir(S.OUTPUT_DIR + "/TestXY/only") else os.listdir(S.OUTPUT_DIR + "/TestXY")
+assert any("seed777" in f for f in saved), f"expected a file with seed777 in it, got {saved}"
+print("PASS scenario 11 - fixed_seed=777 was actually used:", saved)
+
+print("\nALL EXTRA SCENARIOS PASSED")
+
+# ------------------------------------------------------------------
+print("\n--- Scenario 12: encode() uses the complete conditioning path, not a hand-rolled partial one ---")
+# Direct, explicit regression test for TWO conditioning bugs found in
+# production, back to back:
+#  v1: encode() returned a bare (cond, pooled) tuple -> crashed with
+#      "IndexError: index 1 is out of bounds for dimension 0 with size 1"
+#      inside real ComfyUI's conditioning-hooks code.
+#  v2: fixed the *shape* by hand-wrapping as [[cond, {"pooled_output":...}]]
+#      -> stopped the crash, but produced pure-noise output on a
+#      FLOW-matching model with a custom text encoder, because a
+#      hand-rolled dict can be missing extra keys that architecture
+#      actually needs to modulate on.
+# v3 (current) uses clip.encode_from_tokens_scheduled() -- the same method
+# the real, stock CLIPTextEncode node uses -- so it picks up whatever
+# extra fields a given CLIP implementation actually attaches, instead of
+# guessing. FakeClip's encode_from_tokens_scheduled stands in for "a real
+# CLIP that attaches something our hand-rolled dict wouldn't have known
+# to include" via extra_field_real_clip_would_add.
+result = main_node.encode(S.FAKE_CLIP, "a test prompt")
+assert isinstance(result, list) and len(result) == 1, f"expected one conditioning entry, got {result!r}"
+entry = result[0]
+assert isinstance(entry, list) and len(entry) == 2, f"each entry must be [cond, extra_dict], got {entry!r}"
+assert isinstance(entry[1], dict) and "pooled_output" in entry[1], f"extra dict must carry pooled_output, got {entry[1]!r}"
+assert entry[1].get("extra_field_real_clip_would_add") is True, (
+    "encode() should be going through encode_from_tokens_scheduled() (which real ComfyUI's "
+    "CLIPTextEncode uses) so architecture-specific extras survive -- got a dict missing that "
+    "field, which means it silently fell back to the incomplete hand-rolled wrap instead."
+)
+print("PASS scenario 12 - encode() goes through encode_from_tokens_scheduled(), preserving extras a hand-rolled dict would drop")
+
+print("\n--- Scenario 13: encode() still falls back correctly for a CLIP without encode_from_tokens_scheduled ---")
+class _OldStyleClip:
+    def tokenize(self, text):
+        return {"text": text}
+    def encode_from_tokens(self, tokens, return_pooled=True):
+        return (f"COND[{tokens['text']}]", {"pooled": True})
+result = main_node.encode(_OldStyleClip(), "a test prompt")
+assert isinstance(result, list) and len(result) == 1
+assert isinstance(result[0], list) and len(result[0]) == 2
+assert isinstance(result[0][1], dict) and "pooled_output" in result[0][1]
+print("PASS scenario 13 - falls back to a valid manually-wrapped shape when encode_from_tokens_scheduled isn't available")
+
+print("\nALL EXTRA SCENARIOS PASSED (v2)")
+
+# ------------------------------------------------------------------
+print("\n--- Scenario 14: SweepDimensionZip pairs values index-for-index instead of cross-producting ---")
+ZipNode = pkg.NODE_CLASS_MAPPINGS["SweepDimensionZip"]
+zip_node = ZipNode()
+
+(lora_chain,) = dim_node.build(dim_type="lora_strength", dim_id="lora_strength", values="0.0\n1.0",
+                                lora_name="loraA.safetensors", prev_dimensions=None)
+(cfg_chain,) = dim_node.build(dim_type="cfg", dim_id="cfg", values="4.5\n1.0", lora_name="", prev_dimensions=None)
+(zipped,) = zip_node.build(dimensions_a=lora_chain, dimensions_b=cfg_chain, mode="shortest")
+
+assert len(zipped) == 2, f"expected 2 dims after zipping 2 dims together, got {len(zipped)}"
+assert zipped[0]["group"] == zipped[1]["group"] and zipped[0]["group"] is not None
+# Each member keeps its OWN individual label (needed so
+# SweepDimensionExtract can still tell them apart afterward) -- the
+# combined "a, b" display string lives separately in group_label, used
+# only where a single representative needs to show both values together
+# (grid/page titles).
+assert zipped[0]["dim_id"] == "lora_strength" and zipped[1]["dim_id"] == "cfg", \
+    f"each member should keep its own label, got {zipped[0]['dim_id']!r} / {zipped[1]['dim_id']!r}"
+assert zipped[0]["group_label"] == zipped[1]["group_label"] == "lora_strength, cfg", \
+    f"group_label should be the comma-joined concatenation, got {zipped[0].get('group_label')!r} / {zipped[1].get('group_label')!r}"
+assert [d["index"] for d in zipped] == [1, 2]
+
+# chain an INDEPENDENT (non-zipped) seed dimension after the zip
+(final_dims,) = dim_node.build(dim_type="seed", dim_id="", values="1,2", lora_name="", prev_dimensions=zipped)
+assert len(final_dims) == 3
+
+# capture what actually gets sampled, to verify pairing wasn't scrambled
+calls = []
+orig_sample = main_node.sample
+def spy_sample(model, positive, negative, latent, seed, steps, cfg, sampler_name, scheduler, denoise):
+    calls.append({"model_tag": getattr(model, "tag", None), "cfg": cfg, "seed": seed})
+    return orig_sample(model, positive, negative, latent, seed, steps, cfg, sampler_name, scheduler, denoise)
+main_node.sample = spy_sample
+
+S.sample_counter["n"] = 0
+kw = base_kwargs(dimensions=final_dims, grid_x_dim="dim3", grid_y_dim="none", grid_title_dim="dim1")
+grids, summary = main_node.generate(**kw)
+main_node.sample = orig_sample
+print(summary)
+
+# 2 (zipped pair length) x 2 (independent seed) = 4 -- NOT 2x2x2=8, which is
+# what a broken (non-group-aware) implementation would produce.
+assert S.sample_counter["n"] == 4, f"expected 4 images (zip pairs x seed), got {S.sample_counter['n']} -- zip is being cross-produced instead of paired"
+assert len(calls) == 4
+
+# every call where lora strength was 0.0 (base model, untouched tag) must have cfg=4.5;
+# every call where lora strength was 1.0 (tag contains the lora-applied marker) must have cfg=1.0.
+# this is the actual correctness check -- confirms pairing, not just the count.
+for c in calls:
+    if c["model_tag"] == "base":
+        assert c["cfg"] == 4.5, f"lora OFF (base model) must pair with cfg=4.5, got {c}"
+    else:
+        assert "1.0" in str(c["model_tag"]) and c["cfg"] == 1.0, f"lora strength 1.0 must pair with cfg=1.0, got {c}"
+print(f"PASS scenario 14 - {S.sample_counter['n']} images (not 8), and every call's cfg correctly matches its paired lora strength:")
+for c in calls:
+    print("   ", c)
+
+# ------------------------------------------------------------------
+print("\n--- Scenario 15: three-way zip via chaining a zip's output into another zip ---")
+(lora2,) = dim_node.build(dim_type="lora_strength", dim_id="lora", values="0.0\n1.0", lora_name="loraA.safetensors", prev_dimensions=None)
+(cfg2,) = dim_node.build(dim_type="cfg", dim_id="cfg", values="4.5\n1.0", lora_name="", prev_dimensions=None)
+(zip1,) = zip_node.build(dimensions_a=lora2, dimensions_b=cfg2, mode="strict")
+(steps2,) = dim_node.build(dim_type="steps", dim_id="steps", values="30\n8", lora_name="", prev_dimensions=None)
+(zip2,) = zip_node.build(dimensions_a=zip1, dimensions_b=steps2, mode="strict")
+
+assert len(zip2) == 3, f"expected all 3 (lora, cfg, steps) merged into one group, got {len(zip2)} dims"
+gids = {d["group"] for d in zip2}
+assert len(gids) == 1, f"all three should share ONE group id after chaining zips, got {gids}"
+own_dim_ids = {d["dim_id"] for d in zip2}
+assert own_dim_ids == {"lora", "cfg", "steps"}, f"each of the 3 should keep its own distinct label, got {own_dim_ids}"
+group_labels = {d["group_label"] for d in zip2}
+assert group_labels == {"lora, cfg, steps"}, f"expected a 3-way combined group_label, got {group_labels}"
+
+S.sample_counter["n"] = 0
+kw = base_kwargs(dimensions=zip2)
+grids, summary = main_node.generate(**kw)
+assert S.sample_counter["n"] == 2, f"3-way zip of length-2 lists should give 2 images total, got {S.sample_counter['n']}"
+print(f"PASS scenario 15 - chaining zips composes to a 3-way pairing ({S.sample_counter['n']} images, all three dims share one group)")
+
+# ------------------------------------------------------------------
+print("\n--- Scenario 16: zip modes -- shortest / longest / strict ---")
+(a3,) = dim_node.build(dim_type="cfg", dim_id="a", values="1,2,3", lora_name="", prev_dimensions=None)
+(b2,) = dim_node.build(dim_type="steps", dim_id="b", values="10,20", lora_name="", prev_dimensions=None)
+
+(short_result,) = zip_node.build(dimensions_a=a3, dimensions_b=dim_node.build(
+    dim_type="steps", dim_id="b", values="10,20", lora_name="", prev_dimensions=None)[0], mode="shortest")
+assert len(short_result[0]["values"]) == 2 and len(short_result[1]["values"]) == 2, short_result
+print("PASS scenario 16a - shortest mode truncates the longer list to match")
+
+(long_result,) = zip_node.build(dimensions_a=dim_node.build(
+    dim_type="cfg", dim_id="a", values="1,2,3", lora_name="", prev_dimensions=None)[0],
+    dimensions_b=dim_node.build(dim_type="steps", dim_id="b", values="10,20", lora_name="", prev_dimensions=None)[0],
+    mode="longest")
+assert long_result[0]["values"] == [1.0, 2.0, 3.0]
+assert long_result[1]["values"] == [10, 20, 20], f"shorter list should pad by repeating its last value, got {long_result[1]['values']}"
+print("PASS scenario 16b - longest mode pads the shorter list by repeating its last value")
+
+try:
+    zip_node.build(dimensions_a=dim_node.build(dim_type="cfg", dim_id="a", values="1,2,3", lora_name="", prev_dimensions=None)[0],
+                    dimensions_b=dim_node.build(dim_type="steps", dim_id="b", values="10,20", lora_name="", prev_dimensions=None)[0],
+                    mode="strict")
+    print("FAIL: strict mode should have raised on mismatched lengths")
+    sys.exit(1)
+except ValueError as e:
+    assert "strict" in str(e) and "3" in str(e) and "2" in str(e)
+    print("PASS scenario 16c - strict mode raises a clear error on mismatched lengths:", e)
+
+# ------------------------------------------------------------------
+print("\n--- Scenario 17: grid building with a zipped pair doesn't double-count or leave empty cells ---")
+(lora3,) = dim_node.build(dim_type="lora_strength", dim_id="lora", values="0.0\n1.0", lora_name="loraA.safetensors", prev_dimensions=None)
+(cfg3,) = dim_node.build(dim_type="cfg", dim_id="cfg", values="4.5\n1.0", lora_name="", prev_dimensions=None)
+(zip3,) = zip_node.build(dimensions_a=lora3, dimensions_b=cfg3, mode="strict")
+(text3,) = dim_node.build(dim_type="text", dim_id="artist", values="a\nb", lora_name="", prev_dimensions=zip3)
+
+kw = base_kwargs(dimensions=text3, grid_x_dim="dim3", grid_y_dim="none", grid_title_dim="auto",
+                  positive_prompt="{}", negative_prompt="worst quality")
+grids, summary = main_node.generate(**kw)
+print(summary)
+# grid X = dim3 (the zipped lora/cfg pair, picked explicitly), title = auto -> should
+# pick the text dim (dim1... wait text is appended last, so it's dim3's *sibling* --
+# just confirm no crash and a sane grid count: one grid per text value (2), each
+# with 2 columns (the zip pair), no missing/empty cells expected since every
+# combination was actually generated.
+assert grids.arr.shape[0] == 2, f"expected 2 grids (one per artist), got {grids.arr.shape[0]}"
+print(f"PASS scenario 17 - grid built cleanly with a zipped axis as X, {grids.arr.shape[0]} grids, no crash")
+
+print("\nALL ZIP SCENARIOS PASSED")
+
+# ------------------------------------------------------------------
+print("\n--- Scenario 18: cell_mode controls aspect-ratio handling for grid cells ---")
+# Portrait image matching the user's actual workflow (888 wide x 1184 tall)
+portrait = S.FakeTensor(__import__("numpy").zeros((1, 1184, 888, 3), dtype="float32"))
+
+w, h = main_node._cell_dims([portrait], cell_size=512, cell_mode="square")
+assert (w, h) == (512, 512), f"square mode must force cell_size x cell_size regardless of source shape, got {(w, h)}"
+
+w, h = main_node._cell_dims([portrait], cell_size=512, cell_mode="fit")
+assert max(w, h) == 512, f"fit mode's larger dimension should equal cell_size, got {(w, h)}"
+assert w < h, f"portrait source (888x1184) should stay portrait (w < h) in fit mode, got {(w, h)}"
+assert abs(w / h - 888 / 1184) < 0.01, f"fit mode must preserve the original aspect ratio, got {(w, h)} vs expected ratio {888/1184:.4f}"
+
+w, h = main_node._cell_dims([portrait], cell_size=512, cell_mode="original")
+assert (w, h) == (888, 1184), f"original mode should use the exact native size regardless of cell_size, got {(w, h)}"
+
+print(f"PASS scenario 18 - square={main_node._cell_dims([portrait],512,'square')}, "
+      f"fit={main_node._cell_dims([portrait],512,'fit')} (aspect preserved), "
+      f"original={main_node._cell_dims([portrait],512,'original')} (native size, cell_size ignored)")
+
+# ------------------------------------------------------------------
+print("\n--- Scenario 19: grid title shows combined group values and X/Y axis captions, not raw tuples ---")
+(lora4,) = dim_node.build(dim_type="lora_strength", dim_id="lora_str", values="0.5\n1.0", lora_name="loraA.safetensors", prev_dimensions=None)
+(steps4,) = dim_node.build(dim_type="steps", dim_id="ste", values="15\n8", lora_name="", prev_dimensions=None)
+(zip4,) = zip_node.build(dimensions_a=lora4, dimensions_b=steps4, mode="shortest")
+
+captured_titles = []
+orig_make_grid = main_node.make_grid
+def spy_make_grid(images, x_labels, y_labels, title, cell_size=512, cell_mode="fit"):
+    captured_titles.append({"title": title, "x_labels": list(x_labels), "y_labels": list(y_labels)})
+    return orig_make_grid(images, x_labels, y_labels, title, cell_size, cell_mode)
+main_node.make_grid = spy_make_grid
+
+kw = base_kwargs(dimensions=zip4, grid_x_dim="dim1", grid_y_dim="none", grid_title_dim="none")
+main_node.generate(**kw)
+main_node.make_grid = orig_make_grid
+
+assert len(captured_titles) == 1
+cap = captured_titles[0]
+print("   title:", cap["title"])
+print("   x_labels:", cap["x_labels"])
+assert "(0.5" not in cap["title"] and "(0.5" not in str(cap["x_labels"]), \
+    f"must not show Python's raw tuple repr anywhere, got title={cap['title']!r} x_labels={cap['x_labels']!r}"
+assert "X: lora_str, ste" in cap["title"], f"title must caption the X axis by its (combined) label even with grid_title_dim=none, got {cap['title']!r}"
+assert cap["x_labels"] == ["0.5, 15", "1, 8"], f"x_labels must show BOTH zipped members' values together, got {cap['x_labels']}"
+print("PASS scenario 19 - no raw tuples anywhere, X axis is captioned even with title_dim=none, and zipped values show both members together")
+
+print("\nALL EXTRA SCENARIOS PASSED (v3)")
+
+# ------------------------------------------------------------------
+print("\n--- Scenario 20: _cell_dims reads H/W from the END of the shape, not fixed positions 1/2 ---")
+# Regression test for a real production bug: a video-capable VAE (WanVAE)
+# plausibly returns an extra leading "frames" dimension even for a single
+# still image -- [batch, frames, H, W, C] instead of the plain
+# [batch, H, W, C] this code originally assumed. Reading shape[1]/shape[2]
+# on a 5D tensor silently grabs (frames, height) instead of (height,
+# width) -- no crash, just badly wrong numbers, which is exactly what
+# produced a near-zero-height grid instead of an error.
+import numpy as np
+
+plain_4d = S.FakeTensor(np.zeros((1, 1184, 888, 3), dtype=np.float32))          # normal image tensor
+video_5d = S.FakeTensor(np.zeros((1, 1, 1184, 888, 3), dtype=np.float32))       # frames=1 leading dim
+
+w4, h4 = main_node._cell_dims([plain_4d], cell_size=512, cell_mode="fit")
+w5, h5 = main_node._cell_dims([video_5d], cell_size=512, cell_mode="fit")
+assert (w4, h4) == (w5, h5), (
+    f"a 4D [B,H,W,C] tensor and a 5D [B,F,H,W,C] tensor with the same actual "
+    f"H/W must produce the SAME cell dimensions, got 4D={w4,h4} vs 5D={w5,h5}"
+)
+assert h4 > w4, f"1184x888 is portrait (taller than wide) -- fit mode must preserve that, got {(w4, h4)}"
+assert min(w5, h5) > 10, f"5D tensor must not collapse to a near-zero dimension, got {(w5, h5)}"
+
+w5o, h5o = main_node._cell_dims([video_5d], cell_size=512, cell_mode="original")
+assert (w5o, h5o) == (888, 1184), f"original mode on a 5D tensor must still recover the true native size, got {(w5o, h5o)}"
+
+print(f"PASS scenario 20 - 4D and 5D (video-VAE-style) tensors of the same actual size produce identical, correct cell dims: {(w4, h4)}")
+
+print("\nALL EXTRA SCENARIOS PASSED (v4)")
