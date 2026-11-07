@@ -676,9 +676,9 @@ labels = "\n".join(f"m{i}" for i in range(1, 31))
 (dims,) = dim_node.build(dim_type="model", dim_id="ckpt", values=labels, lora_name="", prev_dimensions=None)
 assert len(dims[0]["values"]) == MAX_MODEL_SOCKETS == 24, len(dims[0]["values"])
 assert len(dims[0]["model_objs"]) == MAX_MODEL_SOCKETS
-js_src = open(os.path.join(_pkg_dir, "web", "sweepkit.js"), encoding="utf-8").read()
-assert f"const MAX_SOCKETS = {MAX_MODEL_SOCKETS};" in js_src, "JS and Python socket caps must match"
-print("PASS scenario 25 - 30 labels truncated to 24, matching web/sweepkit.js")
+js_src = open(os.path.join(_pkg_dir, "web", "sweepkit_core.js"), encoding="utf-8").read()
+assert f"export const MAX_SOCKETS = {MAX_MODEL_SOCKETS};" in js_src, "JS and Python socket caps must match"
+print("PASS scenario 25 - 30 labels truncated to 24, matching web/sweepkit_core.js")
 
 print("\n--- Scenario 26: Windows reserved names as filename_prefix / text values save normally ---")
 dims = build_chain(dict(dim_type="text", dim_id="t", values="CON\naux"), dict(dim_type="seed", values="1"))

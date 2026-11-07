@@ -1,34 +1,6 @@
-// Copied verbatim from web/sweepkit.js (socket-sync portion, now scoped to one node)
-const MAX_SOCKETS = 24;
-
-function parseLabelList(raw) {
-    if (!raw) return [];
-    return raw.split("\n").map((s) => s.trim()).filter((s) => s.length > 0).slice(0, MAX_SOCKETS);
-}
-
-function syncModelSockets(node, labels) {
-    const prefix = "model_";
-    const desiredCount = labels.length;
-    for (let idx = node.inputs ? node.inputs.length - 1 : -1; idx >= 0; idx--) {
-        const inp = node.inputs[idx];
-        if (!inp || !inp.name.startsWith(prefix)) continue;
-        const n = parseInt(inp.name.slice(prefix.length), 10);
-        if (Number.isNaN(n) || n > desiredCount) {
-            if (inp.link != null) node.disconnectInput(idx);
-            node.removeInput(idx);
-        }
-    }
-    for (let i = 1; i <= desiredCount; i++) {
-        const name = `${prefix}${i}`;
-        const labelText = labels[i - 1];
-        let inp = node.inputs ? node.inputs.find((x) => x.name === name) : null;
-        if (!inp) {
-            node.addInput(name, "MODEL");
-            inp = node.inputs[node.inputs.length - 1];
-        }
-        inp.label = labelText;
-    }
-}
+// MODEL-socket diffing, exercised through the real functions in
+// web/sweepkit_core.js (no copied logic).
+import { MAX_SOCKETS, parseLabelList, syncModelSockets } from "../web/sweepkit_core.js";
 
 function makeMockNode() {
     return {

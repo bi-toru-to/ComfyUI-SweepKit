@@ -1,0 +1,5 @@
+{
+  "private": true,
+  "type": "module",
+  "description": "Marks web/*.js as ES modules so Node can import them in tests/*.mjs; ComfyUI ignores this file."
+}
