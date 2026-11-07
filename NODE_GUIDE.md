@@ -110,7 +110,7 @@ sweep with multiple axes.
 |---|---|---|
 | `dim_type` | dropdown | What this axis varies and how `values` gets parsed. See the dim_type table below. |
 | `dim_id` | STRING | Identifies this axis — grid titles/filenames use it for display, and the modular pipeline (`SweepDimensionExtract`, `SweepUpsetConstructor`) looks dimensions up by matching this *exactly*. **Give it a real value if you're using the modular pipeline** — it defaults to `dim_type` if left blank, which is fine for the all-in-one node but will collide with any other same-typed dimension's default in the modular pipeline (two blank-`dim_id` `cfg` dimensions can't both default to `"cfg"` and still be told apart — you'd get an "ambiguous, matches 2 dimensions" error the moment something tries to extract by that name). |
-| `values` | STRING (multiline) | The values for this axis, one per line (commas also split them). For `seed`/`steps`/`int` you can also write a range like `1-5`. For `dim_type = model`, this is a list of *socket labels* instead of values — editing it adds/removes MODEL input sockets below (see Notes). Ignored if `values_pylist` is connected. |
+| `values` | STRING (multiline) | The values for this axis, one per line. Numeric types (`seed`/`steps`/`cfg`/`int`/`float`/`lora_strength`) also split on commas; `text`/`static`/`model` split on newlines only, so a comma-separated tag list stays one value. For `seed`/`steps`/`int` you can also write a range like `1-5` (negative bounds work too: `-3-2`, `-5--1`). For `dim_type = model`, this is a list of *socket labels* instead of values — editing it adds/removes MODEL input sockets below (see Notes). Ignored if `values_pylist` is connected. |
 | `lora_name` | dropdown | Only used when `dim_type = lora_strength` — which LoRA file's strength `values` sweeps over. **Only consumed by `SweepAllInOne`'s own internal LoRA application** — the modular pipeline ignores this field entirely; pick the LoRA file on the stock `LoraLoader` node's own `lora_name` widget instead (this axis just supplies the numeric strengths via `SweepDimensionExtract`'s `model_strength`/`clip_strength` component, see the LoRA-stacking workflow below). |
 | `prev_dimensions` *(optional)* | SWEEP_DIMS | Connect the previous `SweepDimension` (or `SweepDimensionZip`/`SweepDimensionSelfCombine`) in the chain. Leave unconnected if this is the first axis. |
 | `values_pylist` *(optional)* | PYLIST | Connect a PyList (e.g. from List-Utils' **Create PyList**, **Split String**, **Create Linspace**, or **List Dir**) to override the `values` widget entirely. Elements are cast to match `dim_type`, raising a clear error if they can't be (e.g. a non-numeric string into a `cfg`/`float` axis). For `dim_type = model`, elements are passed through untouched — this is how you feed real `MODEL` objects in directly, see the model-list workflow below. |
@@ -119,14 +119,14 @@ sweep with multiple axes.
 
 | Value | Casts as | Notes |
 |---|---|---|
-| `text` | string | Fills the next `{}` in `SweepAllInOne`'s `positive_prompt`, counting text/static-type dimensions in chain order. In the modular pipeline, feed it into a text-replace node instead. |
+| `text` | string | Fills the next `{}` in `SweepAllInOne`'s `positive_prompt`, counting only `text`-type dimensions in chain order (`static` dimensions never fill a placeholder). In the modular pipeline, feed it into a text-replace node instead. |
 | `int` | int (range like `1-5` OK) | Generic integer axis, no special behavior beyond casting. Use this for anything numeric that isn't literally the sampler's own seed/steps (e.g. a batch-variant index). |
 | `float` | float | Generic float axis, no special behavior beyond casting. Use this for anything numeric that isn't literally the sampler's own cfg — e.g. a LoRA strength, so you're not selecting an option literally called "cfg" for an axis that has nothing to do with cfg. |
 | `seed` | int (range OK) | Casts identically to `int`, but is *also* recognized by `SweepAllInOne`'s `fixed_seed` fallback and by `grid_x_dim=auto`'s seed-preference. Use this specifically when the axis IS the sampler's seed. |
 | `steps` | int (range OK) | Casts identically to `int`, also recognized by `SweepAllInOne`'s `fixed_steps` fallback. Use when the axis IS the sampler's steps. |
 | `cfg` | float | Casts identically to `float`, also recognized by `SweepAllInOne`'s `fixed_cfg` fallback. Use when the axis IS the sampler's cfg. |
-| `lora_strength` | (model_strength, clip_strength) pair | Paired tuple, tied to the `lora_name` widget — see the note above about this only mattering for `SweepAllInOne`. In the modular pipeline, workflow 3 below uses two independent `float` dimensions zipped together instead, which avoids this dim_type's unused `lora_name` field entirely. |
-| `model` | passthrough (or dynamic MODEL sockets) | Turns `values` into a label list and spawns one MODEL input socket per label — unless `values_pylist` is connected, in which case elements are used as-is (real MODEL objects) and the dynamic sockets are skipped. |
+| `lora_strength` | (model_strength, clip_strength) pair | Paired tuple, tied to the `lora_name` widget — see the note above about this only mattering for `SweepAllInOne`. Chain several to sweep several LoRAs at once: `SweepAllInOne` stacks them, applying each in chain order. In the modular pipeline, workflow 3 below uses two independent `float` dimensions zipped together instead, which avoids this dim_type's unused `lora_name` field entirely. |
+| `model` | passthrough (or dynamic MODEL sockets) | Turns `values` into a label list and spawns one MODEL input socket per label (at most 24; extra labels are ignored with a console warning) — unless `values_pylist` is connected, in which case elements are used as-is (real MODEL objects) and the dynamic sockets are skipped. |
 | `static` | string, truncated to 1 value | A fixed, non-swept single value — only the *first* line of `values` is kept no matter how many you type. Still participates in grid titles/filenames/folders exactly like `text` does, but does **not** fill a `{}` placeholder in `SweepAllInOne`'s prompt. Use this to tag a whole sweep with something constant (e.g. a batch/session label) without wiring it into the prompt at all, and without it ever multiplying your combination count. |
 
 **Outputs**
@@ -184,6 +184,9 @@ lora × steps × cfg.
 - Any *other* dimensions earlier in either input chain pass through
   unchanged and stay independent (still cross-producted normally against
   everything else) — only the two tail dimensions actually get paired.
+  If both inputs branch off the same upstream chain (e.g. `artist → cfg`
+  and `artist → steps`), the shared `artist` dimension is kept once, not
+  twice. Connecting the same chain to both inputs is an error.
 
 ---
 
@@ -527,11 +530,11 @@ this node — none of it applies to the modular pipeline.
 | `model` | MODEL | Base model. Used for any combination that doesn't have a `model`-type dimension active. |
 | `clip` | CLIP | Base CLIP. |
 | `vae` | VAE | For decoding sampled latents to images. |
-| `positive_prompt` | STRING (multiline) | The first of two unlabeled text boxes (ComfyUI doesn't title multiline widgets — same as `CLIPTextEncode`). Each `{}` (or regex match, see `text_mode`) is filled left to right by your `text`-type `SweepDimension` nodes, in chain order. |
+| `positive_prompt` | STRING (multiline) | The first of two unlabeled text boxes (ComfyUI doesn't title multiline widgets — same as `CLIPTextEncode`). Each `{}` (or regex match, see `text_mode`) is filled left to right by your `text`-type `SweepDimension` nodes, in chain order: the 1st text dimension fills the leftmost placeholder. Placeholders beyond the number of text dimensions are left unchanged. |
 | `negative_prompt` | STRING (multiline) | The second text box, directly below positive. Fixed — does not vary across the sweep. |
 | `latent_image` | LATENT | Starting latent for every sample. |
-| `text_mode` | dropdown (`curly`/`regex`) | `curly`: substitute `{}` placeholders in order. `regex`: substitute matches of `text_regex` instead. |
-| `text_regex` | STRING (default `\{\}`) | Only used when `text_mode = regex`. |
+| `text_mode` | dropdown (`curly`/`regex`) | `curly`: substitute `{}` placeholders in order. `regex`: substitute matches of `text_regex` instead, also left to right. |
+| `text_regex` | STRING (default `\{\}`) | Only used when `text_mode = regex`. An invalid pattern stops the run with a clear error before anything is sampled. |
 | `fixed_seed` | INT (default 1) | Used only when no `seed`-type `SweepDimension` is chained in. |
 | `fixed_steps` | INT (default 35) | Used only when no `steps`-type `SweepDimension` is chained in. |
 | `fixed_cfg` | FLOAT (default 4.5) | Used only when no `cfg`-type `SweepDimension` is chained in. |
@@ -549,6 +552,19 @@ this node — none of it applies to the modular pipeline.
 |---|---|---|
 | `grids` | IMAGE | All built grid images, batched (or one plain image if `create_grids` is off). |
 | `summary` | STRING | How many images were generated and where everything was saved. |
+
+**Notes**
+
+- Chain at most **one** `seed`, `steps`, `cfg` and `model` dimension each:
+  every image can only use one value of each, so a second one stops the run
+  with a clear error before anything is sampled. Use a generic `int`/`float`
+  dimension for numbers that aren't this node's own sampler settings.
+- Any number of `lora_strength` dimensions can be chained; they stack, each
+  applying its own LoRA in chain order.
+- Folder and file names are sanitized: characters other than letters,
+  digits, `-`, `_`, `.` and spaces become `_`, and Windows device names
+  (`CON`, `NUL`, `AUX`, `COM1`…) get a leading `_` (e.g. `filename_prefix =
+  NUL` saves under `_NUL/`).
 
 ---
 

@@ -46,8 +46,9 @@ approach, so the node was restructured instead of patched a fifth time.
 ## The new shape
 
 **`SweepDimension`** — one axis of the sweep, as its own ordinary node.
-Has four static widgets (`dim_type`, `label`, `values`, `lora_name` — none
-of them ever hidden or resized programmatically) and two sockets:
+Has four widgets (`dim_type`, `dim_id`, `values`, `lora_name` — none of
+them resized programmatically; only the `lora_name` combo is hidden, when
+`dim_type` isn't `lora_strength`, see the notes further down) and two sockets:
 `prev_dimensions` (optional input) and `dimensions` (output), both of
 type `SWEEP_DIMS`. Chain them like a LoRA-stacker:
 
