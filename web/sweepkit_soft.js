@@ -239,8 +239,10 @@ export function sweepWidget(env, target, widget) {
         const plan = ensurePlan(env, target);
         const before = axisChain(graph, plan);
         const last = before.axes[before.axes.length - 1];
-        // Each new axis goes left of the previous one (the first one left of the Plan).
-        const axis = addNode(env, AXIS_CLASS, [(last || plan).pos[0] - AXIS_SPACING, plan.pos[1]]);
+        // The row reads left to right in chain order and ends at the Plan: earlier
+        // axes shift left to make room for the new one next to the Plan.
+        for (const earlier of before.axes) earlier.pos = [earlier.pos[0] - AXIS_SPACING, earlier.pos[1]];
+        const axis = addNode(env, AXIS_CLASS, [plan.pos[0] - AXIS_SPACING, plan.pos[1]]);
         getWidget(axis, "dim_type").value = info.dimType;
         getWidget(axis, "dim_id").value = info.name;
         getWidget(axis, "values").value = suggestValues(info);

@@ -1,0 +1,1239 @@
+{
+  "id": "00000000-0000-0000-0000-000000000000",
+  "revision": 0,
+  "last_node_id": 14,
+  "last_link_id": 19,
+  "nodes": [
+    {
+      "id": 1,
+      "type": "CheckpointLoaderSimple",
+      "pos": [
+        40,
+        120
+      ],
+      "size": [
+        330,
+        100
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "ckpt_name",
+          "name": "ckpt_name",
+          "type": "COMBO",
+          "widget": {
+            "name": "ckpt_name"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "MODEL",
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            1
+          ]
+        },
+        {
+          "localized_name": "CLIP",
+          "name": "CLIP",
+          "type": "CLIP",
+          "links": [
+            2
+          ]
+        },
+        {
+          "localized_name": "VAE",
+          "name": "VAE",
+          "type": "VAE",
+          "links": [
+            10
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "CheckpointLoaderSimple"
+      },
+      "widgets_values": [
+        "model.safetensors"
+      ]
+    },
+    {
+      "id": 2,
+      "type": "LoraLoader",
+      "pos": [
+        40,
+        270
+      ],
+      "size": [
+        330,
+        150
+      ],
+      "flags": {},
+      "order": 8,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "model",
+          "name": "model",
+          "type": "MODEL",
+          "link": 1
+        },
+        {
+          "localized_name": "clip",
+          "name": "clip",
+          "type": "CLIP",
+          "link": 2
+        },
+        {
+          "localized_name": "lora_name",
+          "name": "lora_name",
+          "type": "COMBO",
+          "widget": {
+            "name": "lora_name"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "strength_model",
+          "name": "strength_model",
+          "type": "FLOAT",
+          "widget": {
+            "name": "strength_model"
+          },
+          "link": 15
+        },
+        {
+          "localized_name": "strength_clip",
+          "name": "strength_clip",
+          "type": "FLOAT",
+          "widget": {
+            "name": "strength_clip"
+          },
+          "link": 16
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "MODEL",
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            3
+          ]
+        },
+        {
+          "localized_name": "CLIP",
+          "name": "CLIP",
+          "type": "CLIP",
+          "links": [
+            4,
+            5
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LoraLoader"
+      },
+      "widgets_values": [
+        "my_style_lora.safetensors",
+        1,
+        1
+      ]
+    },
+    {
+      "id": 3,
+      "type": "CLIPTextEncode",
+      "pos": [
+        420,
+        80
+      ],
+      "size": [
+        400,
+        150
+      ],
+      "flags": {},
+      "order": 9,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "clip",
+          "name": "clip",
+          "type": "CLIP",
+          "link": 4
+        },
+        {
+          "localized_name": "text",
+          "name": "text",
+          "type": "STRING",
+          "widget": {
+            "name": "text"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "CONDITIONING",
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "links": [
+            6
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "CLIPTextEncode"
+      },
+      "widgets_values": [
+        "a lighthouse on a cliff at sunset, dramatic sky, highly detailed"
+      ]
+    },
+    {
+      "id": 4,
+      "type": "CLIPTextEncode",
+      "pos": [
+        420,
+        280
+      ],
+      "size": [
+        400,
+        130
+      ],
+      "flags": {},
+      "order": 10,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "clip",
+          "name": "clip",
+          "type": "CLIP",
+          "link": 5
+        },
+        {
+          "localized_name": "text",
+          "name": "text",
+          "type": "STRING",
+          "widget": {
+            "name": "text"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "CONDITIONING",
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "links": [
+            7
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "CLIPTextEncode"
+      },
+      "widgets_values": [
+        "blurry, low quality, worst quality, nsfw, nude"
+      ]
+    },
+    {
+      "id": 5,
+      "type": "EmptyLatentImage",
+      "pos": [
+        40,
+        470
+      ],
+      "size": [
+        330,
+        120
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "width",
+          "name": "width",
+          "type": "INT",
+          "widget": {
+            "name": "width"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "height",
+          "name": "height",
+          "type": "INT",
+          "widget": {
+            "name": "height"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "batch_size",
+          "name": "batch_size",
+          "type": "INT",
+          "widget": {
+            "name": "batch_size"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "LATENT",
+          "name": "LATENT",
+          "type": "LATENT",
+          "links": [
+            8
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "EmptyLatentImage"
+      },
+      "widgets_values": [
+        512,
+        512,
+        1
+      ]
+    },
+    {
+      "id": 6,
+      "type": "KSampler",
+      "pos": [
+        870,
+        120
+      ],
+      "size": [
+        320,
+        300
+      ],
+      "flags": {},
+      "order": 11,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "model",
+          "name": "model",
+          "type": "MODEL",
+          "link": 3
+        },
+        {
+          "localized_name": "positive",
+          "name": "positive",
+          "type": "CONDITIONING",
+          "link": 6
+        },
+        {
+          "localized_name": "negative",
+          "name": "negative",
+          "type": "CONDITIONING",
+          "link": 7
+        },
+        {
+          "localized_name": "latent_image",
+          "name": "latent_image",
+          "type": "LATENT",
+          "link": 8
+        },
+        {
+          "localized_name": "seed",
+          "name": "seed",
+          "type": "INT",
+          "widget": {
+            "name": "seed"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "steps",
+          "name": "steps",
+          "type": "INT",
+          "widget": {
+            "name": "steps"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "cfg",
+          "name": "cfg",
+          "type": "FLOAT",
+          "widget": {
+            "name": "cfg"
+          },
+          "link": 17
+        },
+        {
+          "localized_name": "sampler_name",
+          "name": "sampler_name",
+          "type": "COMBO",
+          "widget": {
+            "name": "sampler_name"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "scheduler",
+          "name": "scheduler",
+          "type": "COMBO",
+          "widget": {
+            "name": "scheduler"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "denoise",
+          "name": "denoise",
+          "type": "FLOAT",
+          "widget": {
+            "name": "denoise"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "LATENT",
+          "name": "LATENT",
+          "type": "LATENT",
+          "links": [
+            9
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "KSampler"
+      },
+      "widgets_values": [
+        1,
+        "randomize",
+        25,
+        7,
+        "euler",
+        "normal",
+        1
+      ]
+    },
+    {
+      "id": 7,
+      "type": "VAEDecode",
+      "pos": [
+        1240,
+        120
+      ],
+      "size": [
+        200,
+        50
+      ],
+      "flags": {},
+      "order": 12,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "samples",
+          "name": "samples",
+          "type": "LATENT",
+          "link": 9
+        },
+        {
+          "localized_name": "vae",
+          "name": "vae",
+          "type": "VAE",
+          "link": 10
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "IMAGE",
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            18
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "VAEDecode"
+      }
+    },
+    {
+      "id": 8,
+      "type": "SweepDimension",
+      "pos": [
+        40,
+        -600
+      ],
+      "size": [
+        400,
+        200
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "prev_dimensions",
+          "name": "prev_dimensions",
+          "shape": 7,
+          "type": "SWEEP_DIMS",
+          "link": null
+        },
+        {
+          "localized_name": "values_pylist",
+          "name": "values_pylist",
+          "shape": 7,
+          "type": "PYLIST",
+          "link": null
+        },
+        {
+          "localized_name": "dim_type",
+          "name": "dim_type",
+          "type": "COMBO",
+          "widget": {
+            "name": "dim_type"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "dim_id",
+          "name": "dim_id",
+          "type": "STRING",
+          "widget": {
+            "name": "dim_id"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "values",
+          "name": "values",
+          "type": "STRING",
+          "widget": {
+            "name": "values"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "lora_name",
+          "name": "lora_name",
+          "type": "COMBO",
+          "widget": {
+            "name": "lora_name"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "dimensions",
+          "name": "dimensions",
+          "type": "SWEEP_DIMS",
+          "links": [
+            11
+          ]
+        }
+      ],
+      "title": "LoRA model strength",
+      "properties": {
+        "Node name for S&R": "SweepDimension"
+      },
+      "widgets_values": [
+        "float",
+        "lora_model",
+        "0.2, 0.4, 0.6, 0.8, 1.0",
+        ""
+      ],
+      "color": "#223",
+      "bgcolor": "#335"
+    },
+    {
+      "id": 9,
+      "type": "SweepDimension",
+      "pos": [
+        40,
+        -340
+      ],
+      "size": [
+        400,
+        200
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "prev_dimensions",
+          "name": "prev_dimensions",
+          "shape": 7,
+          "type": "SWEEP_DIMS",
+          "link": null
+        },
+        {
+          "localized_name": "values_pylist",
+          "name": "values_pylist",
+          "shape": 7,
+          "type": "PYLIST",
+          "link": null
+        },
+        {
+          "localized_name": "dim_type",
+          "name": "dim_type",
+          "type": "COMBO",
+          "widget": {
+            "name": "dim_type"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "dim_id",
+          "name": "dim_id",
+          "type": "STRING",
+          "widget": {
+            "name": "dim_id"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "values",
+          "name": "values",
+          "type": "STRING",
+          "widget": {
+            "name": "values"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "lora_name",
+          "name": "lora_name",
+          "type": "COMBO",
+          "widget": {
+            "name": "lora_name"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "dimensions",
+          "name": "dimensions",
+          "type": "SWEEP_DIMS",
+          "links": [
+            12
+          ]
+        }
+      ],
+      "title": "LoRA clip strength",
+      "properties": {
+        "Node name for S&R": "SweepDimension"
+      },
+      "widgets_values": [
+        "float",
+        "lora_clip",
+        "0.3, 0.5, 0.6, 0.7, 0.9",
+        ""
+      ],
+      "color": "#223",
+      "bgcolor": "#335"
+    },
+    {
+      "id": 10,
+      "type": "SweepDimensionZip",
+      "pos": [
+        500,
+        -470
+      ],
+      "size": [
+        300,
+        140
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "dimensions_a",
+          "name": "dimensions_a",
+          "type": "SWEEP_DIMS",
+          "link": 11
+        },
+        {
+          "localized_name": "dimensions_b",
+          "name": "dimensions_b",
+          "type": "SWEEP_DIMS",
+          "link": 12
+        },
+        {
+          "localized_name": "mode",
+          "name": "mode",
+          "type": "COMBO",
+          "widget": {
+            "name": "mode"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "dimensions",
+          "name": "dimensions",
+          "type": "SWEEP_DIMS",
+          "links": [
+            13
+          ]
+        }
+      ],
+      "title": "Pair the two strengths",
+      "properties": {
+        "Node name for S&R": "SweepDimensionZip"
+      },
+      "widgets_values": [
+        "shortest"
+      ],
+      "color": "#223",
+      "bgcolor": "#335"
+    },
+    {
+      "id": 11,
+      "type": "SweepDimension",
+      "pos": [
+        860,
+        -470
+      ],
+      "size": [
+        400,
+        200
+      ],
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "prev_dimensions",
+          "name": "prev_dimensions",
+          "shape": 7,
+          "type": "SWEEP_DIMS",
+          "link": 13
+        },
+        {
+          "localized_name": "values_pylist",
+          "name": "values_pylist",
+          "shape": 7,
+          "type": "PYLIST",
+          "link": null
+        },
+        {
+          "localized_name": "dim_type",
+          "name": "dim_type",
+          "type": "COMBO",
+          "widget": {
+            "name": "dim_type"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "dim_id",
+          "name": "dim_id",
+          "type": "STRING",
+          "widget": {
+            "name": "dim_id"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "values",
+          "name": "values",
+          "type": "STRING",
+          "widget": {
+            "name": "values"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "lora_name",
+          "name": "lora_name",
+          "type": "COMBO",
+          "widget": {
+            "name": "lora_name"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "dimensions",
+          "name": "dimensions",
+          "type": "SWEEP_DIMS",
+          "links": [
+            14
+          ]
+        }
+      ],
+      "title": "cfg",
+      "properties": {
+        "Node name for S&R": "SweepDimension"
+      },
+      "widgets_values": [
+        "cfg",
+        "cfg",
+        "4, 7, 10",
+        ""
+      ],
+      "color": "#223",
+      "bgcolor": "#335"
+    },
+    {
+      "id": 12,
+      "type": "SweepCombinationExpander",
+      "pos": [
+        1300,
+        -470
+      ],
+      "size": [
+        190,
+        240
+      ],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "dimensions",
+          "name": "dimensions",
+          "type": "SWEEP_DIMS",
+          "link": 14
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "combo",
+          "name": "combo",
+          "type": "SWEEP_COMBO",
+          "links": [
+            19
+          ]
+        },
+        {
+          "localized_name": "combo_count",
+          "name": "combo_count",
+          "type": "INT",
+          "links": null
+        },
+        {
+          "localized_name": "dim_map",
+          "name": "dim_map",
+          "type": "STRING",
+          "links": null
+        },
+        {
+          "label": "axis_1",
+          "localized_name": "axis_1",
+          "name": "axis_1",
+          "shape": 6,
+          "type": "*",
+          "links": [
+            15
+          ]
+        },
+        {
+          "label": "axis_2",
+          "localized_name": "axis_2",
+          "name": "axis_2",
+          "shape": 6,
+          "type": "*",
+          "links": [
+            16
+          ]
+        },
+        {
+          "label": "axis_3",
+          "localized_name": "axis_3",
+          "name": "axis_3",
+          "shape": 6,
+          "type": "*",
+          "links": [
+            17
+          ]
+        },
+        {
+          "label": "axis_4",
+          "localized_name": "axis_4",
+          "name": "axis_4",
+          "shape": 6,
+          "type": "*",
+          "links": null
+        },
+        {
+          "label": "axis_5",
+          "localized_name": "axis_5",
+          "name": "axis_5",
+          "shape": 6,
+          "type": "*",
+          "links": null
+        },
+        {
+          "label": "axis_6",
+          "localized_name": "axis_6",
+          "name": "axis_6",
+          "shape": 6,
+          "type": "*",
+          "links": null
+        },
+        {
+          "label": "axis_7",
+          "localized_name": "axis_7",
+          "name": "axis_7",
+          "shape": 6,
+          "type": "*",
+          "links": null
+        },
+        {
+          "label": "axis_8",
+          "localized_name": "axis_8",
+          "name": "axis_8",
+          "shape": 6,
+          "type": "*",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "SweepCombinationExpander"
+      },
+      "color": "#223",
+      "bgcolor": "#335"
+    },
+    {
+      "id": 13,
+      "type": "SweepCollect",
+      "pos": [
+        1500,
+        120
+      ],
+      "size": [
+        330,
+        330
+      ],
+      "flags": {},
+      "order": 13,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "images",
+          "name": "images",
+          "type": "IMAGE",
+          "link": 18
+        },
+        {
+          "localized_name": "combo",
+          "name": "combo",
+          "type": "SWEEP_COMBO",
+          "link": 19
+        },
+        {
+          "localized_name": "filename_prefix",
+          "name": "filename_prefix",
+          "type": "STRING",
+          "widget": {
+            "name": "filename_prefix"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "save_individuals",
+          "name": "save_individuals",
+          "type": "BOOLEAN",
+          "widget": {
+            "name": "save_individuals"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "create_grids",
+          "name": "create_grids",
+          "type": "BOOLEAN",
+          "widget": {
+            "name": "create_grids"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "cell_size",
+          "name": "cell_size",
+          "type": "INT",
+          "widget": {
+            "name": "cell_size"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "cell_mode",
+          "name": "cell_mode",
+          "type": "COMBO",
+          "widget": {
+            "name": "cell_mode"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "font_size",
+          "name": "font_size",
+          "type": "FLOAT",
+          "widget": {
+            "name": "font_size"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "grid_x_dim",
+          "name": "grid_x_dim",
+          "type": "COMBO",
+          "widget": {
+            "name": "grid_x_dim"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "grid_y_dim",
+          "name": "grid_y_dim",
+          "type": "COMBO",
+          "widget": {
+            "name": "grid_y_dim"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "grid_title_dim",
+          "name": "grid_title_dim",
+          "type": "COMBO",
+          "widget": {
+            "name": "grid_title_dim"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "grids",
+          "name": "grids",
+          "type": "IMAGE",
+          "links": null
+        },
+        {
+          "localized_name": "summary",
+          "name": "summary",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "SweepCollect"
+      },
+      "widgets_values": [
+        "SweepKit_pair_lora",
+        true,
+        true,
+        512,
+        "fit",
+        0.4,
+        "auto",
+        "auto",
+        "auto"
+      ],
+      "color": "#232",
+      "bgcolor": "#353"
+    },
+    {
+      "id": 14,
+      "type": "MarkdownNote",
+      "pos": [
+        40,
+        -900
+      ],
+      "size": [
+        900,
+        250
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "properties": {},
+      "widgets_values": [
+        "## Pair two LoRA strengths, sweep cfg too\n\nThe LoRA's **model strength** and **clip strength** are swept *together*: the two lists are paired value for value (0.2 with 0.3, 0.4 with 0.5, ...) by **Pair the two strengths** (Sweep Pair Axes), instead of trying every combination. cfg (4, 7, 10) is crossed with the pairs: 5 pairs x 3 cfg = 15 images, in one grid in `output/SweepKit_pair_lora/`.\n\n1. Pick your checkpoint and a LoRA file.\n2. Queue.\n\nThe Sweep Plan's `axis_1`, `axis_2`, `axis_3` outputs go to the LoRA's two strengths and the KSampler's cfg. No extra node packs needed."
+      ],
+      "color": "#432",
+      "bgcolor": "#653"
+    }
+  ],
+  "links": [
+    [
+      1,
+      1,
+      0,
+      2,
+      0,
+      "MODEL"
+    ],
+    [
+      2,
+      1,
+      1,
+      2,
+      1,
+      "CLIP"
+    ],
+    [
+      3,
+      2,
+      0,
+      6,
+      0,
+      "MODEL"
+    ],
+    [
+      4,
+      2,
+      1,
+      3,
+      0,
+      "CLIP"
+    ],
+    [
+      5,
+      2,
+      1,
+      4,
+      0,
+      "CLIP"
+    ],
+    [
+      6,
+      3,
+      0,
+      6,
+      1,
+      "CONDITIONING"
+    ],
+    [
+      7,
+      4,
+      0,
+      6,
+      2,
+      "CONDITIONING"
+    ],
+    [
+      8,
+      5,
+      0,
+      6,
+      3,
+      "LATENT"
+    ],
+    [
+      9,
+      6,
+      0,
+      7,
+      0,
+      "LATENT"
+    ],
+    [
+      10,
+      1,
+      2,
+      7,
+      1,
+      "VAE"
+    ],
+    [
+      11,
+      8,
+      0,
+      10,
+      0,
+      "SWEEP_DIMS"
+    ],
+    [
+      12,
+      9,
+      0,
+      10,
+      1,
+      "SWEEP_DIMS"
+    ],
+    [
+      13,
+      10,
+      0,
+      11,
+      0,
+      "SWEEP_DIMS"
+    ],
+    [
+      14,
+      11,
+      0,
+      12,
+      0,
+      "SWEEP_DIMS"
+    ],
+    [
+      15,
+      12,
+      3,
+      2,
+      3,
+      "FLOAT"
+    ],
+    [
+      16,
+      12,
+      4,
+      2,
+      4,
+      "FLOAT"
+    ],
+    [
+      17,
+      12,
+      5,
+      6,
+      6,
+      "FLOAT"
+    ],
+    [
+      18,
+      7,
+      0,
+      13,
+      0,
+      "IMAGE"
+    ],
+    [
+      19,
+      12,
+      0,
+      13,
+      1,
+      "SWEEP_COMBO"
+    ]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 0.3,
+      "offset": [
+        260,
+        960
+      ]
+    }
+  },
+  "version": 0.4
+}

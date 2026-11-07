@@ -90,6 +90,8 @@ const added = g._nodes.filter((n) => n.comfyClass === "SweepCombinationExpander"
 assert(added.every((n) => n.pos[1] < top), "Plan and axes sit above the existing graph");
 const xs = added.map((n) => n.pos[0]);
 assert(new Set(xs).size === xs.length, "no two new nodes share a column");
+const chainX = [...axes2, plan].map((n) => n.pos[0]);
+assert(chainX.every((x, i) => i === 0 || x > chainX[i - 1]), "the row reads left to right in chain order, ending at the Plan");
 console.log("PASS test4: sweeping settings adds axes, chains them and wires the Plan outputs");
 
 // ---- collecting ----
