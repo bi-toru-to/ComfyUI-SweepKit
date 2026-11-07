@@ -176,3 +176,37 @@ const tgt = g.make("KSampler");
 assert(sweepWidget(env(g), tgt, widget(tgt, "cfg")), "sweeping a setting works through an old Plan");
 assert(legacy.outputs.some((o) => o.name === "axis_2"), "old Plan got its axis outputs once an axis was added");
 console.log("PASS test6: Plan outputs follow the chain and never lose a wired output");
+
+// ---- how many images ----
+{
+    const { LARGE_SWEEP, RUNS_WIDGET, describeRuns, estimateRuns, refreshRuns } = await import("../web/sweepkit_soft.js");
+    const gr = new FakeGraph();
+    const rp = gr.make("SweepCombinationExpander");
+    const r1 = gr.make("SweepDimension", { dim_type: "seed", values: "1-3" });
+    const r2 = gr.make("SweepDimension", { dim_type: "cfg", values: "4,7" });
+    for (const [node, count] of [[r1, 3], [r2, 2]]) node.widgets.push({ name: "sweepkit_summary", value: "", count });
+    r1.connect(0, r2, 0);
+    r2.connect(0, rp, 0);
+    eq(estimateRuns(gr, rp), { counts: [3, 2], total: 6 }, "product of the axes' value counts");
+    eq(describeRuns(estimateRuns(gr, rp)), { text: "6 images: 3 \u00d7 2", error: false }, "text");
+    eq(describeRuns({ counts: [1], total: 1 }), { text: "1 image", error: false }, "singular, no breakdown for one axis");
+    const big = describeRuns({ counts: [30, 30], total: 900 });
+    assert(big.error && big.text.includes("900") && big.text.includes("a lot") && LARGE_SWEEP === 500, "large sweeps are flagged");
+    refreshRuns(gr, rp);
+    assert(widget(rp, RUNS_WIDGET) === undefined, "a node without custom widget support is skipped quietly");
+    rp.addCustomWidget = (w) => (rp.widgets.push(w), w);
+    rp.setDirtyCanvas = () => {};
+    refreshRuns(gr, rp);
+    eq(widget(rp, RUNS_WIDGET).value, "6 images: 3 \u00d7 2", "line written on the node");
+    // Not knowable yet: no count, then no axes at all.
+    delete r2.widgets.find((w) => w.name === "sweepkit_summary").count;
+    assert(estimateRuns(gr, rp) === null, "unknown count -> no estimate");
+    refreshRuns(gr, rp);
+    eq(widget(rp, RUNS_WIDGET).value, "", "line cleared when unknown");
+    assert(estimateRuns(gr, gr.make("SweepCombinationExpander")) === null, "no axes -> no estimate");
+    // The snapshot changes when a count changes, so polling notices.
+    const before = planSnapshot(gr, rp);
+    r2.widgets.find((w) => w.name === "sweepkit_summary").count = 5;
+    assert(planSnapshot(gr, rp) !== before, "snapshot includes the counts");
+    console.log("PASS test7: the image count follows the axes feeding a node");
+}

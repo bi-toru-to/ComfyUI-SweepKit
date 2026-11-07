@@ -15,13 +15,16 @@
  * object, graph and node factory are passed in by web/sweepkit.js.
  */
 
-import { getWidget } from "./sweepkit_core.js";
+import { ensureSummaryWidget, getWidget } from "./sweepkit_core.js";
 
 // Must match MAX_AXIS_OUTPUTS in sweep_core.py.
 export const MAX_AXIS_OUTPUTS = 8;
 export const PLAN_CLASS = "SweepCombinationExpander";
 export const AXIS_CLASS = "SweepDimension";
 export const COLLECT_CLASS = "SweepCollect";
+export const RUNS_WIDGET = "sweepkit_runs";
+// Must match LARGE_SWEEP_WARNING in sweep_core.py.
+export const LARGE_SWEEP = 500;
 
 const OUTPUT_PREFIX = "axis_";
 // Placeholder text of the values widget left by a "model" axis etc. is never produced here.
@@ -122,10 +125,42 @@ export function syncPlanOutputs(graph, plan, { upgrade = false } = {}) {
     }
 }
 
-/** What a Plan's polling compares between ticks. */
+/** What polling compares between ticks for a node fed by a chain of axes
+ * (a Plan or All-in-One): the chain, each axis's name and its value count. */
 export function planSnapshot(graph, plan) {
     const { axes, complete } = axisChain(graph, plan);
-    return [complete, ...axes.map((a, i) => `${a.id}:${axisLabel(a, i + 1)}`)].join("\u0001");
+    const count = (a) => (getWidget(a, "sweepkit_summary") || {}).count;
+    return [complete, ...axes.map((a, i) => `${a.id}:${axisLabel(a, i + 1)}:${count(a)}`)].join("\u0001");
+}
+
+// ---- how many images will this make? ----
+
+/** {counts, total} from the value counts of the axes feeding `node`, or null
+ * when it can't be told yet (an unreadable chain, a connected list, no axes). */
+export function estimateRuns(graph, node) {
+    const { axes, complete } = axisChain(graph, node);
+    if (!complete || axes.length === 0) return null;
+    const counts = axes.map((a) => (getWidget(a, "sweepkit_summary") || {}).count);
+    if (counts.some((c) => typeof c !== "number")) return null;
+    return { counts, total: counts.reduce((a, b) => a * b, 1) };
+}
+
+/** Text and error flag for the "N images" line. */
+export function describeRuns(est) {
+    if (!est) return { text: "", error: false };
+    const parts = est.counts.length > 1 ? `: ${est.counts.join(" × ")}` : "";
+    const n = est.total.toLocaleString("en-US");
+    if (est.total > LARGE_SWEEP) return { text: `⚠ ${n} images${parts} — that is a lot`, error: true };
+    return { text: `${n} ${est.total === 1 ? "image" : "images"}${parts}`, error: false };
+}
+
+/** Update the "N images" line of a node fed by axes. */
+export function refreshRuns(graph, node) {
+    const widget = ensureSummaryWidget(node, RUNS_WIDGET);
+    if (!widget) return;
+    const { text, error } = describeRuns(estimateRuns(graph, node));
+    Object.assign(widget, { value: text, error });
+    if (node.setDirtyCanvas) node.setDirtyCanvas(true, true);
 }
 
 // ---- describing a setting, and suggesting values for it ----

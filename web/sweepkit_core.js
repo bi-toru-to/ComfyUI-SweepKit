@@ -158,13 +158,13 @@ async function defaultPost(path, body) {
     return resp.json();
 }
 
-/** The summary widget of a node, creating it (drawn on the canvas, never
+/** A one-line info widget of a node (by default the values summary), creating it (drawn on the canvas, never
  * saved with the workflow) on first use. Null when the node can't take custom widgets. */
-export function ensureSummaryWidget(node) {
-    const existing = getWidget(node, SUMMARY_WIDGET);
+export function ensureSummaryWidget(node, name = SUMMARY_WIDGET) {
+    const existing = getWidget(node, name);
     if (existing || typeof node.addCustomWidget !== "function") return existing || null;
     const widget = {
-        name: SUMMARY_WIDGET,
+        name,
         type: "sweepkit_summary",
         value: "",
         error: false,

@@ -7,6 +7,7 @@ import {
     collectHere,
     hasImageOutput,
     planSnapshot,
+    refreshRuns,
     sweepWidget,
     sweepableWidget,
     syncPlanOutputs,
@@ -70,7 +71,11 @@ app.registerExtension({
         const proto = nodeType.prototype;
         const watch = (node) =>
             startPolling(node, {
-                sync: (n) => n.graph && syncPlanOutputs(n.graph, n),
+                sync: (n) => {
+                    if (!n.graph) return;
+                    syncPlanOutputs(n.graph, n);
+                    refreshRuns(n.graph, n);
+                },
                 snapshotFn: (n) => (n.graph ? planSnapshot(n.graph, n) : ""),
             });
         chain(proto, "onNodeCreated", watch);
@@ -113,5 +118,24 @@ app.registerExtension({
             });
         }
         return items.length ? [null, ...items] : [];
+    },
+});
+
+/** Sweep All-in-One shows how many images the axes feeding it will make. */
+app.registerExtension({
+    name: "SweepKit.RunCount",
+    async beforeRegisterNodeDef(nodeType, nodeData) {
+        if (nodeData.name !== "SweepAllInOne") return;
+        const proto = nodeType.prototype;
+        const watch = (node) =>
+            startPolling(node, {
+                sync: (n) => n.graph && refreshRuns(n.graph, n),
+                snapshotFn: (n) => (n.graph ? planSnapshot(n.graph, n) : ""),
+            });
+        chain(proto, "onNodeCreated", watch);
+        chain(proto, "onConfigure", watch);
+        chain(proto, "onRemoved", (node) => {
+            node.__sweepRemoved = true;
+        });
     },
 });
