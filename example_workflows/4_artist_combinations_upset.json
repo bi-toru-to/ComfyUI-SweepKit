@@ -1,0 +1,1085 @@
+{
+  "id": "e93a949e-13d2-4768-9e87-8c25569ed4e7",
+  "revision": 0,
+  "last_node_id": 15,
+  "last_link_id": 17,
+  "nodes": [
+    {
+      "id": 1,
+      "type": "MarkdownNote",
+      "pos": [
+        0,
+        -340
+      ],
+      "size": [
+        460,
+        260
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "properties": {},
+      "widgets_values": [
+        "## Style combinations + UpSet matrix\n\nEvery single style, pair and triple of 4 styles (**14 combinations**), each rendered once and shown as an UpSet matrix: one column per combination, dots marking which styles it uses.\n\nEdit the style list and the prompt template (`__artist__` is replaced). Needs **ComfyUI-List-Utils**.\n\nSee NODE_GUIDE.md, workflow 4."
+      ],
+      "color": "#432",
+      "bgcolor": "#653"
+    },
+    {
+      "id": 2,
+      "type": "CheckpointLoaderSimple",
+      "pos": [
+        0,
+        0
+      ],
+      "size": [
+        270,
+        98
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "ckpt_name",
+          "name": "ckpt_name",
+          "type": "COMBO",
+          "widget": {
+            "name": "ckpt_name"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "MODEL",
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            2
+          ]
+        },
+        {
+          "localized_name": "CLIP",
+          "name": "CLIP",
+          "type": "CLIP",
+          "links": [
+            1,
+            12
+          ]
+        },
+        {
+          "localized_name": "VAE",
+          "name": "VAE",
+          "type": "VAE",
+          "links": [
+            6
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "CheckpointLoaderSimple"
+      },
+      "widgets_values": [
+        "model.safetensors"
+      ]
+    },
+    {
+      "id": 3,
+      "type": "CLIPTextEncode",
+      "pos": [
+        420,
+        220
+      ],
+      "size": [
+        400,
+        200
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "clip",
+          "name": "clip",
+          "type": "CLIP",
+          "link": 1
+        },
+        {
+          "localized_name": "text",
+          "name": "text",
+          "type": "STRING",
+          "widget": {
+            "name": "text"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "CONDITIONING",
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "links": [
+            3
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "CLIPTextEncode"
+      },
+      "widgets_values": [
+        "nsfw, nude, worst quality, low quality, blurry"
+      ]
+    },
+    {
+      "id": 4,
+      "type": "EmptyLatentImage",
+      "pos": [
+        420,
+        440
+      ],
+      "size": [
+        270,
+        106
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "width",
+          "name": "width",
+          "type": "INT",
+          "widget": {
+            "name": "width"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "height",
+          "name": "height",
+          "type": "INT",
+          "widget": {
+            "name": "height"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "batch_size",
+          "name": "batch_size",
+          "type": "INT",
+          "widget": {
+            "name": "batch_size"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "LATENT",
+          "name": "LATENT",
+          "type": "LATENT",
+          "links": [
+            4
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "EmptyLatentImage"
+      },
+      "widgets_values": [
+        512,
+        512,
+        1
+      ]
+    },
+    {
+      "id": 5,
+      "type": "KSampler",
+      "pos": [
+        1120,
+        0
+      ],
+      "size": [
+        270,
+        262
+      ],
+      "flags": {},
+      "order": 11,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "model",
+          "name": "model",
+          "type": "MODEL",
+          "link": 2
+        },
+        {
+          "localized_name": "positive",
+          "name": "positive",
+          "type": "CONDITIONING",
+          "link": 14
+        },
+        {
+          "localized_name": "negative",
+          "name": "negative",
+          "type": "CONDITIONING",
+          "link": 3
+        },
+        {
+          "localized_name": "latent_image",
+          "name": "latent_image",
+          "type": "LATENT",
+          "link": 4
+        },
+        {
+          "localized_name": "seed",
+          "name": "seed",
+          "type": "INT",
+          "widget": {
+            "name": "seed"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "steps",
+          "name": "steps",
+          "type": "INT",
+          "widget": {
+            "name": "steps"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "cfg",
+          "name": "cfg",
+          "type": "FLOAT",
+          "widget": {
+            "name": "cfg"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "sampler_name",
+          "name": "sampler_name",
+          "type": "COMBO",
+          "widget": {
+            "name": "sampler_name"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "scheduler",
+          "name": "scheduler",
+          "type": "COMBO",
+          "widget": {
+            "name": "scheduler"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "denoise",
+          "name": "denoise",
+          "type": "FLOAT",
+          "widget": {
+            "name": "denoise"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "LATENT",
+          "name": "LATENT",
+          "type": "LATENT",
+          "links": [
+            5
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "KSampler"
+      },
+      "widgets_values": [
+        0,
+        "randomize",
+        25,
+        8,
+        "euler",
+        "simple",
+        1
+      ]
+    },
+    {
+      "id": 6,
+      "type": "VAEDecode",
+      "pos": [
+        1460,
+        0
+      ],
+      "size": [
+        140,
+        46
+      ],
+      "flags": {},
+      "order": 12,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "samples",
+          "name": "samples",
+          "type": "LATENT",
+          "link": 5
+        },
+        {
+          "localized_name": "vae",
+          "name": "vae",
+          "type": "VAE",
+          "link": 6
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "IMAGE",
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            15
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "VAEDecode"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 7,
+      "type": "SweepDimension",
+      "pos": [
+        0,
+        600
+      ],
+      "size": [
+        400,
+        200
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "prev_dimensions",
+          "name": "prev_dimensions",
+          "shape": 7,
+          "type": "SWEEP_DIMS",
+          "link": null
+        },
+        {
+          "localized_name": "values_pylist",
+          "name": "values_pylist",
+          "shape": 7,
+          "type": "PYLIST",
+          "link": null
+        },
+        {
+          "localized_name": "dim_type",
+          "name": "dim_type",
+          "type": "COMBO",
+          "widget": {
+            "name": "dim_type"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "dim_id",
+          "name": "dim_id",
+          "type": "STRING",
+          "widget": {
+            "name": "dim_id"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "values",
+          "name": "values",
+          "type": "STRING",
+          "widget": {
+            "name": "values"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "lora_name",
+          "name": "lora_name",
+          "type": "COMBO",
+          "widget": {
+            "name": "lora_name"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "dimensions",
+          "name": "dimensions",
+          "type": "SWEEP_DIMS",
+          "links": [
+            7
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "SweepDimension"
+      },
+      "widgets_values": [
+        "text",
+        "artist_style",
+        "cyberpunk\nnoir\npastel\nvintage",
+        ""
+      ]
+    },
+    {
+      "id": 8,
+      "type": "SweepDimensionSelfCombine",
+      "pos": [
+        0,
+        900
+      ],
+      "size": [
+        313.53671875,
+        130
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "dimensions",
+          "name": "dimensions",
+          "type": "SWEEP_DIMS",
+          "link": 7
+        },
+        {
+          "localized_name": "mode",
+          "name": "mode",
+          "type": "COMBO",
+          "widget": {
+            "name": "mode"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "min_size",
+          "name": "min_size",
+          "type": "INT",
+          "widget": {
+            "name": "min_size"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "max_size",
+          "name": "max_size",
+          "type": "INT",
+          "widget": {
+            "name": "max_size"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "joiner",
+          "name": "joiner",
+          "type": "STRING",
+          "widget": {
+            "name": "joiner"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "dimensions",
+          "name": "dimensions",
+          "type": "SWEEP_DIMS",
+          "links": [
+            8
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "SweepDimensionSelfCombine"
+      },
+      "widgets_values": [
+        "combinations",
+        1,
+        3,
+        ", "
+      ]
+    },
+    {
+      "id": 9,
+      "type": "SweepCombinationExpander",
+      "pos": [
+        420,
+        700
+      ],
+      "size": [
+        239.3794921875,
+        66
+      ],
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "dimensions",
+          "name": "dimensions",
+          "type": "SWEEP_DIMS",
+          "link": 8
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "combo",
+          "name": "combo",
+          "type": "SWEEP_COMBO",
+          "links": [
+            9,
+            17
+          ]
+        },
+        {
+          "localized_name": "combo_count",
+          "name": "combo_count",
+          "type": "INT",
+          "links": null
+        },
+        {
+          "localized_name": "dim_map",
+          "name": "dim_map",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "SweepCombinationExpander"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 10,
+      "type": "SweepDimensionExtract",
+      "pos": [
+        420,
+        860
+      ],
+      "size": [
+        270,
+        82
+      ],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "combo",
+          "name": "combo",
+          "type": "SWEEP_COMBO",
+          "link": 9
+        },
+        {
+          "localized_name": "dim_id",
+          "name": "dim_id",
+          "type": "STRING",
+          "widget": {
+            "name": "dim_id"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "component",
+          "name": "component",
+          "type": "COMBO",
+          "widget": {
+            "name": "component"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "values",
+          "name": "values",
+          "type": "PYLIST",
+          "links": [
+            10
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "SweepDimensionExtract"
+      },
+      "widgets_values": [
+        "artist_style (combinations)",
+        "value"
+      ]
+    },
+    {
+      "id": 11,
+      "type": "GODMT_PyListToList",
+      "pos": [
+        760,
+        860
+      ],
+      "size": [
+        140,
+        26
+      ],
+      "flags": {},
+      "order": 8,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "PYLIST",
+          "name": "PYLIST",
+          "type": "PYLIST",
+          "link": 10
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "*",
+          "name": "*",
+          "shape": 6,
+          "type": "*",
+          "links": [
+            11
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "GODMT_PyListToList"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 12,
+      "type": "StringReplace",
+      "pos": [
+        760,
+        600
+      ],
+      "size": [
+        400,
+        200
+      ],
+      "flags": {},
+      "order": 9,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "string",
+          "name": "string",
+          "type": "STRING",
+          "widget": {
+            "name": "string"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "find",
+          "name": "find",
+          "type": "STRING",
+          "widget": {
+            "name": "find"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "replace",
+          "name": "replace",
+          "type": "STRING",
+          "widget": {
+            "name": "replace"
+          },
+          "link": 11
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "STRING",
+          "name": "STRING",
+          "type": "STRING",
+          "links": [
+            13
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "StringReplace"
+      },
+      "widgets_values": [
+        "masterpiece, best quality, a lighthouse on a cliff at sunset, __artist__ style",
+        "__artist__",
+        ""
+      ]
+    },
+    {
+      "id": 13,
+      "type": "CLIPTextEncode",
+      "pos": [
+        1000,
+        600
+      ],
+      "size": [
+        400,
+        200
+      ],
+      "flags": {},
+      "order": 10,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "clip",
+          "name": "clip",
+          "type": "CLIP",
+          "link": 12
+        },
+        {
+          "localized_name": "text",
+          "name": "text",
+          "type": "STRING",
+          "widget": {
+            "name": "text"
+          },
+          "link": 13
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "CONDITIONING",
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "links": [
+            14
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "CLIPTextEncode"
+      },
+      "widgets_values": [
+        ""
+      ]
+    },
+    {
+      "id": 14,
+      "type": "GODMT_ListToPyList",
+      "pos": [
+        1460,
+        300
+      ],
+      "size": [
+        140,
+        26
+      ],
+      "flags": {},
+      "order": 13,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "ANY",
+          "name": "ANY",
+          "type": "*",
+          "link": 15
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "PYLIST",
+          "name": "PYLIST",
+          "type": "PYLIST",
+          "links": [
+            16
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "GODMT_ListToPyList"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 15,
+      "type": "SweepUpsetConstructor",
+      "pos": [
+        1700,
+        0
+      ],
+      "size": [
+        300.435546875,
+        222
+      ],
+      "flags": {},
+      "order": 14,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "images",
+          "name": "images",
+          "type": "PYLIST",
+          "link": 16
+        },
+        {
+          "localized_name": "combo",
+          "name": "combo",
+          "type": "SWEEP_COMBO",
+          "link": 17
+        },
+        {
+          "localized_name": "dim_id",
+          "name": "dim_id",
+          "type": "STRING",
+          "widget": {
+            "name": "dim_id"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "filename_prefix",
+          "name": "filename_prefix",
+          "type": "STRING",
+          "widget": {
+            "name": "filename_prefix"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "cell_size",
+          "name": "cell_size",
+          "type": "INT",
+          "widget": {
+            "name": "cell_size"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "cell_mode",
+          "name": "cell_mode",
+          "type": "COMBO",
+          "widget": {
+            "name": "cell_mode"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "font_size",
+          "name": "font_size",
+          "type": "FLOAT",
+          "widget": {
+            "name": "font_size"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "title_dim",
+          "name": "title_dim",
+          "type": "COMBO",
+          "widget": {
+            "name": "title_dim"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "max_columns_per_page",
+          "name": "max_columns_per_page",
+          "type": "INT",
+          "widget": {
+            "name": "max_columns_per_page"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "matrices",
+          "name": "matrices",
+          "type": "IMAGE",
+          "links": null
+        },
+        {
+          "localized_name": "summary",
+          "name": "summary",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "SweepUpsetConstructor"
+      },
+      "widgets_values": [
+        "artist_style (combinations)",
+        "SweepKit_styles",
+        120,
+        "fit",
+        1,
+        "none",
+        60
+      ]
+    }
+  ],
+  "links": [
+    [
+      1,
+      2,
+      1,
+      3,
+      0,
+      "CLIP"
+    ],
+    [
+      2,
+      2,
+      0,
+      5,
+      0,
+      "MODEL"
+    ],
+    [
+      3,
+      3,
+      0,
+      5,
+      2,
+      "CONDITIONING"
+    ],
+    [
+      4,
+      4,
+      0,
+      5,
+      3,
+      "LATENT"
+    ],
+    [
+      5,
+      5,
+      0,
+      6,
+      0,
+      "LATENT"
+    ],
+    [
+      6,
+      2,
+      2,
+      6,
+      1,
+      "VAE"
+    ],
+    [
+      7,
+      7,
+      0,
+      8,
+      0,
+      "SWEEP_DIMS"
+    ],
+    [
+      8,
+      8,
+      0,
+      9,
+      0,
+      "SWEEP_DIMS"
+    ],
+    [
+      9,
+      9,
+      0,
+      10,
+      0,
+      "SWEEP_COMBO"
+    ],
+    [
+      10,
+      10,
+      0,
+      11,
+      0,
+      "PYLIST"
+    ],
+    [
+      11,
+      11,
+      0,
+      12,
+      2,
+      "STRING"
+    ],
+    [
+      12,
+      2,
+      1,
+      13,
+      0,
+      "CLIP"
+    ],
+    [
+      13,
+      12,
+      0,
+      13,
+      1,
+      "STRING"
+    ],
+    [
+      14,
+      13,
+      0,
+      5,
+      1,
+      "CONDITIONING"
+    ],
+    [
+      15,
+      6,
+      0,
+      14,
+      0,
+      "IMAGE"
+    ],
+    [
+      16,
+      14,
+      0,
+      15,
+      0,
+      "PYLIST"
+    ],
+    [
+      17,
+      9,
+      0,
+      15,
+      1,
+      "SWEEP_COMBO"
+    ]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 1,
+      "offset": [
+        0,
+        0
+      ]
+    }
+  },
+  "version": 0.4
+}
