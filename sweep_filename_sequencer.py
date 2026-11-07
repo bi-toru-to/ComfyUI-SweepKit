@@ -28,7 +28,13 @@ class SweepFilenameSequencer:
                         "tooltip": "Connect SweepCombinationExpander's 'combo' output.",
                     },
                 ),
-                "filename_prefix": ("STRING", {"default": "SweepKit"}),
+                "filename_prefix": (
+                    "STRING",
+                    {
+                        "default": "SweepKit",
+                        "tooltip": "Top folder of every generated path (sanitized; blank = SweepKit). Feed the output through PyList To List into SaveImage's filename_prefix.",
+                    },
+                ),
                 "include_combo_index": (
                     "BOOLEAN",
                     {

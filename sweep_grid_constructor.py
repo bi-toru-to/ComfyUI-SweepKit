@@ -40,9 +40,30 @@ class SweepGridConstructor:
                         "tooltip": "Connect SweepCombinationExpander's 'combo' output.",
                     },
                 ),
-                "filename_prefix": ("STRING", {"default": "SweepKit"}),
-                "cell_size": ("INT", {"default": 512, "min": 64, "max": 4096, "step": 64}),
-                "cell_mode": (["fit", "square", "original"], {"default": "fit"}),
+                "filename_prefix": (
+                    "STRING",
+                    {
+                        "default": "SweepKit",
+                        "tooltip": "Top-level output folder for this node's files (sanitized to one folder name; blank = 'SweepKit'). Files never overwrite earlier runs: a _00001, _00002... counter is added. Grids go in <prefix>/_grids/.",
+                    },
+                ),
+                "cell_size": (
+                    "INT",
+                    {
+                        "default": 512,
+                        "min": 64,
+                        "max": 4096,
+                        "step": 64,
+                        "tooltip": "Cell size in pixels: the longer side for fit, both sides for square; ignored by original.",
+                    },
+                ),
+                "cell_mode": (
+                    ["fit", "square", "original"],
+                    {
+                        "default": "fit",
+                        "tooltip": "fit: scale to cell_size keeping the aspect ratio (recommended). square: stretch to cell_size x cell_size. original: native resolution (largest grids).",
+                    },
+                ),
                 "font_size": (
                     "FLOAT",
                     {
@@ -60,9 +81,27 @@ class SweepGridConstructor:
                         ),
                     },
                 ),
-                "grid_x_dim": (GRID_AXIS_OPTIONS, {"default": "auto"}),
-                "grid_y_dim": (GRID_AXIS_OPTIONS, {"default": "auto"}),
-                "grid_title_dim": (GRID_AXIS_OPTIONS, {"default": "auto"}),
+                "grid_x_dim": (
+                    GRID_AXIS_OPTIONS,
+                    {
+                        "default": "auto",
+                        "tooltip": "Dimension for the columns, by chain position (dim1, dim2, ... as listed in the summary). auto prefers a seed, then any non-text dimension; none = one column.",
+                    },
+                ),
+                "grid_y_dim": (
+                    GRID_AXIS_OPTIONS,
+                    {
+                        "default": "auto",
+                        "tooltip": "Dimension for the rows. auto prefers a non-text dimension not used for X; none = one row.",
+                    },
+                ),
+                "grid_title_dim": (
+                    GRID_AXIS_OPTIONS,
+                    {
+                        "default": "auto",
+                        "tooltip": "Dimension shown in the title and used as the top folder; each value gets its own grid. auto takes whatever X and Y left over; none = no title dimension. Any remaining dimensions still split into extra grids.",
+                    },
+                ),
             },
         }
 

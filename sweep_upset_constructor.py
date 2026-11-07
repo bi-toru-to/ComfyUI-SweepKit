@@ -86,7 +86,13 @@ class SweepUpsetConstructor:
                         "tooltip": "dim_id of the SweepDimensionSelfCombine-produced dimension to visualize.",
                     },
                 ),
-                "filename_prefix": ("STRING", {"default": "SweepKit"}),
+                "filename_prefix": (
+                    "STRING",
+                    {
+                        "default": "SweepKit",
+                        "tooltip": "Top-level output folder for this node's files (sanitized to one folder name; blank = 'SweepKit'). Files never overwrite earlier runs: a _00001, _00002... counter is added. Matrices go in <prefix>/_upset/.",
+                    },
+                ),
                 "cell_size": (
                     "INT",
                     {

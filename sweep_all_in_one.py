@@ -51,9 +51,12 @@ class SweepAllInOne:
     @classmethod
     def INPUT_TYPES(cls):
         required = {
-            "model": ("MODEL",),
-            "clip": ("CLIP",),
-            "vae": ("VAE",),
+            "model": (
+                "MODEL",
+                {"tooltip": "Base model, used for every image unless a model-type dimension picks another."},
+            ),
+            "clip": ("CLIP", {"tooltip": "Text encoder for both prompts; LoRA dimensions are applied to it as well."}),
+            "vae": ("VAE", {"tooltip": "Decodes each sampled latent into an image."}),
             # Note for anyone looking for a "positive/negative CONDITIONING
             # socket": there isn't one, on purpose. These are plain text
             # widgets (like the two boxes on any CLIPTextEncode node) —
@@ -89,9 +92,20 @@ class SweepAllInOne:
                     "tooltip": "NEGATIVE prompt (the box below positive_prompt). Fixed — does not vary across the sweep.",
                 },
             ),
-            "latent_image": ("LATENT",),
-            "text_mode": (["curly", "regex"],),
-            "text_regex": ("STRING", {"default": r"\{\}"}),
+            "latent_image": ("LATENT", {"tooltip": "Starting latent for every image (sets the output size)."}),
+            "text_mode": (
+                ["curly", "regex"],
+                {
+                    "tooltip": "curly: text dimensions fill {} placeholders, left to right. regex: they fill matches of text_regex instead, also left to right."
+                },
+            ),
+            "text_regex": (
+                "STRING",
+                {
+                    "default": r"\{\}",
+                    "tooltip": "Pattern marking the placeholders when text_mode is regex (ignored for curly). An invalid pattern stops the run before sampling.",
+                },
+            ),
             "fixed_seed": (
                 "INT",
                 {
@@ -120,12 +134,45 @@ class SweepAllInOne:
                     "tooltip": "Used when no SweepDimension of type 'cfg' is chained in.",
                 },
             ),
-            "sampler_name": (comfy.samplers.KSampler.SAMPLERS, {"default": comfy.samplers.KSampler.SAMPLERS[0]}),
-            "scheduler": (comfy.samplers.KSampler.SCHEDULERS, {"default": comfy.samplers.KSampler.SCHEDULERS[0]}),
-            "denoise": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01}),
-            "filename_prefix": ("STRING", {"default": "SweepKit"}),
-            "save_individuals": ("BOOLEAN", {"default": True}),
-            "create_grids": ("BOOLEAN", {"default": True}),
+            "sampler_name": (
+                comfy.samplers.KSampler.SAMPLERS,
+                {"default": comfy.samplers.KSampler.SAMPLERS[0], "tooltip": "Sampler for every image (not sweepable)."},
+            ),
+            "scheduler": (
+                comfy.samplers.KSampler.SCHEDULERS,
+                {
+                    "default": comfy.samplers.KSampler.SCHEDULERS[0],
+                    "tooltip": "Scheduler for every image (not sweepable).",
+                },
+            ),
+            "denoise": (
+                "FLOAT",
+                {
+                    "default": 1.0,
+                    "min": 0.0,
+                    "max": 1.0,
+                    "step": 0.01,
+                    "tooltip": "Denoise strength for every image (1.0 = generate from scratch).",
+                },
+            ),
+            "filename_prefix": (
+                "STRING",
+                {
+                    "default": "SweepKit",
+                    "tooltip": "Top-level output folder for this node's files (sanitized to one folder name; blank = 'SweepKit'). Files never overwrite earlier runs: a _00001, _00002... counter is added.",
+                },
+            ),
+            "save_individuals": (
+                "BOOLEAN",
+                {"default": True, "tooltip": "Save every image on its own; text/static values become subfolders."},
+            ),
+            "create_grids": (
+                "BOOLEAN",
+                {
+                    "default": True,
+                    "tooltip": "Build labelled X/Y grids. Keeps every image in RAM until the end (~12.6 MB per 1024x1024 image); turn off for very large sweeps.",
+                },
+            ),
             "cell_size": (
                 "INT",
                 {
