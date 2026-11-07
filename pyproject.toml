@@ -7,7 +7,8 @@ requires-python = ">=3.10"
 # No pip dependencies: torch, numpy and Pillow are provided by ComfyUI.
 # The modular pipeline additionally needs the godmt/ComfyUI-List-Utils node pack.
 dependencies = []
-# license: not chosen yet (see quality-review/FIX_PLAN.md, item 5.2).
+license = "MIT"
+license-files = ["LICENSE"]
 
 [tool.comfy]
 PublisherId = ""  # fill in your Comfy Registry publisher ID before publishing
