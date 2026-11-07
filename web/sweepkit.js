@@ -2,6 +2,7 @@ import { api } from "../../scripts/api.js";
 import { app } from "../../scripts/app.js";
 import { configureApi, startPolling, sweepSync } from "./sweepkit_core.js";
 import { applyLook } from "./sweepkit_look.js";
+import { currentSelection, openPicker, storedOptions } from "./sweepkit_pick.js";
 import {
     PLAN_CLASS,
     collectHere,
@@ -106,6 +107,23 @@ app.registerExtension({
                     const message = sweepWidget(env, node, widget);
                     if (message) tell("SweepKit", message);
                 },
+            });
+        }
+        const options = storedOptions(node);
+        const valuesWidget = node.widgets && node.widgets.find((w) => w.name === "values");
+        if (options.length && valuesWidget) {
+            items.push({
+                content: "Pick values from the list…",
+                callback: () =>
+                    openPicker({
+                        title: `Values for "${(node.widgets.find((w) => w.name === "dim_id") || {}).value || "this axis"}"`,
+                        options,
+                        selected: currentSelection(valuesWidget.value, options),
+                        onApply: (text) => {
+                            valuesWidget.value = text;
+                            node.setDirtyCanvas(true, true);
+                        },
+                    }),
             });
         }
         if (hasImageOutput(node)) {

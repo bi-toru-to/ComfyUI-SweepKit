@@ -16,6 +16,7 @@
  */
 
 import { ensureSummaryWidget, getWidget } from "./sweepkit_core.js";
+import { optionsToStore } from "./sweepkit_pick.js";
 
 // Must match MAX_AXIS_OUTPUTS in sweep_core.py.
 export const MAX_AXIS_OUTPUTS = 8;
@@ -281,6 +282,8 @@ export function sweepWidget(env, target, widget) {
         getWidget(axis, "dim_type").value = info.dimType;
         getWidget(axis, "dim_id").value = info.name;
         getWidget(axis, "values").value = suggestValues(info);
+        // A choice setting's options are kept on the axis for "Pick values from the list".
+        if (info.kind === "combo") axis.properties = { ...axis.properties, sweepOptions: optionsToStore(info.options) };
 
         // Chain: previous last axis -> this axis -> Plan (replacing the old link).
         if (last) last.connect(0, axis, slotIndex(axis.inputs, "prev_dimensions"));

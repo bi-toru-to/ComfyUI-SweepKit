@@ -210,3 +210,15 @@ console.log("PASS test6: Plan outputs follow the chain and never lose a wired ou
     assert(planSnapshot(gr, rp) !== before, "snapshot includes the counts");
     console.log("PASS test7: the image count follows the axes feeding a node");
 }
+
+// A choice setting leaves its options on the axis for "Pick values from the list"; other settings don't.
+{
+    const gp = new FakeGraph();
+    const k2 = gp.make("KSampler");
+    sweepWidget(env(gp), k2, widget(k2, "sampler_name"));
+    sweepWidget(env(gp), k2, widget(k2, "steps"));
+    const [comboAxis, numberAxis] = gp._nodes.filter((n) => n.comfyClass === "SweepDimension");
+    eq(comboAxis.properties.sweepOptions, ["euler", "heun", "dpmpp"], "options kept for a choice setting");
+    assert(!numberAxis.properties || !numberAxis.properties.sweepOptions, "no options for a number setting");
+    console.log("PASS test8: choice settings keep their options for the picker");
+}
