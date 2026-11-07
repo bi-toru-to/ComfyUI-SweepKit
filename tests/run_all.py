@@ -20,7 +20,13 @@ TESTS_DIR = os.path.dirname(os.path.abspath(__file__))
 PKG_DIR = os.path.dirname(TESTS_DIR)
 
 PY_SUITES = ["logic_test.py", "run_integration.py", "test_modular_pipeline.py"]
-JS_SUITES = ["js_hidelora_test.mjs", "js_look_test.mjs", "js_polling_test.mjs", "js_socket_test.mjs", "js_summary_test.mjs"]
+JS_SUITES = [
+    "js_hidelora_test.mjs",
+    "js_look_test.mjs",
+    "js_polling_test.mjs",
+    "js_socket_test.mjs",
+    "js_summary_test.mjs",
+]
 
 
 def run(cmd, verbose):
