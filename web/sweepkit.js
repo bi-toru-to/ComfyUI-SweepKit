@@ -9,8 +9,8 @@ import {
     hasImageOutput,
     planSnapshot,
     refreshRuns,
+    sweepCandidates,
     sweepWidget,
-    sweepableWidget,
     syncPlanOutputs,
 } from "./sweepkit_soft.js";
 
@@ -100,11 +100,11 @@ app.registerExtension({
         const env = { graph: node.graph, createNode: (cls) => LiteGraph.createNode(cls) };
         const pointer = app.canvas && app.canvas.graph_mouse;
         const widget = pointer && node.getWidgetOnPos ? node.getWidgetOnPos(pointer[0], pointer[1], true) : null;
-        if (widget && sweepableWidget(node, widget)) {
+        for (const target of sweepCandidates(node, widget)) {
             items.push({
-                content: `Sweep "${widget.label || widget.name}"…`,
+                content: `Sweep "${target.label || target.name}"…`,
                 callback: () => {
-                    const message = sweepWidget(env, node, widget);
+                    const message = sweepWidget(env, node, target);
                     if (message) tell("SweepKit", message);
                 },
             });

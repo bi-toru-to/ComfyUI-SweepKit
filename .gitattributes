@@ -1,3 +1,4 @@
 # Keep LF in the repo and working tree regardless of core.autocrlf.
 * text=auto eol=lf
 *.png binary
+*.jpg binary

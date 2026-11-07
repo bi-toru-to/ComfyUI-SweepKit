@@ -1,5 +1,44 @@
 # Changelog
 
+## 1.1.0
+
+Node IDs, input and output positions, and custom types are unchanged, so
+workflows saved with 1.0.0 keep loading. The old Sweep Expander is now called
+Sweep Plan, and "dimension" is now "axis" in names and text.
+
+### Added
+- **Sweep any setting of your own workflow.** Right-click a number, choice or
+  text setting on any node and choose Sweep "...": a Sweep Axis is added,
+  filled in from the setting and wired to it through Sweep Plan. Works with any
+  sampler or node pack, and without the browser.
+- **Sweep Plan** gives each axis out as a list (`axis_1` ... `axis_8`) to
+  connect to any setting; ComfyUI runs those nodes once per combination.
+- **Sweep Collect** gathers a workflow's images, saves each named after its
+  values, builds the grids, and needs no extra node packs.
+- Right-click on an image node: "Sweep: collect results here".
+- A **live grid** on Sweep All-in-One: the grid so far appears on the node while
+  it samples.
+- A **run list** (`sweep_manifest_NNNNN.csv`) beside the images of Sweep
+  All-in-One and Sweep Collect: one row per image with its file and every value.
+- A summary line under each axis ("3 values: 1 . 2 . 3", or what is wrong),
+  and "12 images: 2 x 3 x 2" on Sweep Plan and Sweep All-in-One.
+- **Pick values from the list...** on axes made from choice settings (samplers,
+  LoRA files, checkpoints).
+- Role colours: blue axes, green generators, purple grid builders, grey plumbing.
+- `scripts/run_sweep_api.py`: run a sweep from a script, with `--set` overrides.
+- Sweep Axis Value (Extract) has a native list output after its PyList one.
+- Flowcharts in the README (`docs/img/`, redrawn by `scripts/make_diagrams.py`).
+
+### Changed
+- Easy nodes stay in **SweepKit**; the rest are under **SweepKit/Advanced**.
+  Every node has a description and search aliases (the old names still find
+  them).
+- Example workflows 2 and 3 are rebuilt on Sweep Plan and Sweep Collect (12 and
+  14 nodes instead of 19 and 24, no List-Utils). Examples 4-6 are unchanged.
+- Number ranges above 10,000 values are refused instead of expanded.
+- A Sweep Plan saved before the `axis_N` outputs existed keeps its three
+  outputs until an axis is added to it.
+
 ## 1.0.0 — 2026-11-08
 
 First versioned release, after a quality audit. Node names, inputs and

@@ -6,39 +6,89 @@ setting means, and step-by-step wiring for common workflows.
 For *why* the pack is built this way, see `DESIGN.md`. This document is
 the "how do I actually use it" companion.
 
-## Two ways to use this pack
+> **Naming.** The nodes say "axis" (one thing to vary). Their IDs still contain
+> "Dimension" (`SweepDimension`, `SweepDimensionZip`, ...) so saved workflows
+> keep loading. This guide uses the node IDs in headings and "axis" in prose.
 
-**The all-in-one node (`SweepAllInOne`)** does everything in one place —
-sampling, encoding, LoRA application, grid building, and saving. It's the
-fastest way to get a sweep running, but any tweak (even just the grid's
-`cell_size`) reruns the entire sweep from scratch, since it's all one
-Python function.
+## Three ways to use this pack
 
-**The modular pipeline** (`SweepCombinationExpander`,
-`SweepDimensionExtract`, and friends) spreads the same job across several
-small nodes wired up to *stock* ComfyUI nodes (`KSampler`, `LoraLoader`,
-`CLIPTextEncode`, `SaveImage`) and to
+**Sweep All-in-One (`SweepAllInOne`)** does everything in one place —
+sampling, encoding, LoRA application, grid building, and saving — with a
+built-in sampler. It's the fastest way to get a sweep running, and its grid
+fills in live on the node while it runs. Any tweak (even just the grid's
+`cell_size`) reruns the entire sweep, since it's all one node.
+
+**Your own workflow with Sweep Plan + Sweep Collect** (`SweepCombinationExpander`,
+`SweepCollect`) sweeps settings of an *ordinary* workflow: the Plan turns your
+axes into one list per setting, you connect each list to the setting it
+drives (or let the right-click menu do it), and ComfyUI's own executor runs
+those nodes once per combination. Any sampler, ControlNet or LoRA stack works,
+because SweepKit never touches them. No extra node packs. See
+"Sweeping a setting from the right-click menu" below.
+
+**The Advanced nodes** (`SweepDimensionZip`, `SweepDimensionSelfCombine`,
+`SweepDimensionExtract`, `SweepDedupeCombos`, `SweepGather`,
+`SweepFilenameSequencer`, `SweepGridConstructor`, `SweepUpsetConstructor`)
+add pairing, subsets, skipping repeats and UpSet matrices, and the older
+fully modular wiring with
 [godmt/ComfyUI-List-Utils](https://github.com/godmt/ComfyUI-List-Utils).
-It takes more nodes to set up, but each piece caches independently — tweak
-a grid setting and only the grid rebuilds, sampling stays cached — and any
-step can be swapped for a different extension's node (a different
-LoRA-stack node, a different text-replace node, etc.) without touching the
-rest.
+That wiring takes more nodes, but each piece caches independently — tweak a
+grid setting and only the grid rebuilds, sampling stays cached.
 
-Both share the same `SweepDimension` / `SweepDimensionZip` /
+All three share the same `SweepDimension` / `SweepDimensionZip` /
 `SweepDimensionSelfCombine` nodes for describing *what* to sweep — they
-just differ in what consumes that description afterward.
+differ in what consumes that description afterward.
 
-**This pack requires [godmt/ComfyUI-List-Utils](https://github.com/godmt/ComfyUI-List-Utils)
-for the modular pipeline** — install it the same way you installed this
-pack (ComfyUI Manager, or clone into `custom_nodes/`). The all-in-one node
-doesn't need it.
+**ComfyUI-List-Utils is only needed** for the UpSet matrix, skip-repeats and
+model-list workflows (examples 4–6) and for the older modular wiring. The
+all-in-one node and the Plan + Collect path don't need it.
+
+---
+
+## Sweeping a setting from the right-click menu
+
+Right-click a number, choice or text setting on any node (not one of
+SweepKit's own, and not one that already has a wire) and choose
+**Sweep "name"…**. For a multi-line text box such as a prompt, right-click the
+node's title bar or its edge instead (inside the text box the browser's own
+menu opens); every text box of the node is listed. SweepKit then, in one undo
+step:
+
+1. adds a **Sweep Plan** (once; later settings reuse it) in a row above your
+   nodes,
+2. adds a **Sweep Axis** pre-filled from the setting: its type (seed, steps,
+   cfg, int, float or text), its name, and starting values (the current value
+   plus a couple of neighbours; the first few options for a choice setting),
+3. chains the axis into the Plan, and connects the Plan's matching
+   `axis_N` output to the setting's own input socket.
+
+Then edit the values on the new axis. For a choice setting (sampler, LoRA
+file, checkpoint), right-click the axis and choose **Pick values from the
+list…** to tick what to compare instead of typing names.
+
+To collect the results, right-click your final image node (for example
+VAE Decode) and choose **Sweep: collect results here**. That adds **Sweep
+Collect**, wired to the image and to the Plan's `combo` output.
+
+What happens at run time: ComfyUI runs each connected node once per
+combination, one after another. Because each node finishes all of its runs
+before the next one starts, the grid appears when the run finishes (the
+All-in-One node, which does its own looping, can show it live).
+
+Notes:
+
+- A sweep of a model or LoRA *file* (a loader's `unet_name`, `ckpt_name`,
+  `lora_name`) loads each one in turn; expect it to take as long as loading
+  them. A text axis becomes a folder per value in the saved file names, so a
+  choice setting shows up as folders named after the options.
+- The same wiring can be built by hand: connect the Plan's `axis_N` output to
+  any input socket of the matching type.
 
 ---
 
 ## Before you start: three concepts used everywhere
 
-### The dimension chain (`SWEEP_DIMS`)
+### The axis chain (`SWEEP_DIMS`)
 
 Every sweep starts as a chain of `SweepDimension` nodes, each describing
 one axis (seed, steps, cfg, a text substitution, a LoRA strength, a model
@@ -229,32 +279,37 @@ combinations workflow below for the full walkthrough.
 
 ---
 
-### SweepCombinationExpander
+### SweepCombinationExpander (Sweep Plan)
 
-The spine of the modular pipeline. Turns a finished dimension chain into
-the flattened combination list and the tracking object every other
-modular node consumes. Doesn't sample anything itself.
+The center of the Plan + Collect path and of the modular pipeline. Turns a
+finished axis chain into every combination, hands each axis out as a list you
+can connect to any setting, and produces the tracking object every other
+modular node consumes. Doesn't sample anything itself. The node shows how many
+images the sweep will make ("12 images: 2 × 3 × 2") once its axes are read.
 
 **Inputs**
 
 | Socket | Type | Meaning |
 |---|---|---|
-| `dimensions` | SWEEP_DIMS | The end of your dimension chain. |
+| `dimensions` | SWEEP_DIMS | The end of your axis chain. |
 
 **Outputs**
 
 | Socket | Type | Meaning |
 |---|---|---|
-| `combo` | SWEEP_COMBO | Dimensions (sorted into execution order — cost-sorted, expensive axes like model swaps outermost, cheap ones like seed innermost) plus one record per combination, bundled together. Pass this to every other modular node that asks for `combo`. |
+| `combo` | SWEEP_COMBO | Axes (sorted into execution order — cost-sorted, expensive axes like model swaps outermost, cheap ones like seed innermost) plus one record per combination, bundled together. Pass this to `SweepCollect` and to every other modular node that asks for `combo`. |
 | `combo_count` | INT | Total number of combinations. Prints a console warning past 500. |
-| `dim_map` | STRING | Human-readable `dim1='...', dim2='...', ...` listing, matching what's printed to console — wire into a text-preview node if you want to see which chain position each dimension landed at without checking console output (needed for `SweepGridConstructor`'s `grid_x_dim`/`grid_y_dim`/`grid_title_dim` pickers, which select by position). |
+| `dim_map` | STRING | Human-readable `dim1='...', dim2='...', ...` listing, matching what's printed to console (needed for the `grid_x_dim`/`grid_y_dim`/`grid_title_dim` pickers, which select by position). |
+| `axis_1` … `axis_8` | any (list) | The value of each axis for every combination, in order, aligned with each other. Connect one to a setting (seed, cfg, prompt text, a model or LoRA file name...) and ComfyUI runs that node once per combination. In the editor only as many appear as the chain has axes, labelled with the axes' names. A `lora_strength` axis gives its model strength (use `SweepDimensionExtract` for the clip strength); a `model` axis gives its MODEL objects. |
 
 **Notes**
 
-- Deliberately does *not* output per-axis values (no `seeds`, `steps`,
-  `cfgs` sockets) — that would need a fixed output for every dim_id anyone
-  might ever use. Use `SweepDimensionExtract` once per axis you actually
-  need instead.
+- The three original outputs keep their positions, so workflows saved before
+  the `axis_N` outputs existed still load. When a chain passes through
+  Pair Axes or Subsets, all eight `axis_N` outputs stay visible, in chain order.
+- `axis_N` is the N-th axis of the chain (skipped axes with no values don't count).
+- The `axis_N` lists, `SweepCollect`'s images and `combo` must all describe the
+  same run: connect them from one Plan.
 
 ---
 
@@ -277,6 +332,7 @@ Use one instance per axis you need downstream.
 | Socket | Type | Meaning |
 |---|---|---|
 | `values` | PYLIST | One value per combination, in the same order as `combo`'s records. Feed through List-Utils' **PyList To List** before connecting to a stock node's per-item input. |
+| `list` | any (list) | The same values as a native list: connect it straight to a stock node's input and that node runs once per value. No List-Utils needed. |
 
 **Notes**
 
@@ -522,10 +578,50 @@ and what this actually looks like.
 
 ---
 
-### SweepAllInOne (all-in-one)
+### SweepCollect (Sweep Collect)
 
-The original single-node sweep generator. Everything below is unique to
-this node — none of it applies to the modular pipeline.
+The end of a Plan-driven workflow. Gathers the image each run produced, saves
+each one under a name made from the values used, builds the grids, and writes
+a run list. Needs no extra node packs: ComfyUI hands it the images as a
+native list.
+
+**Inputs**
+
+| Socket | Type | Meaning |
+|---|---|---|
+| `images` | IMAGE | Your workflow's final image (for example VAE Decode's output), one per run. Keep `batch_size` at 1; a batch inside one run is split into separate images but must still add up to the number of combinations. |
+| `combo` | SWEEP_COMBO | Connect the Sweep Plan's `combo` output. |
+| `filename_prefix` | STRING (default `SweepKit`) | Output folder (one folder name; blank = `SweepKit`). Files never overwrite earlier runs. |
+| `save_individuals` | BOOLEAN (default True) | Save every image as `<prefix>/<text values as folders>/<run number>_<values>_NNNNN.png`. Turn off if a Save Image node does that. |
+| `create_grids` | BOOLEAN (default True) | Build labelled X/Y grids, one per value of the remaining axes. |
+| `cell_size` / `cell_mode` / `font_size` | — | Same meaning as `SweepGridConstructor`'s, below. |
+| `grid_x_dim` / `grid_y_dim` / `grid_title_dim` | — | Same meaning as `SweepGridConstructor`'s, below. |
+
+**Outputs**
+
+| Socket | Type | Meaning |
+|---|---|---|
+| `grids` | IMAGE | All built grids, batched. The saved grids and the summary also show on the node. |
+| `summary` | STRING | How many images, where files and grids went, and the run list. |
+
+**Notes**
+
+- **Run list:** every run that saves files also writes
+  `sweep_manifest_NNNNN.csv` into the prefix folder: one row per image with
+  its run number, its file (relative path) and the value of every axis. Open it
+  in a spreadsheet, or load it in a script.
+- If the number of images doesn't match the Plan's `combo_count`, the node
+  stops with a message saying what to connect.
+
+---
+
+### SweepAllInOne (Sweep All-in-One)
+
+The single-node sweep generator. Everything below is unique to
+this node — none of it applies to the Plan + Collect path or the modular pipeline.
+While it runs, the grid so far (pending cells shown as quiet tiles) appears on
+the node, and a line under it shows how many images the connected axes will
+make. A run list (`sweep_manifest_NNNNN.csv`) is written beside the images.
 
 **Inputs**
 
@@ -581,8 +677,8 @@ output socket to the matching input socket.
 Ready-made versions of all six are in `example_workflows/` (they also
 appear in ComfyUI's template browser under this pack). Each uses a stock
 **Load Checkpoint** set to `model.safetensors`: pick your own checkpoint
-(and LoRA in workflow 3) before queueing. Workflows 2–6 need
-ComfyUI-List-Utils.
+(and LoRA in workflow 3) before queueing. Workflows 4–6 need
+ComfyUI-List-Utils; 1–3 need no extra node packs.
 
 ### 1. Quickest start — the all-in-one node
 
@@ -605,98 +701,68 @@ Good for a first sweep or anything simple. No List-Utils needed.
    grid (seed × cfg — 2 independent axes reliably land as one grid),
    saved under `output/SweepKit/`.
 
-### 2. Modular basics — cartesian sweep through stock KSampler + SaveImage
+### 2. Sweep any setting of your own workflow
 
-The same 3×3 seed/cfg sweep as above, but wired through stock nodes so
-each step caches independently.
+Sweep seed, cfg and the prompt of an ordinary text-to-image workflow
+(`2_sweep_any_setting.json`): 2 seeds × 3 cfg values × 2 prompt versions =
+12 images, with one grid per prompt. Nothing from this pack touches the
+sampler.
 
-1. Add **Load Checkpoint**, **CLIPTextEncode** ×2 (positive/negative, wire
-   up normally), **Empty Latent Image**, **KSampler**, **VAEDecode** — a
-   completely ordinary base workflow, not yet touching anything from this
-   pack.
-2. Add an **SweepDimension**: `dim_type=seed`, `dim_id=seed`,
-   `values=1,2,3`.
-3. Add a second **SweepDimension**: `dim_type=cfg`, `dim_id=cfg`,
-   `values=4,7,10`. Connect the first node's `dimensions` output into this
-   one's `prev_dimensions`.
-4. Add an **SweepCombinationExpander**. Connect the second
-   `SweepDimension`'s `dimensions` output into its `dimensions` input.
-5. Add two **SweepDimensionExtract** nodes. On both, connect
-   `SweepCombinationExpander`'s `combo` output to `combo`. On the first,
-   set `dim_id` to `seed`; on the second, set `dim_id` to `cfg`.
-6. Add two **PyList To List** nodes (List-Utils). Connect each
-   `SweepDimensionExtract`'s `values` output into one.
-7. Connect the seed `PyList To List`'s output into `KSampler`'s `seed`
-   input, and the cfg one into `KSampler`'s `cfg` input. Connect
-   `KSampler`'s other inputs (`model`, `positive`, `negative`,
-   `latent_image`) normally, from your base workflow.
-8. Connect `KSampler`'s `LATENT` output into `VAEDecode` as usual.
-9. Add an **SweepFilenameSequencer**. Connect `SweepCombinationExpander`'s
-   `combo` output to its `combo` input. Set `filename_prefix`.
-10. Add a **PyList To List** node, connect `SweepFilenameSequencer`'s
-    `filenames` output into it.
-11. Add a stock **SaveImage** node. Connect `VAEDecode`'s `IMAGE` output
-    **directly** into `SaveImage`'s `images` — it's already a native
-    per-item `List` (the list-ness propagated from `KSampler`'s `LATENT`
-    List all the way through `VAEDecode`), the same length as your
-    filenames list, so no `List To PyList`/`PyList To List` conversion is
-    needed for this connection at all. Connect the `PyList To List` node
-    from step 10 into `SaveImage`'s `filename_prefix`.
-12. (Optional, for a grid too) Add a **List To PyList** node and connect
-    `VAEDecode`'s `IMAGE` output into it as well — one output socket can
-    feed both `SaveImage` and this conversion node. Add an
-    **SweepGridConstructor**, connect this new `List To PyList` node's
-    output to its `images`, and `SweepCombinationExpander`'s `combo`
-    output to its `combo` input. Set `grid_x_dim`/`grid_y_dim` or leave on
-    `auto` — with just these 2 axes it'll come out as one grid either way.
-13. Queue the prompt. `KSampler` runs 9 times automatically (ComfyUI's
-    executor loops it once per list item since it received `List`-typed
-    seed/cfg inputs) — nothing in this pack tells it to.
+1. Build (or open) an ordinary workflow: **Load Checkpoint**,
+   **CLIPTextEncode** ×2, **Empty Latent Image**, **KSampler**,
+   **VAEDecode**.
+2. Right-click the KSampler's `seed` and choose **Sweep "seed"…**. A **Sweep
+   Plan** and a **Sweep Axis** appear above your nodes, and the Plan's `seed`
+   output is already connected to the KSampler's `seed`. On the axis, set
+   `values` to `1-2`.
+3. Right-click `cfg` and choose **Sweep "cfg"…**. Set its `values` to `4, 7, 10`.
+4. Right-click the positive prompt node's **title bar** (a right-click inside a
+   text box opens the browser's own menu) and choose **Sweep "text"…**. On the
+   new axis put one prompt version per line (and give it a `dim_id` such as
+   `prompt`).
+5. Right-click **VAEDecode** and choose **Sweep: collect results here**. This
+   adds **Sweep Collect**, wired to the image and to the Plan's `combo`. Set
+   `filename_prefix`.
+6. The Plan shows "12 images: 2 × 3 × 2". Queue. ComfyUI runs the sampler 12
+   times; Collect saves 12 named files, one grid per prompt, and a
+   `sweep_manifest_*.csv` run list.
 
-### 3. Zipping two axes for LoRA stacking through a stock LoraLoader
+To do the same by hand, connect the Plan's `axis_1`/`axis_2`/`axis_3` outputs
+to the settings and the axes in chain order feed `axis_1`, `axis_2`, ...
+Other settings can be swept the same way: sampler (use **Pick values from the
+list…**), denoise, width and height, a LoRA's strength or file name.
+
+### 3. Pairing two axes for LoRA strengths
 
 Sweep 5 paired `(model_strength, clip_strength)` values through a real
-`LoraLoader`, crossed against 3 independent cfg values (15 images, not
-25).
+`LoraLoader`, crossed against 3 independent cfg values (15 images, not 45;
+`3_pair_lora_strengths.json`).
 
-1. Build the same base workflow as example 2, but insert a stock
+1. Build the base workflow as in example 2, but insert a stock
    **LoraLoader** between `Load Checkpoint` and `CLIPTextEncode`/`KSampler`
    (its `model`/`clip` outputs feed those instead of the checkpoint's
    directly). Pick a `lora_name` on it as usual.
-2. Add an **SweepDimension**: `dim_type=float`, `dim_id=lora_model_strength`,
-   `values=0.2,0.4,0.6,0.8,1.0`. (`float`, not `cfg` — this axis isn't
-   actually cfg, it just needs the same numeric casting; `cfg` specifically
-   means "this is the sampler's own cfg parameter", which would be
-   misleading to pick here.)
-3. Add a second **SweepDimension**: `dim_type=float`,
-   `dim_id=lora_clip_strength`, `values=0.3,0.5,0.6,0.7,0.9`. Leave
-   `prev_dimensions` unconnected on this one too (don't chain it to the
-   first — it goes into the zip node separately).
-4. Add an **SweepDimensionZip**. Connect the first `SweepDimension`'s
-   `dimensions` output to `dimensions_a`, the second's to `dimensions_b`.
-   Set `mode` to `shortest` (both lists are already length 5, so it won't
-   matter here).
-5. Add a third **SweepDimension**: `dim_type=cfg`, `dim_id=cfg`,
-   `values=4,7,10` — this one really is the sampler's cfg, so `cfg` is the
-   right dim_type here. Connect `SweepDimensionZip`'s `dimensions` output
-   into this one's `prev_dimensions`.
-6. Add an **SweepCombinationExpander**, connect the third
-   `SweepDimension`'s `dimensions` output into it. Its `combo_count`
-   should read 15 (5 zipped pairs × 3 independent cfgs) — if it reads 45,
-   something upstream got connected as independent instead of zipped.
-7. Add two **SweepDimensionExtract** nodes (`dim_id=lora_model_strength`
-   and `dim_id=lora_clip_strength`) plus **PyList To List** nodes, same
-   pattern as example 2. Connect their outputs into `LoraLoader`'s
-   `strength_model` and `strength_clip` respectively.
-8. Add a third **SweepDimensionExtract** (`dim_id=cfg`) → **PyList To
-   List** → `KSampler.cfg`.
-9. Wire seed/sampling/saving the same way as example 2 (seed can stay a
-   plain fixed widget on `KSampler` if you don't need it swept too). With
-   2 logical axes (the zipped pair counts as one, cfg is the other) across
-   3 `SweepDimension` entries, `SweepGridConstructor` on default `auto`
-   settings still comes out as one grid.
-10. Queue the prompt. `LoraLoader` runs once per combination just like
-    `KSampler` does — nothing in this pack applies the LoRA itself.
+2. Add a **Sweep Axis**: `dim_type=float`, `dim_id=lora_model`,
+   `values=0.2, 0.4, 0.6, 0.8, 1.0`. (`float`, not `cfg`: this axis isn't the
+   sampler's cfg, it only needs the same numeric casting.)
+3. Add a second **Sweep Axis**: `dim_type=float`, `dim_id=lora_clip`,
+   `values=0.3, 0.5, 0.6, 0.7, 0.9`. Don't chain it to the first; both go into
+   the pair node separately.
+4. Add **Sweep Pair Axes** (`SweepDimensionZip`). Connect the first axis to
+   `dimensions_a`, the second to `dimensions_b`. `mode` can stay `shortest`.
+5. Add a third **Sweep Axis**: `dim_type=cfg`, `dim_id=cfg`, `values=4, 7, 10`.
+   Connect Pair Axes' output into its `prev_dimensions`.
+6. Add a **Sweep Plan** and connect the third axis into it. Its `combo_count`
+   should read 15 (5 pairs × 3 cfg); 45 would mean something got connected as
+   independent instead of paired.
+7. Connect the Plan's `axis_1` to the LoraLoader's `strength_model`, `axis_2` to
+   `strength_clip`, and `axis_3` to the KSampler's `cfg`. Because the chain goes
+   through Pair Axes, all eight `axis_N` outputs are shown; the three axes are
+   `axis_1` … `axis_3` in chain order.
+8. Add **Sweep Collect**, connect VAEDecode's image and the Plan's `combo`.
+9. Queue. The LoraLoader and KSampler each run 15 times. One grid comes out
+   (the paired strengths count as one axis, cfg is the other), plus the named
+   files and the run list.
 
 ### 4. Artist-style combinations + UpSet matrix
 
@@ -820,6 +886,24 @@ instead of `SweepDimension`'s dynamic MODEL-socket mechanism.
 ---
 
 ## Troubleshooting
+
+**There is no "Sweep …" item when I right-click a setting** — Only a number,
+choice or text setting that has no wire yet, on a node that isn't one of
+SweepKit's own, gets the item. Right-click on the setting itself (not the
+node's title). Reload the page after installing or updating SweepKit.
+
+**"images has N entries but combo has M combo_records" from Sweep Collect** —
+The workflow made a different number of images than the Plan planned. Check
+that every `axis_N` output you connected comes from this Plan, that the
+final image goes into Collect, and that `batch_size` is 1.
+
+**A setting I connected to the Plan runs only once** — The Plan's output must
+reach the node that makes the image (directly or through other nodes); a
+connection that ends in a node nothing depends on is never run.
+
+**The grid only appears at the end of the run** — Expected for the Plan +
+Collect path: ComfyUI finishes each node's runs before the next node starts.
+Sweep All-in-One shows the grid as it fills.
 
 **"no dimension with dim_id 'X' — available dim_ids: ..."** — An
 `SweepDimensionExtract` or `SweepUpsetConstructor`'s `dim_id` doesn't

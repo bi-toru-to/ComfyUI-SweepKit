@@ -7,6 +7,7 @@ import {
     hasImageOutput,
     planSnapshot,
     suggestValues,
+    sweepCandidates,
     sweepWidget,
     sweepableWidget,
     syncPlanOutputs,
@@ -221,4 +222,19 @@ console.log("PASS test6: Plan outputs follow the chain and never lose a wired ou
     eq(comboAxis.properties.sweepOptions, ["euler", "heun", "dpmpp"], "options kept for a choice setting");
     assert(!numberAxis.properties || !numberAxis.properties.sweepOptions, "no options for a number setting");
     console.log("PASS test8: choice settings keep their options for the picker");
+}
+
+// Menu candidates: the setting under the pointer, plus text boxes (a right-click inside one opens the browser's menu).
+{
+    const gc = new FakeGraph();
+    const k3 = gc.make("KSampler");
+    k3.widgets.push({ name: "text", type: "customtext", value: "a cat" });
+    k3.inputs.push({ name: "text", type: "STRING", widget: { name: "text" } });
+    eq(sweepCandidates(k3, widget(k3, "cfg")).map((w) => w.name), ["cfg", "text"], "pointer widget first, then text boxes");
+    eq(sweepCandidates(k3, null).map((w) => w.name), ["text"], "no pointer: only text boxes");
+    eq(sweepCandidates(k3, widget(k3, "text")).map((w) => w.name), ["text"], "a text box under the pointer is not listed twice");
+    sweepWidget(env(gc), k3, widget(k3, "text"));
+    eq(sweepCandidates(k3, null).map((w) => w.name), [], "an already swept text box is not offered again");
+    eq(sweepCandidates({ comfyClass: "SweepDimension", widgets: [{ name: "values", type: "customtext" }], inputs: [] }, null), [], "SweepKit's own nodes: none");
+    console.log("PASS test9: the menu offers the pointer's setting and text boxes");
 }

@@ -1,7 +1,7 @@
 [project]
 name = "comfyui-sweepkit"
-version = "1.0.0"
-description = "Multi-dimensional parameter sweeps for ComfyUI: chainable sweep dimensions, zip/self-combine, an all-in-one generator, and modular grid/UpSet constructors."
+version = "1.1.0"
+description = "Parameter sweeps for ComfyUI: sweep any setting of your own workflow or use the all-in-one generator; pair axes, try subsets, skip repeats; named images, labelled grids and a run list."
 readme = "README.md"
 requires-python = ">=3.10"
 # No pip dependencies: torch, numpy and Pillow are provided by ComfyUI.

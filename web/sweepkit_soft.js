@@ -232,6 +232,18 @@ export function sweepableWidget(node, widget) {
     return info;
 }
 
+/** The settings of `node` to offer in its right-click menu: the one under the
+ * pointer, plus every multi-line text box (a right-click inside a text box
+ * opens the browser's own menu, so those are offered from the rest of the node). */
+export function sweepCandidates(node, underPointer) {
+    const picked = [];
+    if (underPointer && sweepableWidget(node, underPointer)) picked.push(underPointer);
+    for (const w of (node && node.widgets) || []) {
+        if (w.type === "customtext" && !picked.includes(w) && sweepableWidget(node, w)) picked.push(w);
+    }
+    return picked;
+}
+
 // ---- building the nodes ----
 
 function slotIndex(list, name) {

@@ -136,7 +136,13 @@ structure) is the same engine as before — only how dimensions get
 | `sweep_image.py` | Tensor↔PIL conversion, cell sizing, the single grid renderer (`make_grid`) and `build_grids`, used by both `SweepAllInOne` and `SweepGridConstructor` | Yes |
 | `sweep_*.py` (one per node) | The node classes: inputs, validation, and calls into the modules above | Yes |
 | `web/sweepkit_core.js` | Frontend logic for `SweepDimension`: MODEL-socket sync, `lora_name` visibility, 10 Hz change polling. No `app` import, so `tests/*.mjs` import it directly | — |
-| `web/sweepkit.js` | Registers the extension and hooks the core functions into node create/configure/remove | — |
+| `sweep_collect.py` | `SweepCollect`: native-list image input, named files, grids, run list | Yes |
+| `sweep_routes.py` | `POST /sweepkit/preview_values`, the read-only route behind the summary line under each axis | No (registered only inside ComfyUI) |
+| `web/sweepkit.js` | Registers the extensions (role colours, summary line, Plan outputs, run count, right-click menu) and hooks the core functions into node create/configure/remove | — |
+| `web/sweepkit_look.js` | Role colours | — |
+| `web/sweepkit_soft.js` | "Sweep this setting": describing a setting, suggesting values, adding and wiring the axis, Plan outputs, collect, image count. Takes the graph and node factory as arguments | — |
+| `web/sweepkit_pick.js` | "Pick values from the list": the pure helpers plus a small dialog | — |
+| `scripts/run_sweep_api.py`, `scripts/make_diagrams.py` | Run a sweep without the browser; redraw `docs/img/*.svg` | No (stdlib only) |
 
 Grid building lives in exactly one place, so `SweepAllInOne` and
 `SweepGridConstructor` can't drift apart; `SweepAllInOne` only differs in
@@ -518,4 +524,67 @@ something in the environment or model setup unrelated to it (e.g., the
 CLIPLoader `type` value not matching the actual text encoder
 architecture).
 
+## Version 1.1: sweeping any setting, live grid, plain names
 
+This round added three things, each chosen after trying the alternatives
+against a real ComfyUI.
+
+### A live grid on All-in-One, backend only
+
+ComfyUI's progress bar can carry a preview image
+(`ProgressBar.update_absolute(value, total, ("JPEG", image, max_size))`).
+`LiveGrid` (in `sweep_image.py`) keeps small thumbnails of the finished
+images, draws the labelled grid so far (cells not done yet are quiet "pending"
+tiles; with extra axes it shows the page of the newest image), and sends one
+frame per image, at most every 0.3 s. It reuses `make_grid` and the same
+resolved axes (`GridAxes`) as the saved grids, so the preview and the result
+can't disagree. A preview failure turns the preview off and the sweep carries
+on.
+
+It is only possible for a node that does its own looping. In the Plan + Collect
+path ComfyUI's executor runs each node over *all* list items before the next
+node starts, so the decode and collect steps can't see an image until the
+sampler has finished every run. Real-time there would need the browser to queue
+one run per cell (what quick XY-plot nodes do), which gives up running from
+scripts and the API. SweepKit keeps the server-side loop.
+
+### Sweeping any setting through native lists
+
+Three facts, each checked live, make this possible without intercepting the
+frontend's queueing:
+
+- An output declared `OUTPUT_IS_LIST` with type `"*"` can be wired into any
+  widget socket (INT, FLOAT and COMBO were tested), and ComfyUI's validation
+  accepts it (`validate_node_input` treats `*` as any type).
+- Two such outputs wired into one node are walked in step (aligned lists), so
+  one list per axis, each expanded to the full product, gives every combination
+  exactly once.
+- A node with `INPUT_IS_LIST` receives the whole set of images at the end
+  (`SweepCollect`), no List-Utils needed.
+
+So `SweepCombinationExpander` (the Plan) keeps its three original outputs in
+slots 0-2 (saved workflows link by position) and gains eight list outputs
+`axis_1`..`axis_8` after them, one per axis in chain order
+(`axis_output_lists` in `sweep_core.py`). The frontend shows one per axis in the
+chain, trimmed from the end and never removing a wired one. When the chain runs
+through Pair Axes or Subsets it can't read the axes, so it leaves all eight.
+
+The sweep stays visible in the graph (axis nodes, a Plan, wires) rather than in
+hidden node state, so it can be read, copied, diffed and run through the API.
+The right-click menu only automates what a user would otherwise wire by hand;
+it uses the frontend's `getNodeMenuItems` hook and `node.getWidgetOnPos`, and
+changes nothing at queue time.
+
+Known rough edges: a choice setting becomes a `text` axis, so each value is a
+folder in the saved file names; a loader's file-name sweep loads each file in
+turn; a text box needs the node's title bar for its right-click (inside the
+text box the browser's own menu opens).
+
+### Summary lines come from the backend
+
+The count and values shown under an axis ("3 values: 1 · 2 · 3", or what is
+wrong with the text) are asked of `POST /sweepkit/preview_values`, which runs
+the same parser as the sweep (`preview_values` in `sweep_dimension.py`), so the
+two can't disagree and there is no second implementation to keep in step. The
+"12 images: 2 × 3 × 2" line multiplies those counts. Ranges above 10,000 values
+are refused rather than expanded.
