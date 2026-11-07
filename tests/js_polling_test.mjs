@@ -32,10 +32,15 @@ getWidget(node, "values").value = "Base\nTurbo";
 tickOnce();
 assert(calls === 2, "a change must be caught on the next tick even with no callback, got " + calls);
 
+// connecting a values_pylist link (no widget change) must also trigger a sync
+node.inputs = [{ name: "values_pylist", link: 3 }];
+tickOnce();
+assert(calls === 3, "connecting values_pylist must trigger a sync, got " + calls);
+
 node.__sweepRemoved = true;
 getWidget(node, "values").value = "Base\nTurbo\nLightning";
 tickOnce();
-assert(calls === 2, "no sync after node removal, got " + calls);
+assert(calls === 3, "no sync after node removal, got " + calls);
 assert(queue.length === 0, "a removed node must not schedule another tick");
 console.log("PASS test1: polling catches changes without callbacks, ignores repeats, stops on removal");
 

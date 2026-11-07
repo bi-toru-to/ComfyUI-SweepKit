@@ -84,4 +84,16 @@ scheduled();
 assert(JSON.stringify(node.size) === JSON.stringify([200, 140]), "resize keeps width, fits height: " + node.size);
 console.log("PASS test6: resize is deferred and keeps the user's width");
 
+// Test 7: a connected values_pylist replaces the sockets and the example text
+node = makeNode("model", "");
+node.inputs.push({ name: "values_pylist", type: "PYLIST", link: 7 });
+sync(node);
+assert(getWidget(node, "values").value === "", "no example text while values_pylist is connected");
+assert(!node.inputs.some((i) => i.name.startsWith("model_")), "no MODEL sockets while values_pylist is connected");
+node.inputs[0].link = null; // disconnect the PyList -> back to sockets + example
+sync(node);
+assert(getWidget(node, "values").value === MODEL_VALUES_EXAMPLE, "example appears once the PyList is disconnected");
+assert(node.inputs.filter((i) => i.name.startsWith("model_")).length === 2, "sockets appear once disconnected");
+console.log("PASS test7: values_pylist connected -> no sockets, no example text");
+
 console.log("\nALL LORA-HIDE / MODEL-HINT TESTS PASSED");

@@ -9,6 +9,8 @@
  *    applied, so links on unchanged sockets survive every keystroke.
  *  - dim_type "model" with empty `values`: fills in a two-line example
  *    once, so it's clear labels are needed to get sockets.
+ *  - Neither happens while `values_pylist` is connected: the connected
+ *    list supplies the models itself and replaces the sockets.
  *  - `lora_name` (a combo) is shown only for dim_type "lora_strength".
  *    Hiding is limited to this one combo widget: hiding multiline text
  *    widgets proved unreliable in this frontend (see DESIGN.md).
@@ -99,6 +101,11 @@ export function fitNodeSize(node) {
     node.setDirtyCanvas(true, true);
 }
 
+/** True when a PyList is connected to values_pylist (it overrides `values`). */
+export function pylistConnected(node) {
+    return Boolean(node.inputs && node.inputs.some((i) => i.name === "values_pylist" && i.link != null));
+}
+
 /** Bring sockets and widget visibility in line with the current widget
  * values. `scheduleResize` (default: next animation frame) runs the resize
  * after the frontend has laid out the change; pass null to skip it. */
@@ -109,7 +116,7 @@ export function sweepSync(node, scheduleResize = globalThis.requestAnimationFram
 
     setWidgetHidden(getWidget(node, "lora_name"), typeW.value !== "lora_strength");
 
-    if (typeW.value === "model") {
+    if (typeW.value === "model" && !pylistConnected(node)) {
         if (valuesW && !valuesW.value.trim() && !node.__sweepModelHintShown) {
             valuesW.value = MODEL_VALUES_EXAMPLE;
             node.__sweepModelHintShown = true;
@@ -122,11 +129,12 @@ export function sweepSync(node, scheduleResize = globalThis.requestAnimationFram
     if (scheduleResize) scheduleResize(() => fitNodeSize(node));
 }
 
-/** The values polling compares between ticks. */
+/** The state polling compares between ticks (including whether a PyList
+ * is connected, since that switches the sockets off and on). */
 export function snapshot(node) {
     const typeW = getWidget(node, "dim_type");
     const valuesW = getWidget(node, "values");
-    return (typeW ? typeW.value : "") + "\u0001" + (valuesW ? valuesW.value : "");
+    return [typeW ? typeW.value : "", valuesW ? valuesW.value : "", pylistConnected(node) ? "1" : "0"].join("\u0001");
 }
 
 /** Re-sync whenever dim_type or values changes, checking every
