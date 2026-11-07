@@ -125,10 +125,21 @@ The execution model (cost-sorted axes, LoRA applied to both model and
 CLIP, cached CLIP encoding, generalized N-dimension grids with explicit
 X/Y/Title + automatic grouping for the rest, clean output folder
 structure) is the same engine as before — only how dimensions get
-*specified* changed. `sweep_core.py` holds every pure function
-(parsing, cost ranking, grid-axis resolution) shared by both nodes, and
-is intentionally import-light (no torch, no comfy) so it can be unit
-tested with a plain `python3` interpreter.
+*specified* changed.
+
+### Module layout
+
+| Module | Holds | Imports torch/comfy? |
+|---|---|---|
+| `sweep_core.py` | The `Dimension`/`ComboRecord` types, value parsing, cost ranking, combo generation, grid-axis resolution, filename building, dedupe/gather/self-combine | No — unit tested with a plain interpreter |
+| `sweep_draw.py` | Fonts, text wrapping/truncation, canvas-size limit, padding | No (PIL only) |
+| `sweep_image.py` | Tensor↔PIL conversion, cell sizing, the single grid renderer (`make_grid`) and `build_grids`, used by both `SweepAllInOne` and `SweepGridConstructor` | Yes |
+| `sweep_*.py` (one per node) | The node classes: inputs, validation, and calls into the modules above | Yes |
+
+Grid building lives in exactly one place, so `SweepAllInOne` and
+`SweepGridConstructor` can't drift apart; `SweepAllInOne` only differs in
+using fixed 16 px labels where the constructor scales text with the cell
+size (`font_size`).
 
 ## Pairing dimensions instead of cross-producting them: SweepDimensionZip
 
@@ -320,7 +331,7 @@ every single one and hoping they agree.
 
 ## A real bug found via the "square works, fit/original don't" clue
 
-`_cell_dims` read an image tensor's height/width from fixed positions
+`_cell_dims` (now `sweep_image.cell_dims`) read an image tensor's height/width from fixed positions
 `shape[1]`/`shape[2]`, assuming a plain `[batch, H, W, channels]` tensor.
 A live report showed grid images collapsing to a near-zero height
 (147px total — exactly `title_h + label_h + pad` with the cell
