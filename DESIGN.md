@@ -40,7 +40,7 @@ rounds of live testing:
 At that point the pattern was clear: dynamically reshaping *one node's*
 widget set in place was fighting internals that aren't fully predictable
 or documented from outside, and each fix was trading one symptom for
-another. The was a request to look for a fundamentally different
+another. There was a request to look for a fundamentally different
 approach, so the node was restructured instead of patched a fifth time.
 
 ## The new shape
@@ -215,7 +215,7 @@ for any dimension that wasn't itself given a role — without that, an
 unrepresented zip partner would default to index 0 regardless of which
 value was actually generated for that cell.
 
-
+## Known limitations of the split-node design
 
 - A "model"-type dimension no longer supports an optional per-slot CLIP
   override (the mega-node version did). Every slot uses the main node's
@@ -294,7 +294,7 @@ group) — previously this just failed silently, which is exactly what
 happened in the report that surfaced this (`grid_y_dim` set to a
 dimension that was already part of the X axis's zip group).
 
-
+## How fixed_seed / fixed_steps / fixed_cfg relate to dimensions
 
 `fixed_seed` / `fixed_steps` / `fixed_cfg` on `SweepAllInOne` are
 **defaults, used only when no chained SweepDimension of the matching type
@@ -369,6 +369,7 @@ reported bug exactly: `(512, 1)`, an effectively-zero-height cell.
 
 ## Testing performed
 
+Run everything with `python tests/run_all.py` (see README.md).
 
 - `tests/logic_test.py` — pure `sweep_core.py` functions (parsing,
   cost ranking, grid-axis auto-resolution, dimension-value resizing,
@@ -396,7 +397,7 @@ reported bug exactly: `(512, 1)`, an effectively-zero-height cell.
   group, all three zip modes (shortest truncates, longest pads by
   repeating the last value, strict raises a clear error on mismatched
   lengths), and grid building with a zipped pair as an axis producing the
-  expected grid count with no crash.
+  expected grid count with no crash,
   cell_mode's three sizing modes against a portrait (888×1184) image
   confirming 'square' forces cell_size regardless of source shape, 'fit'
   preserves the exact aspect ratio while capping the larger dimension at
