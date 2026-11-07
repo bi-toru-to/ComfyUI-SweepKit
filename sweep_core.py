@@ -6,10 +6,40 @@ matters most) can be unit tested with plain `python3 sweep_core.py`
 style imports, without needing a ComfyUI/torch environment at all.
 """
 
-import re
-import os
-import math
+from __future__ import annotations
+
 import itertools
+import math
+import os
+import re
+from typing import Any, Callable, Iterable, Sequence, TypedDict
+
+
+class Dimension(TypedDict, total=False):
+    """One sweep axis as it travels down a SWEEP_DIMS chain.
+
+    Built by SweepDimension.build(); later nodes copy it with dict(d) and
+    may add keys, never mutate an upstream node's copy."""
+
+    type: str  # one of DIM_TYPE_OPTIONS
+    dim_id: str  # user-facing name; defaults to the type
+    index: int  # 1-based position among active dimensions in the chain
+    values: list[Any]  # parsed values (lora_strength: (model, clip) tuples)
+    uid: str  # stable identity across branches (SweepDimensionZip dedupe)
+    lora_name: str  # lora_strength only: which LoRA file
+    model_objs: list[Any]  # model only: MODEL per value (None = base model)
+    group: str  # set by SweepDimensionZip: members share one value index
+    group_label: str  # "label_a, label_b" display name of a zipped group
+    combo_meta: list[dict]  # SweepDimensionSelfCombine: {"arity", "members"} per value
+    base_values: list[Any]  # SweepDimensionSelfCombine: the original values
+
+
+class ComboRecord(TypedDict):
+    """One generated combination: which value index each dimension uses."""
+
+    combo_index: int
+    idx_by_dim: dict[int, int]  # Dimension["index"] -> index into its values
+
 
 DIM_TYPE_OPTIONS = [
     "text",
@@ -55,19 +85,29 @@ GRID_AXIS_OPTIONS = ["auto", "none"] + [f"dim{i}" for i in range(1, GRID_AXIS_PI
 # in web/sweepkit.js, which never creates more sockets than this.
 MAX_MODEL_SOCKETS = 24
 
+# Console summaries list this many values per dimension, and warn when a
+# sweep has more than LARGE_SWEEP_WARNING images.
+PREVIEW_VALUES = 6
+LARGE_SWEEP_WARNING = 500
+
+# Generated relative paths longer than MAX_NAME_LEN are cut to
+# TRUNCATED_NAME_LEN plus a unique suffix (Windows paths are limited).
+MAX_NAME_LEN = 220
+TRUNCATED_NAME_LEN = 200
+
+# A lora_strength value is a (model_strength, clip_strength) pair.
+STRENGTH_PAIR_LEN = 2
+
 # SweepDimensionSelfCombine refuses to derive more values than this.
 MAX_DERIVED_VALUES = 10_000
 
-# Largest grid/matrix canvas any node will build (100 megapixels is about
-# 300 MB as RGB plus 1.2 GB as the float32 IMAGE output).
-MAX_CANVAS_PIXELS = 100_000_000
 
 # Windows device names: a path component whose stem is one of these (e.g.
 # "NUL", "con.png") refers to a device, not a file, and saving fails.
 _WINDOWS_RESERVED = re.compile(r"(?i)^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(\..*)?$")
 
 
-def safe_component(s):
+def safe_component(s: Any) -> str:
     """Sanitize a string for use as a folder or filename component."""
     s = re.sub(r"[^\w\-. ]", "_", str(s)).strip().strip(".")
     s = s[:80].rstrip(" .")
@@ -76,7 +116,7 @@ def safe_component(s):
     return s if s else "_"
 
 
-def parse_text_list(raw):
+def parse_text_list(raw: Any) -> list[str]:
     """One value per line — newline only. Unlike the numeric parsers
     below, commas are NOT treated as a separator here, since a single
     text value legitimately contains them (e.g. a comma-separated tag
@@ -87,7 +127,7 @@ def parse_text_list(raw):
     return [line.strip() for line in str(raw).split("\n") if line.strip()]
 
 
-def parse_number_list(raw, cast, dim_id, allow_range=False):
+def parse_number_list(raw: Any, cast: Callable[[str], Any], dim_id: str, allow_range: bool = False) -> list[Any]:
     """Parse a comma/newline separated list of numbers.
 
     Raises ValueError naming the offending dimension and value, instead of
@@ -110,11 +150,13 @@ def parse_number_list(raw, cast, dim_id, allow_range=False):
         try:
             out.append(cast(line))
         except ValueError:
-            raise ValueError(f"[SweepKit] Dimension '{dim_id}': could not parse value '{line}' as {cast.__name__}.")
+            raise ValueError(
+                f"[SweepDimension] '{dim_id}': could not parse value '{line}' as {cast.__name__}."
+            ) from None
     return out
 
 
-def parse_lora_strength_list(raw, dim_id):
+def parse_lora_strength_list(raw: Any, dim_id: str) -> list[tuple[float, float]]:
     """Each line is either 'X' (applied to both model & clip) or
     'X:Y' (model strength : clip strength)."""
     if raw is None or not str(raw).strip():
@@ -133,19 +175,16 @@ def parse_lora_strength_list(raw, dim_id):
                 out.append((v, v))
         except ValueError:
             raise ValueError(
-                f"[SweepKit] Dimension '{dim_id}': could not parse "
+                f"[SweepDimension] '{dim_id}': could not parse "
                 f"lora strength '{line}' (expected a number, or 'model:clip')."
-            )
+            ) from None
     return out or [(1.0, 1.0)]
 
 
-def format_dim_value(d, vi):
-    """Nicely format a single dimension's value at index vi. lora_strength
-    stores (model_strength, clip_strength) tuples -- shown as one number
-    if they're equal, 'model/clip' if not, rather than Python's raw tuple
-    repr ('(0.5, 0.5)'), which is what grid axis labels used to show
-    verbatim. Other float values (e.g. cfg) get the same trailing-zero
-    trimming so '1' and '1.0' don't show up side by side inconsistently."""
+def format_dim_value(d: Dimension, vi: int) -> str:
+    """Display text for a dimension's value at index vi: lora_strength
+    pairs as '0.5' (equal) or '0.5/0.3' (model/clip), never a raw tuple;
+    floats with trailing zeros trimmed so '1' and '1.0' look the same."""
     val = d["values"][vi]
     if d["type"] == "lora_strength":
         sm, sc = val
@@ -155,7 +194,7 @@ def format_dim_value(d, vi):
     return str(val)
 
 
-def dim_group_members(d, active_dims):
+def dim_group_members(d: Dimension, active_dims: Sequence[Dimension]) -> list[Dimension]:
     """Every dimension sharing d's group id (including d itself), or just
     [d] if it isn't grouped. Used so a zipped pair/triple's displayed
     value reflects ALL of what's actually varying together, not just
@@ -167,7 +206,7 @@ def dim_group_members(d, active_dims):
     return [o for o in active_dims if o.get("group") == gid]
 
 
-def format_group_value(group, vi):
+def format_group_value(group: Sequence[Dimension], vi: int) -> str:
     """Combined display value for a (possibly multi-member) group at the
     shared index vi -- e.g. '0.5, 15, 2' for a zipped lora_strength+steps+
     cfg triple, matching the combined 'label1, label2, label3' the group
@@ -175,7 +214,7 @@ def format_group_value(group, vi):
     return ", ".join(format_dim_value(d, vi) for d in group)
 
 
-def resize_dimension_values(dim, new_length):
+def resize_dimension_values(dim: Dimension, new_length: int) -> None:
     """Truncate or pad (by repeating the last element) a dimension's
     values — and, for a 'model' dimension, its parallel model_objs list —
     to `new_length`. Used by SweepDimensionZip to align two dimensions'
@@ -196,7 +235,7 @@ def resize_dimension_values(dim, new_length):
             dim["model_objs"] = mo + [pad] * (new_length - len(mo))
 
 
-def partition_into_groups(active_dims):
+def partition_into_groups(active_dims: Sequence[Dimension]) -> list[list[Dimension]]:
     """Group dimensions that share a 'group' id (set by SweepDimensionZip)
     so the generation loop can iterate them together with one shared
     index, instead of cross-producting them as independent axes.
@@ -214,7 +253,7 @@ def partition_into_groups(active_dims):
     return [groups[k] for k in order]
 
 
-def group_cost_rank(group):
+def group_cost_rank(group: Sequence[Dimension]) -> int:
     """A group's cost is however expensive its most expensive member is —
     e.g. a lora_strength dimension zipped with a cfg dimension should
     still be treated as outer-loop-expensive, since changing the group's
@@ -222,11 +261,11 @@ def group_cost_rank(group):
     return min(COST_RANK.get(d["type"], 5) for d in group)
 
 
-def sort_groups(groups):
+def sort_groups(groups: Sequence[list[Dimension]]) -> list[list[Dimension]]:
     return sorted(groups, key=lambda g: (group_cost_rank(g), min(d["index"] for d in g)))
 
 
-def resolve_group_index(d, full_idx, active_dims):
+def resolve_group_index(d: Dimension, full_idx: dict[int, int], active_dims: Sequence[Dimension]) -> int:
     """Look up the resolved value-index for dimension `d` within a grid
     cell's index map. If d's own index isn't a key in full_idx (it wasn't
     given an explicit X/Y/Title/grouping role because a groupmate was
@@ -243,124 +282,111 @@ def resolve_group_index(d, full_idx, active_dims):
     return 0
 
 
-def resolve_grid_axes(active_dims, grid_x_dim, grid_y_dim, grid_title_dim):
-    """Map the user's grid_x_dim / grid_y_dim / grid_title_dim widget
-    selections (tokens like 'auto', 'none', 'dim3') onto actual dimension
-    dicts, filling in sensible defaults for anything left unresolved.
+def resolve_grid_axes(
+    active_dims: Sequence[Dimension],
+    grid_x_dim: str,
+    grid_y_dim: str,
+    grid_title_dim: str,
+    node_tag: str = "SweepAllInOne",
+) -> tuple[Dimension | None, Dimension | None, Dimension | None, list[Dimension]]:
+    """Turn the grid_x_dim / grid_y_dim / grid_title_dim picks ('auto',
+    'none' or 'dimN') into dimensions. Returns (x, y, title, others); every
+    combination of `others` becomes its own grid, so no axis is dropped.
 
-    Returns (x_dim, y_dim, title_dim, other_dims) where other_dims is every
-    remaining active dimension — each combination of THOSE produces its own
-    separate grid image, so no data from a 3rd/4th/... dimension is ever
-    silently dropped.
-
-    Group-aware: dimensions zipped together by SweepDimensionZip share a
-    'group' id and always move in lockstep, so at most ONE member of a
-    group is ever picked to represent it — as X, Y, Title, or a grouping
-    axis. Picking a second member for a different role would just repeat
-    the same pairing as an independent axis and produce a grid full of
-    empty cells off the (forced) diagonal, so it's avoided by construction
-    rather than left as a trap.
-
-    Auto-fill order is X, then Y, then TITLE LAST -- title only ever takes
-    a dimension nothing else needed. This maximizes the chance a 2-axis
-    sweep lands as one single-image XY grid: with exactly 2 independent
-    axes, X and Y between them claim both, and title finds nothing left
-    to take regardless of whether it was left on 'auto' or explicitly set
-    to 'none'. X and Y both defer text/static-type dimensions where a
-    non-text alternative exists (falling back to text/static only if
-    that's genuinely all that's left), so a 3+-axis sweep still tends to
-    land a text dimension on the title instead of accidentally landing it
-    on Y just because title used to run first.
-
-    Auto-fill triggers whenever a role is still unresolved and the user
-    didn't explicitly ask for 'none' -- this deliberately includes an
-    EXPLICIT-but-conflicting token (e.g. picking the non-representative
-    half of an already-claimed zipped pair for Y), not just a bare 'auto'.
-    Otherwise a conflicting explicit pick would strand that role
-    permanently empty and force its dimension into other_dims (silently
-    multiplying the grid count) even in cases where 'auto' would have
-    happily recovered by picking something else instead -- the two should
-    behave the same when the specific pick didn't pan out.
+    - Zip groups move in lockstep, so at most one member of a group gets a
+      role; giving a second member another role would only add empty
+      off-diagonal cells.
+    - Auto-fill runs X, then Y, then title last, so a 2-axis sweep always
+      lands on one X/Y grid. X prefers a seed, then any non-text
+      dimension; Y prefers non-text, so text tends to end up as the title.
+    - An explicit pick that can't be honoured (unknown, or its zip group
+      is taken) falls back to auto-fill with a printed reason, unless the
+      role is 'none'.
     """
-    by_token = {f"dim{d['index']}": d for d in active_dims}
-    used_indices = set()
-    used_groups = set()
+    claims = _AxisClaims(active_dims, node_tag)
+    x_dim = claims.explicit(grid_x_dim, "x")
+    y_dim = claims.explicit(grid_y_dim, "y")
+    title_dim = claims.explicit(grid_title_dim, "title")
 
-    def claim(d):
-        used_indices.add(d["index"])
-        if d.get("group"):
-            used_groups.add(d["group"])
-
-    def available(d):
-        if d["index"] in used_indices:
-            return False
-        if d.get("group") and d["group"] in used_groups:
-            return False
-        return True
-
-    def explicit(token, role_name):
-        if token in ("auto", "none"):
-            return None
-        d = by_token.get(token)
-        if d is None:
-            print(
-                f"[SweepAllInOne] grid_{role_name}_dim '{token}' doesn't match any active dimension — falling back to auto-selection for {role_name}."
-            )
-            return None
-        if not available(d):
-            reason = (
-                "its group is already used by another grid axis"
-                if d.get("group") in used_groups
-                else "it's already used by another grid axis"
-            )
-            print(
-                f"[SweepAllInOne] grid_{role_name}_dim '{token}' ('{d['dim_id']}') can't be used here — {reason}. Falling back to auto-selection for {role_name}."
-            )
-            return None
-        claim(d)
-        return d
-
-    x_dim = explicit(grid_x_dim, "x")
-    y_dim = explicit(grid_y_dim, "y")
-    title_dim = explicit(grid_title_dim, "title")
+    def non_text(d: Dimension) -> bool:
+        return d["type"] not in ("text", "static")
 
     if grid_x_dim != "none" and x_dim is None:
-        x_dim = next((d for d in active_dims if d["type"] == "seed" and available(d)), None)
-        if x_dim is None:
-            x_dim = next((d for d in active_dims if d["type"] not in ("text", "static") and available(d)), None)
-        if x_dim is None:
-            x_dim = next((d for d in active_dims if available(d)), None)
-        if x_dim:
-            claim(x_dim)
-
+        x_dim = claims.auto_pick(lambda d: d["type"] == "seed", non_text, lambda d: True)
     if grid_y_dim != "none" and y_dim is None:
-        y_dim = next((d for d in active_dims if d["type"] not in ("text", "static") and available(d)), None)
-        if y_dim is None:
-            y_dim = next((d for d in active_dims if available(d)), None)
-        if y_dim:
-            claim(y_dim)
-
+        y_dim = claims.auto_pick(non_text, lambda d: True)
     if grid_title_dim != "none" and title_dim is None:
-        title_dim = next((d for d in active_dims if available(d)), None)
-        if title_dim:
-            claim(title_dim)
+        title_dim = claims.auto_pick(lambda d: True)
 
-    other_dims = []
-    seen_other_groups = set()
-    for d in active_dims:
-        if not available(d):
-            continue
-        gid = d.get("group")
-        if gid:
-            if gid in seen_other_groups:
-                continue
-            seen_other_groups.add(gid)
-        other_dims.append(d)
-
+    other_dims = one_per_group(d for d in active_dims if claims.available(d))
     return x_dim, y_dim, title_dim, other_dims
 
 
-def cast_pylist_values(raw_list, dim_type, dim_id):
+class _AxisClaims:
+    """Tracks which dimensions (and zip groups) already have a grid role."""
+
+    def __init__(self, active_dims: Sequence[Dimension], node_tag: str) -> None:
+        self.active_dims = active_dims
+        self.node_tag = node_tag
+        self.by_token = {f"dim{d['index']}": d for d in active_dims}
+        self.used_indices = set()
+        self.used_groups = set()
+
+    def available(self, d: Dimension) -> bool:
+        group = d.get("group")
+        return d["index"] not in self.used_indices and not (group and group in self.used_groups)
+
+    def claim(self, d: Dimension) -> Dimension:
+        self.used_indices.add(d["index"])
+        if d.get("group"):
+            self.used_groups.add(d["group"])
+        return d
+
+    def explicit(self, token: str, role: str) -> Dimension | None:
+        """The dimension an explicit 'dimN' token names, if it can take
+        this role; None (with a printed reason) if it can't."""
+        if token in ("auto", "none"):
+            return None
+        d = self.by_token.get(token)
+        if d is None:
+            reason = "doesn't match any active dimension"
+        elif not self.available(d):
+            in_group = d.get("group") in self.used_groups
+            reason = f"('{d['dim_id']}') can't be used here — " + (
+                "its group is already used by another grid axis"
+                if in_group
+                else "it's already used by another grid axis"
+            )
+        else:
+            return self.claim(d)
+        print(f"[{self.node_tag}] grid_{role}_dim '{token}' {reason}. Falling back to auto-selection for {role}.")
+        return None
+
+    def auto_pick(self, *preferences: Callable[[Dimension], bool]) -> Dimension | None:
+        """Claim the first available dimension matching the first
+        preference that matches anything; None if nothing is left."""
+        for prefer in preferences:
+            d = next((d for d in self.active_dims if prefer(d) and self.available(d)), None)
+            if d is not None:
+                return self.claim(d)
+        return None
+
+
+def one_per_group(dims: Iterable[Dimension]) -> list[Dimension]:
+    """Keep ungrouped dimensions plus the first member of each zip group,
+    so a correlated pair is never treated as two independent axes."""
+    out, seen = [], set()
+    for d in dims:
+        gid = d.get("group")
+        if gid:
+            if gid in seen:
+                continue
+            seen.add(gid)
+        out.append(d)
+    return out
+
+
+def cast_pylist_values(raw_list: Sequence[Any], dim_type: str, dim_id: str) -> list[Any]:
     """Cast/validate a raw Python list (from a connected PYLIST socket) to
     match dim_type — the same job the string-widget parsers above do for
     typed text, just operating on already-Python-typed elements instead of
@@ -382,7 +408,7 @@ def cast_pylist_values(raw_list, dim_type, dim_id):
             elif dim_type == "cfg":
                 out.append(float(raw))
             elif dim_type == "lora_strength":
-                if isinstance(raw, (list, tuple)) and len(raw) == 2:
+                if isinstance(raw, (list, tuple)) and len(raw) == STRENGTH_PAIR_LEN:
                     out.append((float(raw[0]), float(raw[1])))
                 else:
                     v = float(raw)
@@ -394,18 +420,20 @@ def cast_pylist_values(raw_list, dim_type, dim_id):
         except (ValueError, TypeError) as e:
             raise ValueError(
                 f"[SweepDimension] '{dim_id}': values_pylist element {i} ({raw!r}) can't be cast to {dim_type} — {e}"
-            )
+            ) from e
     return out
 
 
-def build_combo_records(active_dims):
-    """The cost-sorted cartesian product, extracted from what used to be
-    inline in SweepAllInOne.generate(). Returns (combo_records,
+def build_combo_records(
+    active_dims: Sequence[Dimension],
+) -> tuple[list[ComboRecord], list[Dimension], list[list[Dimension]]]:
+    """The cost-sorted cartesian product used by SweepAllInOne and
+    SweepCombinationExpander. Returns (combo_records,
     active_dims_sorted, sorted_groups):
 
       * active_dims_sorted: active_dims sorted by chain index.
       * sorted_groups: partition_into_groups() + sort_groups() — the same
-        group-aware, cost-ordered structure the old inline loop iterated.
+        group-aware, cost-ordered structure that is iterated.
       * combo_records: one dict per generated combination —
         {"combo_index": n, "idx_by_dim": {dim_index: value_index, ...}} —
         with EVERY active dimension's index present (zipped groupmates all
@@ -424,7 +452,7 @@ def build_combo_records(active_dims):
     combo_records = []
     for n, combo in enumerate(combos):
         idx_by_dim = {}
-        for group, group_vi in zip(sorted_groups, combo):
+        for group, group_vi in zip(sorted_groups, combo, strict=True):
             for d in group:
                 idx_by_dim[d["index"]] = group_vi
         combo_records.append({"combo_index": n, "idx_by_dim": idx_by_dim})
@@ -432,7 +460,7 @@ def build_combo_records(active_dims):
     return combo_records, active_dims_sorted, sorted_groups
 
 
-def find_dim_by_id(dimensions, dim_id):
+def find_dim_by_id(dimensions: Sequence[Dimension], dim_id: str) -> Dimension:
     """Exact dim_id lookup shared by anything that needs to grab one
     specific dimension out of a chain by its user-facing identifier (not
     chain position) — raises a clear, available-ids-listing error on a
@@ -448,7 +476,9 @@ def find_dim_by_id(dimensions, dim_id):
     return candidates[0]
 
 
-def extract_values(dimensions, combo_records, dim_id, component="value"):
+def extract_values(
+    dimensions: Sequence[Dimension], combo_records: Sequence[ComboRecord], dim_id: str, component: str = "value"
+) -> list[Any]:
     """Pull one axis's flattened, per-combo values out of combo_records —
     the generic replacement for SweepCombinationExpander hardcoding a
     seeds/steps/cfgs/... output per axis. Matches by exact dimension
@@ -463,7 +493,7 @@ def extract_values(dimensions, combo_records, dim_id, component="value"):
     try:
         d = find_dim_by_id(dimensions, dim_id)
     except ValueError as e:
-        raise ValueError(f"[SweepDimensionExtract] {e}")
+        raise ValueError(f"[SweepDimensionExtract] {e}") from None
 
     if component != "value" and d["type"] != "lora_strength":
         raise ValueError(
@@ -489,7 +519,9 @@ def extract_values(dimensions, combo_records, dim_id, component="value"):
     return out
 
 
-def self_combine(values, mode, min_size, max_size, joiner):
+def self_combine(
+    values: Sequence[Any], mode: str, min_size: int, max_size: int | None, joiner: str
+) -> tuple[list[str], list[dict]]:
     """itertools.combinations/permutations of one dimension's OWN values,
     across every size from min_size to max_size inclusive (not just one
     fixed r) — e.g. 4 artist styles at sizes 1-3 gives every single,
@@ -535,7 +567,7 @@ def self_combine(values, mode, min_size, max_size, joiner):
     return out_values, combo_meta
 
 
-def dedupe_indices(keys):
+def dedupe_indices(keys: Sequence[Any]) -> tuple[list[int], list[int]]:
     """Given N hashable keys, return (unique_index_map, expand_indices):
 
       * unique_index_map[j] = the first original index i whose key was the
@@ -564,7 +596,7 @@ def dedupe_indices(keys):
 _DEDUPE_KEY_TYPES = (str, int, float, bool)
 
 
-def build_dedupe_keys(axis_value_lists, float_precision=4):
+def build_dedupe_keys(axis_value_lists: Sequence[Sequence[Any]], float_precision: int = 4) -> list[str]:
     """Build one hashable key per combo from however many axis PYLISTs are
     connected (all must be the same length). Floats are rounded to
     float_precision first so e.g. 7.5 and 7.5000000001 hash the same.
@@ -605,7 +637,7 @@ def build_dedupe_keys(axis_value_lists, float_precision=4):
     return keys
 
 
-def gather(source, indices):
+def gather(source: Sequence[Any], indices: Sequence[Any]) -> list[Any]:
     """result[i] = source[indices[i]] — generic enough to be useful well
     beyond this node pack (it's the piece List-Utils itself doesn't have).
     Used twice in a dedup workflow: once to shrink a full axis list down to
@@ -623,42 +655,26 @@ def gather(source, indices):
     return out
 
 
-def build_filenames(active_dims, combo_records, filename_prefix, include_combo_index):
-    """One filename (relative path, no extension, forward-slash separated)
-    per combo record — feeds a stock SaveImage's filename_prefix as a List,
-    paired index-for-index against the also-Listed images. Text/static
-    dimensions become subfolders; everything else becomes a filename
-    suffix component.
+def build_filenames(
+    active_dims: Sequence[Dimension],
+    combo_records: Sequence[ComboRecord],
+    filename_prefix: str,
+    include_combo_index: bool,
+) -> list[str]:
+    """One relative path per combo (forward slashes, no extension), for a
+    stock SaveImage's filename_prefix List, paired index-for-index with
+    the images.
 
-    filename_prefix is ALWAYS the leading folder component of the
-    returned path (sanitized via safe_component, so a value containing
-    '/' or other unsafe characters can't produce a malformed path) — it
-    used to only take effect as a folder if the caller manually typed a
-    trailing '/' into the widget, and even then got concatenated straight
-    into what was supposed to be a bare filename, producing a stray
-    leading underscore. Making it unconditionally a real path component
-    fixes both: SaveImage now reliably creates an <output>/<filename_prefix>/
-    folder by default, with no widget gymnastics required.
-
-    A dimension produced by SweepDimensionSelfCombine (flagged by the
-    'combo_meta' key SweepDimensionSelfCombine attaches) does NOT become a
-    subfolder even though its dim_type is still 'text' — every one of its
-    derived values is unique per combo by construction (no two combos
-    ever share one), so folder-per-value would put every single image in
-    its own folder instead of grouping anything. It still contributes to
-    the filename itself, same as before.
-
-    Values that aren't a plain str/int/float/bool (an opaque MODEL object
-    from a values_pylist-fed 'model' dimension, say) fall back to a stable
-    POSITIONAL tag (label + value-index) rather than str()-ing the object,
-    which would bake a memory address into the filename and change on
-    every run.
-
-    include_combo_index prefixes a zero-padded running number, which is
-    what guarantees every filename is unique — this replaces the old
-    save_individual's special-cased "no seed dimension -> append _seedN"
-    hack with one mechanism that works regardless of which dimensions are
-    actually present.
+    - filename_prefix is always the top folder (sanitized), so SaveImage
+      writes under <output>/<prefix>/ without needing a trailing '/'.
+    - text/static values become subfolders, except a self-combined
+      dimension (has 'combo_meta'): its values are unique per combo, so a
+      folder each would group nothing. Other values go into the filename.
+    - Values that aren't str/int/float/bool (e.g. MODEL objects) appear as
+      label + value index, never str(obj), which would embed a memory
+      address that changes every run.
+    - include_combo_index prefixes a zero-padded running number, which
+      keeps every filename unique whatever dimensions are present.
     """
     n = len(combo_records)
     idx_width = max(4, len(str(max(n - 1, 0))))
@@ -681,7 +697,7 @@ def build_filenames(active_dims, combo_records, filename_prefix, include_combo_i
             elif isinstance(val, (str, int, float, bool)):
                 shown = f"{val:g}" if isinstance(val, float) else str(val)
                 name_parts.append(f"{safe_component(d['dim_id'])}{shown}")
-            elif isinstance(val, (list, tuple)) and len(val) == 2:
+            elif isinstance(val, (list, tuple)) and len(val) == STRENGTH_PAIR_LEN:
                 # lora_strength-style (model_strength, clip_strength)
                 sm = val[0]
                 name_parts.append(f"{safe_component(d['dim_id'])}{sm:g}")
@@ -691,53 +707,13 @@ def build_filenames(active_dims, combo_records, filename_prefix, include_combo_i
         if include_combo_index:
             base = f"{str(rec['combo_index']).zfill(idx_width)}_{base}"
         rel = os.path.join(prefix_folder, *folder_parts, base)
-        if len(rel) > 220:
-            rel = rel[:200] + f"_{rec['combo_index']}"
+        if len(rel) > MAX_NAME_LEN:
+            rel = rel[:TRUNCATED_NAME_LEN] + f"_{rec['combo_index']}"
         out.append(rel.replace(os.sep, "/"))
     return out
 
 
-def truncate_text_to_width(text, font, max_width, draw):
-    """Pixel-width-aware truncation (with ellipsis), as opposed to a fixed
-    character count — the available space for a label is generous and
-    content-dependent (see the grid/matrix constructors), so a fixed char
-    count would either waste the extra room or still overflow it
-    depending on content and font_size. Shared by SweepGridConstructor and
-    SweepUpsetConstructor so their label handling can't drift apart."""
-    text = str(text)
-    if max_width <= 0:
-        return ""
-    if draw.textbbox((0, 0), text, font=font)[2] <= max_width:
-        return text
-    while text and draw.textbbox((0, 0), text + "…", font=font)[2] > max_width:
-        text = text[:-1]
-    return (text + "…") if text else "…"
-
-
-def wrap_text_to_width(text, font, max_width, draw, max_lines=4):
-    """Word-wrap text onto multiple lines, each fitting within max_width
-    (measured in real pixels via draw.textbbox, not a fixed character
-    count), truncating the last line with an ellipsis if it still doesn't
-    fit within max_lines. Shared by SweepGridConstructor and
-    SweepUpsetConstructor so their label handling can't drift apart."""
-    words = str(text).split(" ")
-    lines, cur = [], ""
-    for w in words:
-        trial = (cur + " " + w).strip()
-        if draw.textbbox((0, 0), trial, font=font)[2] <= max_width or not cur:
-            cur = trial
-        else:
-            lines.append(cur)
-            cur = w
-    if cur:
-        lines.append(cur)
-    if len(lines) > max_lines:
-        lines = lines[:max_lines]
-        lines[-1] = truncate_text_to_width(lines[-1], font, max_width, draw)
-    return lines
-
-
-def next_versioned_path(directory, base_filename, ext=".png"):
+def next_versioned_path(directory: str, base_filename: str, ext: str = ".png") -> str:
     """Find the next available 5-digit auto-incrementing path for
     base_filename in directory — {base}_00001{ext}, {base}_00002{ext},
     ... — matching stock SaveImage's own counter convention, so reruns of
@@ -760,39 +736,7 @@ def next_versioned_path(directory, base_filename, ext=".png"):
     return os.path.join(directory, f"{base_filename}_{max_counter + 1:05d}{ext}")
 
 
-def check_canvas_size(width, height, node_tag):
-    """Refuse to allocate a grid/matrix canvas above MAX_CANVAS_PIXELS.
-    Called before Image.new so an oversized grid fails with advice instead
-    of exhausting RAM (the canvas is held as RGB, then again as a float32
-    tensor for the node's IMAGE output: ~15 bytes per pixel in total)."""
-    pixels = width * height
-    if pixels > MAX_CANVAS_PIXELS:
-        raise ValueError(
-            f"[{node_tag}] grid image would be {width}x{height} ({pixels / 1e6:.0f} MP), over the "
-            f"{MAX_CANVAS_PIXELS / 1e6:.0f} MP limit. Use cell_mode='fit' with a smaller cell_size, "
-            f"or set another dimension as grid_title_dim so it splits into more, smaller grids."
-        )
-
-
-def padded_batch_size(sizes):
-    """(width, height) that every image in a batch must be padded to so they
-    can be stacked into one IMAGE tensor without stretching any of them."""
-    return max(w for w, _ in sizes), max(h for _, h in sizes)
-
-
-def pad_image(pil_img, width, height, background=(16, 16, 16)):
-    """Place pil_img at the top-left of a width x height canvas filled with
-    the grid background colour (no resizing, so nothing is distorted)."""
-    from PIL import Image
-
-    if pil_img.size == (width, height):
-        return pil_img
-    canvas = Image.new("RGB", (width, height), background)
-    canvas.paste(pil_img, (0, 0))
-    return canvas
-
-
-def ui_images(paths, output_dir):
+def ui_images(paths: Sequence[str], output_dir: str) -> list[dict[str, str]]:
     """ComfyUI 'ui' image entries for files saved under output_dir, so the
     node shows its saved grids/matrices the way SaveImage does."""
     out = []
@@ -801,46 +745,3 @@ def ui_images(paths, output_dir):
         rel = os.path.relpath(os.path.abspath(p), root)
         out.append({"filename": os.path.basename(rel), "subfolder": os.path.dirname(rel), "type": "output"})
     return out
-
-
-def font_size_for_char_width(target_char_width_px, sample_px=200):
-    """Given a target average-character pixel width, return the find_font()
-    pixel size that achieves it -- measured against whatever font
-    find_font() actually resolves to (rather than assuming a fixed
-    width/size ratio), so the mapping stays correct across whatever font
-    is actually available in a given environment. Used to size grid/matrix
-    text relative to the ACTUAL rendered cell width rather than a fixed
-    pixel count, so cell_mode='original' (whose real cell size can differ
-    wildly from the nominal cell_size widget) doesn't end up with text
-    that's disproportionately tiny or huge next to the images.
-    """
-    from PIL import Image, ImageDraw
-
-    sample_font = find_font(sample_px)
-    scratch = ImageDraw.Draw(Image.new("RGB", (1, 1)))
-    sample_text = "AaMg0Wx1"
-    w = scratch.textbbox((0, 0), sample_text, font=sample_font)[2]
-    ratio = (w / len(sample_text)) / sample_px if w > 0 else 0.6
-    if ratio <= 0:
-        ratio = 0.6
-    return max(6, round(target_char_width_px / ratio))
-
-
-def find_font(size):
-    from PIL import ImageFont
-
-    candidates = [
-        "arial.ttf",
-        "Arial.ttf",
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-        "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
-        "/System/Library/Fonts/Supplemental/Arial.ttf",
-        "C:\\Windows\\Fonts\\arial.ttf",
-    ]
-    for path in candidates:
-        try:
-            return ImageFont.truetype(path, size)
-        except Exception:
-            continue
-    return ImageFont.load_default()

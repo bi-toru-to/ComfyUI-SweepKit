@@ -3,7 +3,7 @@ SweepAllInOne — multi-dimensional batch generator / grid builder for ComfyUI.
 
 Architecture (see DESIGN.md for the full write-up):
 
-  * Dimensions are no longer configured on this node at all. Chain one or
+  * Dimensions are not configured on this node. Chain one or
     more SweepDimension nodes (each is one axis: text/seed/steps/cfg/
     lora_strength/model/static) and connect the end of the chain into this
     node's `dimensions` input. Leave it unconnected for a single
@@ -22,34 +22,29 @@ Architecture (see DESIGN.md for the full write-up):
 
 import os
 import re
-import itertools
-import torch
-import numpy as np
-from PIL import Image, ImageDraw
 
-import folder_paths
+import comfy.model_management
 import comfy.samplers
 import comfy.utils
-import comfy.model_management
-from comfy.utils import load_torch_file
+import folder_paths
 from comfy.sd import load_lora_for_models
+from comfy.utils import load_torch_file
 
 from .sweep_core import (
     GRID_AXIS_OPTIONS,
-    safe_component,
-    resolve_grid_axes,
-    resolve_group_index,
-    partition_into_groups,
-    sort_groups,
-    dim_group_members,
-    format_group_value,
-    find_font,
+    LARGE_SWEEP_WARNING,
+    MAX_NAME_LEN,
+    PREVIEW_VALUES,
+    TRUNCATED_NAME_LEN,
+    build_combo_records,
     next_versioned_path,
-    check_canvas_size,
-    padded_batch_size,
-    pad_image,
+    safe_component,
     ui_images,
 )
+from .sweep_image import GridSpec, build_grids, stack_padded, tensor_to_pil
+
+LORA_OFF = 0.0001  # strengths at or below this skip loading the LoRA
+GRID_LABEL_PX = 16  # fixed label size for this node's grids (title is 1.6x)
 
 
 class SweepAllInOne:
@@ -200,14 +195,6 @@ class SweepAllInOne:
     # sampling, encoding, lora application).
     # ------------------------------------------------------------------
 
-    def tensor_to_pil(self, tensor):
-        i = 255.0 * tensor.cpu().numpy()
-        return Image.fromarray(np.clip(i.squeeze(), 0, 255).astype(np.uint8))
-
-    def pil_to_tensor(self, pil_img):
-        arr = np.array(pil_img).astype(np.float32) / 255.0
-        return torch.from_numpy(arr).unsqueeze(0)
-
     @staticmethod
     def compile_text_regex(text_regex):
         """Compile the user's text_regex once, turning a bad pattern into a
@@ -230,7 +217,8 @@ class SweepAllInOne:
                 result = result.replace("{}", str(rep), 1)
             return result
         pattern = regex_pat if isinstance(regex_pat, re.Pattern) else self.compile_text_regex(regex_pat)
-        pairs = list(zip(pattern.finditer(prompt), replacements))
+        # Unequal on purpose: surplus placeholders (or values) are left alone.
+        pairs = list(zip(pattern.finditer(prompt), replacements, strict=False))
         result = prompt
         # Splice right-to-left so earlier match offsets stay valid.
         for match, rep in reversed(pairs):
@@ -254,41 +242,15 @@ class SweepAllInOne:
                 )
 
     def encode(self, clip, text):
-        """Return conditioning in the shape ComfyUI's sampler actually
-        expects: a list of [cond_tensor, extra_dict] pairs.
+        """Conditioning in ComfyUI's format: a list of [cond, extras] pairs.
 
-        History here, because it's been wrong twice in a row and it's
-        worth being explicit about why:
-
-        v1 returned `clip.encode_from_tokens(tokens, return_pooled=True)`
-        directly — a bare (cond_tensor, pooled) 2-tuple, not wrapped in
-        the outer list ComfyUI's conditioning format requires. Went
-        unnoticed for a long time because most of the sampling path
-        doesn't actually validate conditioning shape; it only surfaced
-        as a crash once execution hit code that genuinely iterates
-        conds expecting [cond, dict] pairs.
-
-        v2 (the actual bug this comment used to describe) fixed the
-        *shape* by manually wrapping it as `[[cond, {"pooled_output":
-        pooled}]]` — that stopped the crash, but produced pure-noise
-        output on a FLOW-matching model with a custom text encoder. The crash is gone because the shape is now valid
-        enough to iterate without erroring, but a hand-built dict
-        containing only "pooled_output" can still be missing whatever
-        *other* extra keys that specific architecture's conditioning
-        actually needs to modulate on (attention masks, hook data,
-        model-specific extras) — FLOW/DiT-style models lean on that
-        conditioning much more heavily than classic UNet diffusion, so
-        incomplete conditioning there can fail silently (no crash, no
-        denoising) rather than just looking slightly off.
-
-        v3 (this version) uses `clip.encode_from_tokens_scheduled()` —
-        the same method the real, stock CLIPTextEncode node uses — which
-        builds the correctly-shaped list AND includes whatever extra
-        fields the specific CLIP/model implementation actually needs,
-        instead of a hand-rolled guess at what's required. Falls back to
-        the v2 manual wrap only if a given CLIP object doesn't implement
-        the newer method at all.
-        """
+        Uses encode_from_tokens_scheduled(), like the stock CLIPTextEncode,
+        because it fills in whatever extras a given text encoder needs
+        (attention masks, hooks, model-specific keys). A hand-built
+        {"pooled_output": ...} dict has the right shape but produced pure
+        noise on FLOW/DiT models; see DESIGN.md, "A real, pre-existing
+        correctness bug". The manual wrap is only a fallback for CLIP
+        objects that lack the newer method."""
         tokens = clip.tokenize(text)
         if hasattr(clip, "encode_from_tokens_scheduled"):
             return clip.encode_from_tokens_scheduled(tokens)
@@ -308,7 +270,7 @@ class SweepAllInOne:
 
     def apply_lora_both(self, model, clip, lora_name, strength_model, strength_clip, lora_cache):
         """Apply a LoRA to BOTH the model and the CLIP."""
-        if not lora_name or (abs(strength_model) <= 0.0001 and abs(strength_clip) <= 0.0001):
+        if not lora_name or (abs(strength_model) <= LORA_OFF and abs(strength_clip) <= LORA_OFF):
             return model, clip
         sd = self.load_lora_sd(lora_name, lora_cache)
         new_model, new_clip = load_lora_for_models(model, clip, sd, strength_model, strength_clip)
@@ -320,114 +282,6 @@ class SweepAllInOne:
         return common_ksampler(
             model, seed, steps, cfg, sampler_name, scheduler, positive, negative, latent, denoise=denoise
         )[0]
-
-    def _hw_from_tensor(self, img):
-        """(height, width) from an image tensor, read from the END of its
-        shape rather than fixed positions 1/2. ComfyUI's channels-last
-        convention (..., H, W, C) is stable regardless of how many
-        leading dimensions exist — a plain [batch, H, W, C] tensor and a
-        video-capable VAE's [batch, frames, H, W, C] output (frames=1 for
-        a still image) both have H, W as the two dims right before
-        channels, just at different absolute positions. Reading from a
-        fixed shape[1]/shape[2] silently grabbed the wrong axis for the
-        latter case — not a crash, just badly wrong numbers, which is
-        exactly what produced a near-zero cell height instead of an
-        error: shape[1] became the frame count (1) rather than height."""
-        shape = img.shape
-        return shape[-3], shape[-2]
-
-    def _cell_dims(self, images, cell_size, cell_mode):
-        """Determine (cell_w, cell_h) for every grid cell, from the actual
-        images being placed and the chosen sizing mode."""
-        real = [img for img in images if img is not None]
-        if not real:
-            return cell_size, cell_size
-        h0, w0 = self._hw_from_tensor(real[0])
-
-        if cell_mode == "original":
-            # Use the max native size across all images, in case they
-            # differ (unusual, but possible with a 'model' dimension
-            # mixing resolutions) — nothing gets cropped either way.
-            hws = [self._hw_from_tensor(img) for img in real]
-            return max(w for h, w in hws), max(h for h, w in hws)
-        elif cell_mode == "fit":
-            scale = cell_size / max(h0, w0)
-            return max(1, round(w0 * scale)), max(1, round(h0 * scale))
-        else:  # "square" — the original behavior: force a square, may distort
-            return cell_size, cell_size
-
-    def _paste_into_cell(self, grid, pil_img, x, y, cell_w, cell_h, cell_mode):
-        """Place one image into its cell. For 'fit'/'original', resize
-        preserving THIS image's own aspect ratio and center it
-        (letterboxing with the grid background if its ratio doesn't
-        exactly match the cell) — this guarantees no image is ever
-        stretched, even if resolutions aren't perfectly uniform across the
-        sweep. 'square' keeps the original behavior of stretching directly
-        to fill the cell."""
-        if cell_mode == "square":
-            resized = pil_img.resize((cell_w, cell_h), Image.LANCZOS)
-            grid.paste(resized, (x, y))
-            return
-        iw, ih = pil_img.size
-        scale = min(cell_w / iw, cell_h / ih)
-        new_w, new_h = max(1, round(iw * scale)), max(1, round(ih * scale))
-        resized = pil_img.resize((new_w, new_h), Image.LANCZOS)
-        off_x = x + (cell_w - new_w) // 2
-        off_y = y + (cell_h - new_h) // 2
-        grid.paste(resized, (off_x, off_y))
-
-    def make_grid(self, images, x_labels, y_labels, title, cell_size=512, cell_mode="fit"):
-        cols = max(len(x_labels), 1)
-        rows = max(len(y_labels), 1)
-        pad, title_h, label_h, label_w = 40, 70, 36, 140
-
-        cell_w, cell_h = self._cell_dims(images, cell_size, cell_mode)
-
-        font_title = find_font(26)
-        font_label = find_font(16)
-
-        # Canvas width must accommodate the title text too -- a narrow grid
-        # (few columns) paired with a long combined title (e.g. several
-        # zipped dimensions' values joined together) would otherwise get
-        # clipped at both edges, since width used to be computed only from
-        # cols * cell_w, never from the title string's own rendered width.
-        scratch = ImageDraw.Draw(Image.new("RGB", (1, 1)))
-        title_w = scratch.textbbox((0, 0), str(title), font=font_title)[2] + 40
-
-        W = max(cols * cell_w + label_w + pad, title_w)
-        H = rows * cell_h + title_h + label_h + pad
-        check_canvas_size(W, H, "SweepAllInOne")
-        grid = Image.new("RGB", (W, H), (16, 16, 16))
-        draw = ImageDraw.Draw(grid)
-
-        draw.text((W // 2, 16), str(title), fill=(255, 255, 255), font=font_title, anchor="mt")
-
-        for i, lab in enumerate(x_labels):
-            x = label_w + i * cell_w + cell_w // 2
-            draw.text((x, title_h + 6), str(lab), fill=(210, 210, 210), font=font_label, anchor="mt")
-
-        idx = 0
-        for r, ylab in enumerate(y_labels):
-            y = title_h + label_h + r * cell_h
-            draw.text((10, y + cell_h // 2), str(ylab), fill=(210, 210, 210), font=font_label, anchor="lm")
-            for c in range(cols):
-                img = images[idx] if idx < len(images) else None
-                cell_x = label_w + c * cell_w
-                if img is not None:
-                    pil = self.tensor_to_pil(img)
-                    self._paste_into_cell(grid, pil, cell_x, y, cell_w, cell_h, cell_mode)
-                else:
-                    box = [cell_x, y, cell_x + cell_w, y + cell_h]
-                    draw.rectangle(box, outline=(90, 30, 30), width=3)
-                    draw.text(
-                        ((box[0] + box[2]) // 2, (box[1] + box[3]) // 2),
-                        "missing",
-                        fill=(200, 120, 120),
-                        font=font_label,
-                        anchor="mm",
-                    )
-                idx += 1
-        return grid
 
     def save_individual(self, image, prefix, active_dims_sorted, idx_by_dim_index, seed, output_dir):
         """Save one image. Only 'text' and 'static' dimensions become
@@ -475,20 +329,47 @@ class SweepAllInOne:
         )
         base = "_".join(name_parts) if name_parts else "image"
         filename_base = f"{safe_prefix}_{base}" if has_seed_dim else f"{safe_prefix}_{base}_seed{seed}"
-        if len(filename_base) > 220:
-            filename_base = filename_base[:200] + f"_seed{seed}"
+        if len(filename_base) > MAX_NAME_LEN:
+            filename_base = filename_base[:TRUNCATED_NAME_LEN] + f"_seed{seed}"
         # next_versioned_path appends a 5-digit auto-incrementing counter
         # (matching stock SaveImage's own convention, and also creates
         # `folder` if needed) so rerunning this node never silently
         # overwrites a previous run's images -- a direct PIL save() call
         # has no such protection unless given one explicitly.
         path = next_versioned_path(folder, filename_base)
-        self.tensor_to_pil(image).save(path)
+        tensor_to_pil(image).save(path)
         return path
 
     # ------------------------------------------------------------------
     # Main
     # ------------------------------------------------------------------
+
+    @staticmethod
+    def prepare_dims(dimensions, model, clip):
+        """Copy the incoming chain and pair each 'model' dimension's MODEL
+        sockets with this node's CLIP (SweepDimension has no CLIP to pair
+        them with); an unconnected slot falls back to the base model."""
+        dims = [dict(d) for d in dimensions] if dimensions else []
+        for d in dims:
+            if d["type"] == "model":
+                d["model_objs"] = [(m if m is not None else model, clip) for m in d.get("model_objs", [])]
+        return dims
+
+    @staticmethod
+    def announce(dims_sorted, groups, total):
+        print("=" * 60)
+        print(
+            f"[SweepAllInOne] {len(dims_sorted)} active dimension(s) in {len(groups)} group(s), {total} image(s) total"
+        )
+        for d in dims_sorted:
+            group_note = f" (zipped with group '{d['group']}')" if d.get("group") else ""
+            more = " ..." if len(d["values"]) > PREVIEW_VALUES else ""
+            print(f"   dim{d['index']} [{d['type']}] '{d['dim_id']}'{group_note}: {d['values'][:PREVIEW_VALUES]}{more}")
+        if total > LARGE_SWEEP_WARNING:
+            print(
+                f"[SweepAllInOne] WARNING: {total} images is a lot — double check this is intended before walking away."
+            )
+        print("=" * 60)
 
     def generate(
         self,
@@ -517,290 +398,184 @@ class SweepAllInOne:
         dimensions=None,
         **kwargs,
     ):
-
         output_dir = folder_paths.get_output_directory()
-
-        # ---------- Dimensions arrive pre-built from the SweepDimension
-        # chain. Just resolve "model"-type dims' raw MODEL sockets (which
-        # SweepDimension couldn't pair with a CLIP itself, since CLIP lives
-        # on this node) into (model, clip) tuples, falling back to this
-        # node's own base model/clip for any unconnected slot. ----------
-        active_dims = [dict(d) for d in dimensions] if dimensions else []
-        for d in active_dims:
-            if d["type"] == "model":
-                d["model_objs"] = [(m if m is not None else model, clip) for m in d.get("model_objs", [])]
-
-        active_dims_sorted = sorted(active_dims, key=lambda d: d["index"])
-
+        dims = self.prepare_dims(dimensions, model, clip)
         # Fail before loading or sampling anything.
-        self.check_single_sampler_dims(active_dims)
+        self.check_single_sampler_dims(dims)
         text_pattern = self.compile_text_regex(text_regex) if text_mode == "regex" else None
 
-        # ---------- Group-aware, cost-based execution ordering ----------
-        # Dimensions zipped together by SweepDimensionZip share a 'group'
-        # id and must vary in lockstep — grouped together here so the
-        # combo-generation loop below gives them exactly one shared index
-        # each iteration instead of cross-producting them independently.
-        # Ungrouped dimensions are unaffected (each is its own singleton
-        # group, same as before zip existed).
-        #
-        # Sort so the most expensive-to-switch GROUPS vary LEAST often —
-        # a group's cost is however expensive its priciest member is (e.g.
-        # a lora_strength dimension zipped with cfg is still outer-loop
-        # material, since the lora changes too whenever that group's index
-        # does). itertools.product() varies the last-listed iterable
-        # fastest, so listing expensive groups first and cheap ones last
-        # gives exactly the nesting we want.
-        groups = partition_into_groups(active_dims)
-        sorted_groups = sort_groups(groups)
-
-        total_images = 1
-        for g in groups:
-            total_images *= len(g[0]["values"])
-        if not active_dims:
-            total_images = 1
-
-        print("=" * 60)
-        print(
-            f"[SweepAllInOne] {len(active_dims)} active dimension(s) in {len(groups)} group(s), {total_images} image(s) total"
+        # Cost-sorted, zip-aware combinations: expensive axes (model, LoRA)
+        # vary least often so the caches below are reused.
+        records, dims_sorted, groups = build_combo_records(dims)
+        self.announce(dims_sorted, groups, len(records))
+        roles = _Roles(dims_sorted)
+        sampler = _SweepSampler(
+            self,
+            vae,
+            latent_image,
+            (sampler_name, scheduler, denoise),
+            {"seed": fixed_seed, "steps": fixed_steps, "cfg": fixed_cfg},
+            roles,
+            _ModelResolver(self, model, clip, roles.lora),
+            _PromptEncoder(self, positive_prompt, negative_prompt, text_mode, text_pattern, roles.text),
         )
-        for d in active_dims_sorted:
-            preview = d["values"][:6]
-            group_note = f" (zipped with group '{d['group']}')" if d.get("group") else ""
-            print(
-                f"   dim{d['index']} [{d['type']}] '{d['dim_id']}'{group_note}: {preview}{' ...' if len(d['values']) > 6 else ''}"
-            )
-        if total_images > 500:
-            print(
-                f"[SweepAllInOne] WARNING: {total_images} images is a lot — double check this is intended before walking away."
-            )
-        print("=" * 60)
+        save_to = (filename_prefix, output_dir) if save_individuals else None
+        all_images, saved_paths = sampler.run(records, dims_sorted, keep_images=create_grids, save_to=save_to)
 
-        pbar = comfy.utils.ProgressBar(max(total_images, 1))
-
-        # ---------- Caches (avoid redundant CLIP-encodes / LoRA loads) ----------
-        encode_cache = {}
-        negative_cache = {}
-        lora_cache = {}
-        current_lora_state = None
-        current_lora_result = (None, None)
-
-        all_images = {}
-        saved_paths = []
-        count = 0
-
-        combos = itertools.product(*[range(len(g[0]["values"])) for g in sorted_groups]) if sorted_groups else [()]
-
-        # At most one of each (enforced above); LoRA dims stack in chain order.
-        model_dim = next((d for d in active_dims if d["type"] == "model"), None)
-        seed_dim = next((d for d in active_dims if d["type"] == "seed"), None)
-        steps_dim = next((d for d in active_dims if d["type"] == "steps"), None)
-        cfg_dim = next((d for d in active_dims if d["type"] == "cfg"), None)
-        lora_dims = [d for d in active_dims_sorted if d["type"] == "lora_strength"]
-        text_dims = [d for d in active_dims_sorted if d["type"] == "text"]
-
-        for combo in combos:
-            comfy.model_management.throw_exception_if_processing_interrupted()
-
-            idx_by_dim_index = {}
-            for group, group_vi in zip(sorted_groups, combo):
-                for d in group:
-                    idx_by_dim_index[d["index"]] = group_vi
-
-            # ---- resolve model/clip for this combination ----
-            cur_model, cur_clip = model, clip
-            if model_dim is not None:
-                vi = idx_by_dim_index[model_dim["index"]]
-                cur_model, cur_clip = model_dim["model_objs"][vi]
-
-            if lora_dims:
-                lora_settings = tuple((d["lora_name"], *d["values"][idx_by_dim_index[d["index"]]]) for d in lora_dims)
-                state_key = (id(cur_model), id(cur_clip), lora_settings)
-                if state_key != current_lora_state:
-                    for lora_name, sm, sc in lora_settings:
-                        cur_model, cur_clip = self.apply_lora_both(cur_model, cur_clip, lora_name, sm, sc, lora_cache)
-                    current_lora_state = state_key
-                    current_lora_result = (cur_model, cur_clip)
-                else:
-                    cur_model, cur_clip = current_lora_result
-
-            # ---- build + encode the prompt ----
-            replacements = [d["values"][idx_by_dim_index[d["index"]]] for d in text_dims]
-            prompt_text = self.apply_text_replacements(positive_prompt, replacements, text_mode, text_pattern)
-
-            enc_key = (id(cur_clip), prompt_text)
-            if enc_key not in encode_cache:
-                encode_cache[enc_key] = self.encode(cur_clip, prompt_text)
-            positive = encode_cache[enc_key]
-
-            neg_key = id(cur_clip)
-            if neg_key not in negative_cache:
-                negative_cache[neg_key] = self.encode(cur_clip, negative_prompt)
-            negative = negative_cache[neg_key]
-
-            # ---- seed / steps / cfg ----
-            seed = seed_dim["values"][idx_by_dim_index[seed_dim["index"]]] if seed_dim else fixed_seed
-            steps = steps_dim["values"][idx_by_dim_index[steps_dim["index"]]] if steps_dim else fixed_steps
-            cfg = cfg_dim["values"][idx_by_dim_index[cfg_dim["index"]]] if cfg_dim else fixed_cfg
-
-            latent = self.sample(
-                cur_model, positive, negative, latent_image, seed, steps, cfg, sampler_name, scheduler, denoise
-            )
-            image = vae.decode(latent["samples"])
-
-            if create_grids:
-                # Only kept for grid building; holding every decoded image
-                # when no grid is wanted made RAM grow with the sweep size.
-                key = tuple(idx_by_dim_index[d["index"]] for d in active_dims_sorted)
-                all_images[key] = image
-
-            if save_individuals:
-                p = self.save_individual(image, filename_prefix, active_dims_sorted, idx_by_dim_index, seed, output_dir)
-                saved_paths.append(p)
-
-            count += 1
-            pbar.update(1)
-
-        # ---------- Build grids ----------
-        grids = []
-        grid_paths = []
-        # Sanitized once here for the same reason as save_individual's
-        # safe_prefix -- used below as a bare filename component, where an
-        # un-sanitized value containing '/' would imply an un-created
-        # subdirectory and make the save() call fail with
-        # FileNotFoundError.
         safe_prefix = safe_component(filename_prefix) if str(filename_prefix).strip() else "SweepKit"
-        if create_grids and active_dims:
-            x_dim, y_dim, title_dim, other_dims = resolve_grid_axes(
-                active_dims_sorted, grid_x_dim, grid_y_dim, grid_title_dim
-            )
-            # Renamed to axis_* to avoid confusion with SweepDimensionZip's
-            # "group" concept (dimensions paired to share one index) — this
-            # is a different kind of grouping: the leftover axes that each
-            # get their own separate grid image.
-            axis_grouping_dims = ([title_dim] if title_dim else []) + other_dims
-            axis_grouping_ranges = [range(len(d["values"])) for d in axis_grouping_dims]
-            x_range = list(range(len(x_dim["values"]))) if x_dim else [0]
-            y_range = list(range(len(y_dim["values"]))) if y_dim else [0]
-
-            total_grids = 1
-            for r in axis_grouping_ranges:
-                total_grids *= len(r)
-            print(
-                f"[SweepAllInOne] Building {total_grids} grid(s) "
-                f"(x={x_dim['dim_id'] if x_dim else '—'}, y={y_dim['dim_id'] if y_dim else '—'}"
-                f"{', title=' + title_dim['dim_id'] if title_dim else ''})"
-            )
-
-            # X/Y axis names shown once, near the top of the grid, rather
-            # than repeated on every column/row — same convention as a
-            # normal chart's axis title. This is what was actually missing
-            # in the "no labels" report: individual tick values (e.g. a
-            # zipped pair's "0.5, 15, 2") were being drawn, but nothing on
-            # the grid said what axis or dimension(s) they belonged to,
-            # especially with grid_title_dim set to "none".
-            axis_caption_bits = []
-            if x_dim:
-                axis_caption_bits.append(f"X: {x_dim.get('group_label', x_dim['dim_id'])}")
-            if y_dim:
-                axis_caption_bits.append(f"Y: {y_dim.get('group_label', y_dim['dim_id'])}")
-            axis_caption = "   ".join(axis_caption_bits)
-
-            for axis_group_combo in itertools.product(*axis_grouping_ranges) if axis_grouping_dims else [()]:
-                axis_group_idx = {d["index"]: vi for d, vi in zip(axis_grouping_dims, axis_group_combo)}
-
-                images = []
-                for yi in y_range:
-                    for xi in x_range:
-                        full_idx = dict(axis_group_idx)
-                        if x_dim:
-                            full_idx[x_dim["index"]] = xi
-                        if y_dim:
-                            full_idx[y_dim["index"]] = yi
-                        # resolve_group_index falls back to a zip-groupmate's
-                        # resolved index for any dim that wasn't itself given
-                        # an X/Y/Title/grouping role (its groupmate was used
-                        # to represent the pair instead) — without this, an
-                        # unrepresented zip partner would default to index 0
-                        # regardless of which value was actually generated.
-                        key = tuple(resolve_group_index(d, full_idx, active_dims_sorted) for d in active_dims_sorted)
-                        images.append(all_images.get(key))
-
-                # format_group_value shows every dimension that's actually
-                # zipped together at this axis, not just whichever single
-                # member happened to represent the group (and formats
-                # lora_strength as "0.5" / "0.5/0.3" instead of Python's
-                # raw tuple repr "(0.5, 0.5)").
-                x_labels = (
-                    [format_group_value(dim_group_members(x_dim, active_dims_sorted), xi) for xi in x_range]
-                    if x_dim
-                    else [""]
-                )
-                y_labels = (
-                    [format_group_value(dim_group_members(y_dim, active_dims_sorted), yi) for yi in y_range]
-                    if y_dim
-                    else [""]
-                )
-
-                title_bits = []
-                folder_parts = []
-                for d, vi in zip(axis_grouping_dims, axis_group_combo):
-                    members = dim_group_members(d, active_dims_sorted)
-                    disp = format_group_value(members, vi)
-                    title_bits.append(f"{d.get('group_label', d['dim_id'])}: {disp}")
-                    folder_parts.append(safe_component(disp))
-                title_text = " | ".join(title_bits) if title_bits else safe_prefix
-                if axis_caption:
-                    title_text = f"{title_text}   •   {axis_caption}" if title_bits else axis_caption
-
-                grid_pil = self.make_grid(images, x_labels, y_labels, title_text, cell_size, cell_mode)
-
-                grid_dir = (
-                    os.path.join(output_dir, safe_prefix, "_grids", *folder_parts[:-1])
-                    if len(folder_parts) > 1
-                    else os.path.join(output_dir, safe_prefix, "_grids")
-                )
-                # next_versioned_path appends a 5-digit auto-incrementing
-                # counter (matching stock SaveImage's own convention, and
-                # also creates grid_dir if needed) so rerunning this node
-                # never silently overwrites a previous grid.
-                tail = folder_parts[-1] if folder_parts else "grid"
-                path = next_versioned_path(grid_dir, tail)
-                grid_pil.save(path)
-                grid_paths.append(path)
-                grids.append(self.pil_to_tensor(grid_pil))
-
-        if not grids:
-            grids = [torch.zeros(1, 512, 512, 3)]
-
-        if len(grids) > 1:
-            # Pad (never stretch) to the largest grid so they can share one batch.
-            width, height = padded_batch_size([(g.shape[2], g.shape[1]) for g in grids])
-            grids = [
-                g
-                if (g.shape[2], g.shape[1]) == (width, height)
-                else self.pil_to_tensor(pad_image(self.tensor_to_pil(g[0]), width, height))
-                for g in grids
-            ]
-
-        summary_lines = [
-            f"SweepAllInOne: {count} image(s) generated across {len(active_dims)} dimension(s).",
-        ]
-        if save_individuals:
-            summary_lines.append(
-                f"Saved {len(saved_paths)} individual file(s) under {os.path.join(output_dir, safe_prefix)}"
-            )
-        if create_grids and grid_paths:
-            summary_lines.append(
-                f"Saved {len(grid_paths)} grid(s) under {os.path.join(output_dir, safe_prefix, '_grids')}"
-            )
-        summary = "\n".join(summary_lines)
+        axes = (grid_x_dim, grid_y_dim, grid_title_dim)
+        grids, grid_paths = self.grids(all_images, dims_sorted, axes, cell_size, cell_mode, safe_prefix, output_dir)
+        summary = self.summarize(len(records), dims_sorted, saved_paths, grid_paths, output_dir, safe_prefix)
         print(f"[SweepAllInOne] Done. {summary}")
-
         return {
             "ui": {"images": ui_images(grid_paths, output_dir), "text": [summary]},
-            "result": (torch.cat(grids, dim=0), summary),
+            "result": (stack_padded(grids), summary),
         }
+
+    @staticmethod
+    def grids(all_images, dims_sorted, axes, cell_size, cell_mode, safe_prefix, output_dir):
+        """Grids for this node: same renderer as SweepGridConstructor, with
+        fixed-size labels. None when grids are off or nothing was swept."""
+        if not all_images or not dims_sorted:
+            return [], []
+        spec = GridSpec(
+            grid_x_dim=axes[0],
+            grid_y_dim=axes[1],
+            grid_title_dim=axes[2],
+            cell_size=cell_size,
+            cell_mode=cell_mode,
+            prefix_folder=safe_prefix,
+            output_dir=output_dir,
+            node_tag="SweepAllInOne",
+            base_px=GRID_LABEL_PX,
+        )
+        return build_grids(all_images, dims_sorted, spec)
+
+    @staticmethod
+    def summarize(count, dims_sorted, saved_paths, grid_paths, output_dir, safe_prefix):
+        lines = [f"SweepAllInOne: {count} image(s) generated across {len(dims_sorted)} dimension(s)."]
+        if saved_paths:
+            lines.append(f"Saved {len(saved_paths)} individual file(s) under {os.path.join(output_dir, safe_prefix)}")
+        if grid_paths:
+            lines.append(f"Saved {len(grid_paths)} grid(s) under {os.path.join(output_dir, safe_prefix, '_grids')}")
+        return "\n".join(lines)
+
+
+class _SweepSampler:
+    """Samples, decodes and (optionally) saves every combination in order,
+    checking for interrupts and reporting progress per image."""
+
+    def __init__(self, node, vae, latent_image, sampler_args, fixed, roles, models, prompts):
+        self.node, self.vae, self.latent_image = node, vae, latent_image
+        self.sampler_name, self.scheduler, self.denoise = sampler_args
+        self.fixed, self.roles, self.models, self.prompts = fixed, roles, models, prompts
+
+    def sample_one(self, idx):
+        cur_model, cur_clip = self.models.for_combo(self.roles.model, idx)
+        positive, negative = self.prompts.for_combo(cur_clip, idx)
+        seed, steps, cfg = (self.roles.value(t, idx, self.fixed[t]) for t in ("seed", "steps", "cfg"))
+        latent = self.node.sample(
+            cur_model,
+            positive,
+            negative,
+            self.latent_image,
+            seed,
+            steps,
+            cfg,
+            self.sampler_name,
+            self.scheduler,
+            self.denoise,
+        )
+        return self.vae.decode(latent["samples"]), seed
+
+    def run(self, records, dims_sorted, keep_images, save_to):
+        """Returns ({value-index tuple: image}, saved paths). Images are kept
+        only when keep_images is set (for grids), so RAM doesn't grow with
+        the sweep otherwise; save_to = (filename_prefix, output_dir) saves
+        each image as it is made."""
+        pbar = comfy.utils.ProgressBar(len(records))
+        all_images, saved_paths = {}, []
+        for rec in records:
+            comfy.model_management.throw_exception_if_processing_interrupted()
+            idx = rec["idx_by_dim"]
+            image, seed = self.sample_one(idx)
+            if keep_images:
+                all_images[tuple(idx[d["index"]] for d in dims_sorted)] = image
+            if save_to:
+                prefix, output_dir = save_to
+                saved_paths.append(self.node.save_individual(image, prefix, dims_sorted, idx, seed, output_dir))
+            pbar.update(1)
+        return all_images, saved_paths
+
+
+class _Roles:
+    """Which chained dimension plays which part in sampling. At most one
+    model/seed/steps/cfg dimension exists (checked earlier); LoRA and text
+    dimensions can be several, kept in chain order."""
+
+    def __init__(self, dims_sorted):
+        def first(dim_type):
+            return next((d for d in dims_sorted if d["type"] == dim_type), None)
+
+        self.model = first("model")
+        self.by_type = {t: first(t) for t in ("seed", "steps", "cfg")}
+        self.lora = [d for d in dims_sorted if d["type"] == "lora_strength"]
+        self.text = [d for d in dims_sorted if d["type"] == "text"]
+
+    def value(self, dim_type, idx, default):
+        d = self.by_type[dim_type]
+        return d["values"][idx[d["index"]]] if d else default
+
+
+class _ModelResolver:
+    """Model/CLIP for each combination, with the model dimension's choice
+    and every LoRA dimension applied. LoRAs are re-applied only when the
+    model or any strength actually changes."""
+
+    def __init__(self, node, model, clip, lora_dims):
+        self.node, self.model, self.clip, self.lora_dims = node, model, clip, lora_dims
+        self.lora_cache = {}
+        self.state = None
+        self.result = (None, None)
+
+    def for_combo(self, model_dim, idx):
+        if model_dim:
+            cur_model, cur_clip = model_dim["model_objs"][idx[model_dim["index"]]]
+        else:
+            cur_model, cur_clip = self.model, self.clip
+        if not self.lora_dims:
+            return cur_model, cur_clip
+        settings = tuple((d["lora_name"], *d["values"][idx[d["index"]]]) for d in self.lora_dims)
+        state = (id(cur_model), id(cur_clip), settings)
+        if state != self.state:
+            for lora_name, sm, sc in settings:
+                cur_model, cur_clip = self.node.apply_lora_both(cur_model, cur_clip, lora_name, sm, sc, self.lora_cache)
+            self.state, self.result = state, (cur_model, cur_clip)
+        return self.result
+
+
+class _PromptEncoder:
+    """Positive/negative conditioning per combination, encoding each
+    distinct (CLIP, prompt) pair only once."""
+
+    def __init__(self, node, positive_prompt, negative_prompt, text_mode, text_pattern, text_dims):
+        self.node = node
+        self.positive_prompt, self.negative_prompt = positive_prompt, negative_prompt
+        self.text_mode, self.text_pattern, self.text_dims = text_mode, text_pattern, text_dims
+        self.cache = {}
+
+    def _encode(self, clip, text):
+        key = (id(clip), text)
+        if key not in self.cache:
+            self.cache[key] = self.node.encode(clip, text)
+        return self.cache[key]
+
+    def for_combo(self, clip, idx):
+        replacements = [d["values"][idx[d["index"]]] for d in self.text_dims]
+        prompt = self.node.apply_text_replacements(
+            self.positive_prompt, replacements, self.text_mode, self.text_pattern
+        )
+        return self._encode(clip, prompt), self._encode(clip, self.negative_prompt)
 
 
 NODE_CLASS_MAPPINGS = {"SweepAllInOne": SweepAllInOne}

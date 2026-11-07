@@ -89,103 +89,82 @@ class SweepDimensionZip:
         return members, passthrough
 
     def build(self, dimensions_a, dimensions_b, mode):
-        list_a = list(dimensions_a) if dimensions_a else []
-        list_b = list(dimensions_b) if dimensions_b else []
-        if not list_a:
-            raise ValueError(
-                "[SweepDimensionZip] dimensions_a has no dimensions — connect a chain with at least one SweepDimension in it."
-            )
-        if not list_b:
-            raise ValueError(
-                "[SweepDimensionZip] dimensions_b has no dimensions — connect a chain with at least one SweepDimension in it."
-            )
+        for name, chain in (("dimensions_a", dimensions_a), ("dimensions_b", dimensions_b)):
+            if not chain:
+                raise ValueError(
+                    f"[SweepDimensionZip] {name} has no dimensions — connect a chain with at least one "
+                    f"SweepDimension in it."
+                )
+        group_a, passthrough_a = self._group_members(list(dimensions_a))
+        group_b, passthrough_b = self._group_members(list(dimensions_b))
+        group_a, group_b = [dict(d) for d in group_a], [dict(d) for d in group_b]
+        passthrough = merge_passthrough(group_a, group_b, passthrough_a + passthrough_b)
 
-        group_a, passthrough_a = self._group_members(list_a)
-        group_b, passthrough_b = self._group_members(list_b)
-        group_a = [dict(d) for d in group_a]
-        group_b = [dict(d) for d in group_b]
-
-        uids_a = {d["uid"] for d in group_a if d.get("uid")}
-        uids_b = {d["uid"] for d in group_b if d.get("uid")}
-        if uids_a & uids_b:
-            raise ValueError(
-                "[SweepDimensionZip] dimensions_a and dimensions_b end in the same dimension — "
-                "connect two different SweepDimension chains to pair them."
-            )
-
-        # Both inputs often branch off one shared upstream chain (e.g.
-        # artist -> cfg and artist -> steps). Keep each upstream dimension
-        # once, matched by uid, so it isn't cross-producted with itself.
-        seen = uids_a | uids_b
-        passthrough = []
-        for d in passthrough_a + passthrough_b:
-            uid = d.get("uid")
-            if uid and uid in seen:
-                continue
-            if uid:
-                seen.add(uid)
-            passthrough.append(dict(d))
-
-        len_a = len(group_a[0]["values"])
-        len_b = len(group_b[0]["values"])
-        # When chaining a zip's output into another zip (three-way+
-        # pairing), group_a/group_b's members already carry a group_label
-        # from the previous zip call ("lora, cfg") -- prefer that over just
-        # the first member's own individual dim_id ("lora"), or a 3-way
-        # chain would silently lose the middle name from the combined
-        # display string ("lora, steps" instead of "lora, cfg, steps").
+        # A zip of a zip already carries a combined group_label ("lora, cfg");
+        # use it so a 3-way pairing reads "lora, cfg, steps", not "lora, steps".
         label_a = group_a[0].get("group_label") or group_a[0]["dim_id"]
         label_b = group_b[0].get("group_label") or group_b[0]["dim_id"]
-
-        if mode == "strict":
-            if len_a != len_b:
-                raise ValueError(
-                    f"[SweepDimensionZip] strict mode: '{label_a}' has {len_a} value(s) but "
-                    f"'{label_b}' has {len_b} — lengths must match exactly in strict mode. "
-                    f"Use 'shortest' or 'longest' if that's expected."
-                )
-            target_len = len_a
-        elif mode == "longest":
-            target_len = max(len_a, len_b)
-            if len_a != len_b:
-                print(
-                    f"[SweepDimensionZip] '{label_a}' ({len_a}) and '{label_b}' ({len_b}) "
-                    f"differ in length — padding the shorter one by repeating its last value to {target_len}."
-                )
-        else:  # "shortest"
-            target_len = min(len_a, len_b)
-            if len_a != len_b:
-                print(
-                    f"[SweepDimensionZip] '{label_a}' ({len_a}) and '{label_b}' ({len_b}) "
-                    f"differ in length — truncating both to {target_len} (shortest mode)."
-                )
-
-        for d in group_a:
-            resize_dimension_values(d, target_len)
-        for d in group_b:
-            resize_dimension_values(d, target_len)
-
-        final_group_id = group_a[0].get("group") or group_b[0].get("group") or f"zip_{uuid.uuid4().hex[:8]}"
-        combined_label = f"{label_a}, {label_b}"
+        target_len = zip_length(mode, len(group_a[0]["values"]), len(group_b[0]["values"]), label_a, label_b)
         for d in group_a + group_b:
-            d["group"] = final_group_id
-            # Each member keeps its OWN individual dim_id untouched — needed
-            # so SweepDimensionExtract can still tell them apart afterward
-            # (e.g. pulling just model_strength vs just clip_strength as
-            # separate PyLists for a stock LoraLoader). group_label is a
-            # separate field carrying the combined "a, b" display string,
-            # used only where a single representative needs to show every
-            # group member's value together (grid/page titles) -- it used
-            # to overwrite `dim_id` directly, which silently made every
-            # member of a zipped pair share one identical dim_id and broke
-            # dim_id-based lookup.
-            d["group_label"] = combined_label
+            resize_dimension_values(d, target_len)
+
+        group_id = group_a[0].get("group") or group_b[0].get("group") or f"zip_{uuid.uuid4().hex[:8]}"
+        for d in group_a + group_b:
+            d["group"] = group_id
+            # Members keep their own dim_id (SweepDimensionExtract looks them
+            # up individually); the combined name is display-only.
+            d["group_label"] = f"{label_a}, {label_b}"
 
         combined = passthrough + group_a + group_b
         for i, d in enumerate(combined, start=1):
             d["index"] = i
-
         return (combined,)
+
+
+def merge_passthrough(group_a, group_b, passthrough):
+    """Upstream dimensions of both inputs, each kept once.
+
+    Both inputs often branch off one shared chain (artist -> cfg and
+    artist -> steps); matching by uid stops the shared dimension being
+    cross-producted with itself."""
+    seen = {d["uid"] for d in group_a if d.get("uid")}
+    uids_b = {d["uid"] for d in group_b if d.get("uid")}
+    if seen & uids_b:
+        raise ValueError(
+            "[SweepDimensionZip] dimensions_a and dimensions_b end in the same dimension — "
+            "connect two different SweepDimension chains to pair them."
+        )
+    seen |= uids_b
+    kept = []
+    for d in passthrough:
+        uid = d.get("uid")
+        if uid and uid in seen:
+            continue
+        if uid:
+            seen.add(uid)
+        kept.append(dict(d))
+    return kept
+
+
+def zip_length(mode, len_a, len_b, label_a, label_b):
+    """Paired length for 'shortest' (truncate), 'longest' (pad by repeating
+    the last value) or 'strict' (lengths must match)."""
+    if len_a == len_b:
+        return len_a
+    if mode == "strict":
+        raise ValueError(
+            f"[SweepDimensionZip] strict mode: '{label_a}' has {len_a} value(s) but "
+            f"'{label_b}' has {len_b} — lengths must match exactly in strict mode. "
+            f"Use 'shortest' or 'longest' if that's expected."
+        )
+    if mode == "longest":
+        target = max(len_a, len_b)
+        action = f"padding the shorter one by repeating its last value to {target}"
+    else:
+        target = min(len_a, len_b)
+        action = f"truncating both to {target} (shortest mode)"
+    print(f"[SweepDimensionZip] '{label_a}' ({len_a}) and '{label_b}' ({len_b}) differ in length — {action}.")
+    return target
 
 
 NODE_CLASS_MAPPINGS = {

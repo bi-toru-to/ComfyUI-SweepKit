@@ -7,7 +7,9 @@ SweepGridConstructor and SweepUpsetConstructor's real PIL drawing code
 actually runs and actually writes files, not just a syntax check.
 """
 
-import sys, os, importlib
+import sys
+import os
+import importlib
 import numpy as np
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "stubs"))

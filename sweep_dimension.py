@@ -7,21 +7,11 @@ everything upstream plus itself. Connect the last node in the chain into
 SweepAllInOne's `dimensions` input. Leave `prev_dimensions` unconnected
 on whichever node should be first.
 
-This replaces the earlier design where a single mega-node dynamically grew
-and shrank a block of dimN_type/values/label widgets in place. That
-approach fought this ComfyUI frontend's widget rendering in ways that
-turned out not to be reliably fixable from outside — toggling `.hidden`
-on an already-built widget doesn't consistently make richer components
-(multiline text boxes) actually rebuild themselves, and several rounds of
-targeted patches each fixed one symptom while surfacing another. Making
-each dimension its own ordinary node sidesteps the whole problem: adding,
-removing, and resizing *nodes* is something ComfyUI already does
-correctly and doesn't need any help with. The one piece of genuinely
-dynamic JS that remains — spawning MODEL input sockets for a "model"-type
-dimension — is scoped to a single node's own two widgets now instead of
-juggling state across up to 8 dimensions on one shared node, and reuses
-logic that was never the source of a reported bug across the mega-node's
-several revisions.
+Each axis is its own ordinary node because adding, removing and resizing
+nodes is something ComfyUI's frontend handles reliably, whereas growing
+and hiding many widgets on one node did not (see DESIGN.md). The only
+dynamic UI left is the MODEL sockets of a 'model'-type dimension
+(web/sweepkit.js).
 """
 
 import uuid
@@ -150,76 +140,82 @@ class SweepDimension:
     def build(self, dim_type, dim_id, values, lora_name, prev_dimensions=None, values_pylist=None, **kwargs):
         prev = list(prev_dimensions) if prev_dimensions else []
         disp_id = dim_id or dim_type
-
         dim = {"type": dim_type, "dim_id": disp_id}
-
-        # A connected values_pylist socket overrides the string widget
-        # entirely — cast/validate its elements to match dim_type instead
-        # of parsing a string. For dim_type='model' the dynamic MODEL-
-        # socket mechanism further below is skipped entirely: values
-        # arrive as whatever the PyList contains (typically MODEL objects
-        # assembled via List-Utils' Create PyList), no per-slot socket
-        # resolution needed.
-        if values_pylist is not None:
-            vals = cast_pylist_values(list(values_pylist), dim_type, disp_id)
-            if dim_type == "lora_strength":
-                dim["lora_name"] = lora_name
-                if not lora_name:
-                    print(
-                        f"[SweepDimension] '{disp_id}' is type 'lora_strength' but no LoRA file is selected — this dimension will be skipped."
-                    )
-                    return (prev,)
-        elif dim_type == "text":
-            vals = parse_text_list(values)
-        elif dim_type == "static":
-            vals = parse_text_list(values)[:1] or ["static"]
-        elif dim_type in ("seed", "steps", "int"):
-            vals = parse_number_list(values, int, disp_id, allow_range=True)
-        elif dim_type in ("cfg", "float"):
-            vals = parse_number_list(values, float, disp_id)
-        elif dim_type == "lora_strength":
-            vals = parse_lora_strength_list(values, disp_id)
-            dim["lora_name"] = lora_name
+        if dim_type == "lora_strength":
             if not lora_name:
                 print(
-                    f"[SweepDimension] '{disp_id}' is type 'lora_strength' but no LoRA file is selected — this dimension will be skipped."
+                    f"[SweepDimension] '{disp_id}' is type 'lora_strength' but no LoRA file is selected "
+                    f"— this dimension will be skipped."
                 )
                 return (prev,)
+            dim["lora_name"] = lora_name
+
+        if values_pylist is not None:
+            # A connected PyList overrides the widget. For 'model' it carries
+            # MODEL objects directly, so no per-slot sockets are involved.
+            vals = cast_pylist_values(list(values_pylist), dim_type, disp_id)
         elif dim_type == "model":
-            labels = parse_text_list(values)
-            if len(labels) > MAX_MODEL_SOCKETS:
-                # web/sweepkit.js never creates more than MAX_MODEL_SOCKETS
-                # sockets, so extra labels could only ever fall back to the
-                # base model — drop them visibly instead.
-                print(
-                    f"[SweepDimension] '{disp_id}' has {len(labels)} model labels; only the first "
-                    f"{MAX_MODEL_SOCKETS} get MODEL sockets, so the rest are ignored."
-                )
-                labels = labels[:MAX_MODEL_SOCKETS]
-            vals = labels
-            model_objs = []
-            for j, lab in enumerate(labels, start=1):
-                sock = kwargs.get(f"model_{j}")
-                if sock is None:
-                    print(
-                        f"[SweepDimension] '{disp_id}' value '{lab}' (slot {j}) has no MODEL connected — SweepAllInOne will fall back to its base model input for this slot."
-                    )
-                model_objs.append(sock)
-            dim["model_objs"] = model_objs
+            vals, dim["model_objs"] = model_slots(values, disp_id, kwargs)
         else:
-            vals = []
+            vals = parse_widget_values(dim_type, values, disp_id)
 
         if not vals:
             print(f"[SweepDimension] '{disp_id}' ({dim_type}) has no values — this dimension will be skipped.")
             return (prev,)
-
         dim["index"] = len(prev) + 1
         dim["values"] = vals
-        # Stable identity for this dimension as it travels through branches:
-        # lets SweepDimensionZip recognise the same upstream dimension arriving
-        # via both of its inputs instead of counting it twice.
+        # Stable identity as the dimension travels through branches, so
+        # SweepDimensionZip can recognise one arriving via both inputs.
         dim["uid"] = uuid.uuid4().hex
         return (prev + [dim],)
+
+
+# dim_type -> (cast, ranges like '1-5' allowed)
+_NUMERIC_TYPES = {
+    "seed": (int, True),
+    "steps": (int, True),
+    "int": (int, True),
+    "cfg": (float, False),
+    "float": (float, False),
+}
+
+
+def parse_widget_values(dim_type, values, disp_id):
+    """Parse the 'values' text widget for every type except 'model'."""
+    if dim_type == "text":
+        return parse_text_list(values)
+    if dim_type == "static":
+        return parse_text_list(values)[:1] or ["static"]
+    if dim_type == "lora_strength":
+        return parse_lora_strength_list(values, disp_id)
+    if dim_type in _NUMERIC_TYPES:
+        cast, allow_range = _NUMERIC_TYPES[dim_type]
+        return parse_number_list(values, cast, disp_id, allow_range=allow_range)
+    return []
+
+
+def model_slots(values, disp_id, sockets):
+    """Labels from the 'values' widget and the MODEL connected to each
+    label's model_N socket (None = SweepAllInOne uses its base model)."""
+    labels = parse_text_list(values)
+    if len(labels) > MAX_MODEL_SOCKETS:
+        # web/sweepkit.js never creates more sockets than this, so extra
+        # labels could only ever fall back to the base model.
+        print(
+            f"[SweepDimension] '{disp_id}' has {len(labels)} model labels; only the first "
+            f"{MAX_MODEL_SOCKETS} get MODEL sockets, so the rest are ignored."
+        )
+        labels = labels[:MAX_MODEL_SOCKETS]
+    model_objs = []
+    for j, label in enumerate(labels, start=1):
+        sock = sockets.get(f"model_{j}")
+        if sock is None:
+            print(
+                f"[SweepDimension] '{disp_id}' value '{label}' (slot {j}) has no MODEL connected "
+                f"— SweepAllInOne will fall back to its base model input for this slot."
+            )
+        model_objs.append(sock)
+    return labels, model_objs
 
 
 NODE_CLASS_MAPPINGS = {

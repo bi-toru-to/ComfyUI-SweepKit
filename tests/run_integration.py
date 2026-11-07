@@ -1,4 +1,6 @@
-import sys, os, importlib
+import sys
+import os
+import importlib
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "stubs"))
 import build_stubs as S
@@ -469,26 +471,28 @@ print("\nALL ZIP SCENARIOS PASSED")
 
 # ------------------------------------------------------------------
 print("\n--- Scenario 18: cell_mode controls aspect-ratio handling for grid cells ---")
+from sweepkit.sweep_image import cell_dims  # noqa: E402
+
 # Portrait image matching the user's actual workflow (888 wide x 1184 tall)
 portrait = S.FakeTensor(__import__("numpy").zeros((1, 1184, 888, 3), dtype="float32"))
 
-w, h = main_node._cell_dims([portrait], cell_size=512, cell_mode="square")
+w, h = cell_dims([portrait], cell_size=512, cell_mode="square")
 assert (w, h) == (512, 512), f"square mode must force cell_size x cell_size regardless of source shape, got {(w, h)}"
 
-w, h = main_node._cell_dims([portrait], cell_size=512, cell_mode="fit")
+w, h = cell_dims([portrait], cell_size=512, cell_mode="fit")
 assert max(w, h) == 512, f"fit mode's larger dimension should equal cell_size, got {(w, h)}"
 assert w < h, f"portrait source (888x1184) should stay portrait (w < h) in fit mode, got {(w, h)}"
 assert abs(w / h - 888 / 1184) < 0.01, (
     f"fit mode must preserve the original aspect ratio, got {(w, h)} vs expected ratio {888 / 1184:.4f}"
 )
 
-w, h = main_node._cell_dims([portrait], cell_size=512, cell_mode="original")
+w, h = cell_dims([portrait], cell_size=512, cell_mode="original")
 assert (w, h) == (888, 1184), f"original mode should use the exact native size regardless of cell_size, got {(w, h)}"
 
 print(
-    f"PASS scenario 18 - square={main_node._cell_dims([portrait], 512, 'square')}, "
-    f"fit={main_node._cell_dims([portrait], 512, 'fit')} (aspect preserved), "
-    f"original={main_node._cell_dims([portrait], 512, 'original')} (native size, cell_size ignored)"
+    f"PASS scenario 18 - square={cell_dims([portrait], 512, 'square')}, "
+    f"fit={cell_dims([portrait], 512, 'fit')} (aspect preserved), "
+    f"original={cell_dims([portrait], 512, 'original')} (native size, cell_size ignored)"
 )
 
 # ------------------------------------------------------------------
@@ -500,19 +504,21 @@ print("\n--- Scenario 19: grid title shows combined group values and X/Y axis ca
 (zip4,) = zip_node.build(dimensions_a=lora4, dimensions_b=steps4, mode="shortest")
 
 captured_titles = []
-orig_make_grid = main_node.make_grid
+sweep_image_mod = sys.modules["sweepkit.sweep_image"]
+orig_make_grid = sweep_image_mod.make_grid
 
 
-def spy_make_grid(images, x_labels, y_labels, title, cell_size=512, cell_mode="fit"):
+def spy_make_grid(images, x_labels, y_labels, title, *args, **kwargs):
     captured_titles.append({"title": title, "x_labels": list(x_labels), "y_labels": list(y_labels)})
-    return orig_make_grid(images, x_labels, y_labels, title, cell_size, cell_mode)
+    return orig_make_grid(images, x_labels, y_labels, title, *args, **kwargs)
 
 
-main_node.make_grid = spy_make_grid
-
-kw = base_kwargs(dimensions=zip4, grid_x_dim="dim1", grid_y_dim="none", grid_title_dim="none")
-main_node.generate(**kw)
-main_node.make_grid = orig_make_grid
+sweep_image_mod.make_grid = spy_make_grid
+try:
+    kw = base_kwargs(dimensions=zip4, grid_x_dim="dim1", grid_y_dim="none", grid_title_dim="none")
+    main_node.generate(**kw)
+finally:
+    sweep_image_mod.make_grid = orig_make_grid
 
 assert len(captured_titles) == 1
 cap = captured_titles[0]
@@ -542,13 +548,13 @@ print("\n--- Scenario 20: _cell_dims reads H/W from the END of the shape, not fi
 # on a 5D tensor silently grabs (frames, height) instead of (height,
 # width) -- no crash, just badly wrong numbers, which is exactly what
 # produced a near-zero-height grid instead of an error.
-import numpy as np
+import numpy as np  # noqa: E402
 
 plain_4d = S.FakeTensor(np.zeros((1, 1184, 888, 3), dtype=np.float32))  # normal image tensor
 video_5d = S.FakeTensor(np.zeros((1, 1, 1184, 888, 3), dtype=np.float32))  # frames=1 leading dim
 
-w4, h4 = main_node._cell_dims([plain_4d], cell_size=512, cell_mode="fit")
-w5, h5 = main_node._cell_dims([video_5d], cell_size=512, cell_mode="fit")
+w4, h4 = cell_dims([plain_4d], cell_size=512, cell_mode="fit")
+w5, h5 = cell_dims([video_5d], cell_size=512, cell_mode="fit")
 assert (w4, h4) == (w5, h5), (
     f"a 4D [B,H,W,C] tensor and a 5D [B,F,H,W,C] tensor with the same actual "
     f"H/W must produce the SAME cell dimensions, got 4D={w4, h4} vs 5D={w5, h5}"
@@ -556,7 +562,7 @@ assert (w4, h4) == (w5, h5), (
 assert h4 > w4, f"1184x888 is portrait (taller than wide) -- fit mode must preserve that, got {(w4, h4)}"
 assert min(w5, h5) > 10, f"5D tensor must not collapse to a near-zero dimension, got {(w5, h5)}"
 
-w5o, h5o = main_node._cell_dims([video_5d], cell_size=512, cell_mode="original")
+w5o, h5o = cell_dims([video_5d], cell_size=512, cell_mode="original")
 assert (w5o, h5o) == (888, 1184), (
     f"original mode on a 5D tensor must still recover the true native size, got {(w5o, h5o)}"
 )

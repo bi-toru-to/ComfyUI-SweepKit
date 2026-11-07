@@ -1,9 +1,11 @@
 """Pure-logic tests for sweep_core.py — no torch/comfy needed at all."""
 
-import sys, os
+import sys
+import os
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 import sweep_core as core
+import sweep_draw as draw
 
 
 def test_parse_text_list():
@@ -553,18 +555,18 @@ def test_next_versioned_path_does_not_swallow_listing_errors():
 
 
 def test_canvas_and_batch_helpers():
-    core.check_canvas_size(10_000, 10_000, "X")  # exactly 100 MP: allowed
+    draw.check_canvas_size(10_000, 10_000, "X")  # exactly 100 MP: allowed
     expect_value_error(
-        lambda: core.check_canvas_size(10_001, 10_000, "SweepGridConstructor"), "[SweepGridConstructor]", "cell_mode"
+        lambda: draw.check_canvas_size(10_001, 10_000, "SweepGridConstructor"), "[SweepGridConstructor]", "cell_mode"
     )
-    assert core.padded_batch_size([(10, 20), (30, 5)]) == (30, 20)
+    assert draw.padded_batch_size([(10, 20), (30, 5)]) == (30, 20)
     from PIL import Image
 
     small = Image.new("RGB", (2, 2), (255, 0, 0))
-    padded = core.pad_image(small, 4, 3)
+    padded = draw.pad_image(small, 4, 3)
     assert padded.size == (4, 3)
     assert padded.getpixel((1, 1)) == (255, 0, 0) and padded.getpixel((3, 2)) == (16, 16, 16)
-    assert core.pad_image(small, 2, 2) is small
+    assert draw.pad_image(small, 2, 2) is small
     out = os.path.join("C:\\" if os.name == "nt" else "/", "out")
     ui = core.ui_images([os.path.join(out, "P", "_grids", "g_00001.png")], out)
     assert ui == [{"filename": "g_00001.png", "subfolder": os.path.join("P", "_grids"), "type": "output"}], ui

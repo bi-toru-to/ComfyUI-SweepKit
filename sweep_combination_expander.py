@@ -19,7 +19,7 @@ axis you actually need instead — one generic mechanism, works for any
 dim_id including future ones.
 """
 
-from .sweep_core import build_combo_records
+from .sweep_core import LARGE_SWEEP_WARNING, PREVIEW_VALUES, build_combo_records
 
 
 class SweepCombinationExpander:
@@ -53,15 +53,15 @@ class SweepCombinationExpander:
             f"in {len(sorted_groups)} group(s), {total} combination(s) total"
         )
         for d in active_dims_sorted:
-            preview = d["values"][:6]
+            preview = d["values"][:PREVIEW_VALUES]
             group_note = f" (zipped with group '{d['group']}')" if d.get("group") else ""
             line = (
                 f"dim{d['index']}: '{d['dim_id']}' [{d['type']}]{group_note} = {preview}"
-                f"{' ...' if len(d['values']) > 6 else ''}"
+                f"{' ...' if len(d['values']) > PREVIEW_VALUES else ''}"
             )
             print(f"   {line}")
             dim_map_lines.append(line)
-        if total > 500:
+        if total > LARGE_SWEEP_WARNING:
             print(
                 f"[SweepCombinationExpander] WARNING: {total} combinations is a lot — "
                 f"double check this is intended before it reaches your sampler."
