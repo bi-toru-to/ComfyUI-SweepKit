@@ -312,7 +312,9 @@ def make_grid(
 # ------------------------------------------------------------ grid sets
 
 
-def unpack_combo(images: Sequence[Any], combo: dict, node_tag: str) -> tuple[list[Dimension], list[Any], list[dict]]:
+def unpack_combo(
+    images: Sequence[Any], combo: dict, node_tag: str, hint: str = ""
+) -> tuple[list[Dimension], list[Any], list[dict]]:
     """(dimensions in chain order, images, combo_records) from a node's
     `images` + `combo` inputs, checking they line up one-to-one."""
     dims_sorted = sorted([dict(d) for d in combo["dimensions"]], key=lambda d: d["index"])
@@ -321,6 +323,7 @@ def unpack_combo(images: Sequence[Any], combo: dict, node_tag: str) -> tuple[lis
         raise ValueError(
             f"[{node_tag}] images has {len(images)} entries but combo has {len(combo_records)} combo_records — "
             f"they must be the same length and in the same order (did dedup/gather get wired up correctly?)."
+            + (f" {hint}" if hint else "")
         )
     return dims_sorted, images, combo_records
 

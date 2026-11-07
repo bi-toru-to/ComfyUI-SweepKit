@@ -24,6 +24,7 @@ JS_SUITES = [
     "js_hidelora_test.mjs",
     "js_look_test.mjs",
     "js_polling_test.mjs",
+    "js_soft_test.mjs",
     "js_socket_test.mjs",
     "js_summary_test.mjs",
 ]

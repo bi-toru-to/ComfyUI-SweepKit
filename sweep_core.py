@@ -101,6 +101,10 @@ STRENGTH_PAIR_LEN = 2
 # SweepDimensionSelfCombine refuses to derive more values than this.
 MAX_DERIVED_VALUES = 10_000
 
+# How many per-axis list outputs Sweep Plan has. Must match MAX_AXIS_OUTPUTS
+# in web/sweepkit_soft.js (the frontend hides the ones a chain doesn't use).
+MAX_AXIS_OUTPUTS = 8
+
 
 # Windows device names: a path component whose stem is one of these (e.g.
 # "NUL", "con.png") refers to a device, not a file, and saving fails.
@@ -479,6 +483,28 @@ def find_dim_by_id(dimensions: Sequence[Dimension], dim_id: str) -> Dimension:
             f"'{dim_id}' matches {len(candidates)} dimensions — dim_ids must be unique to look up by dim_id."
         )
     return candidates[0]
+
+
+def axis_value(d: Dimension, vi: int) -> Any:
+    """The value a downstream node receives for axis `d` at value index vi:
+    the plain value; for lora_strength the model strength (use
+    SweepDimensionExtract for the clip strength); for model the connected
+    MODEL object (None where no MODEL was connected)."""
+    if d["type"] == "lora_strength":
+        return d["values"][vi][0]
+    if d["type"] == "model":
+        return d["model_objs"][vi]
+    return d["values"][vi]
+
+
+def axis_output_lists(
+    dims_sorted: Sequence[Dimension], combo_records: Sequence[ComboRecord], count: int = MAX_AXIS_OUTPUTS
+) -> list[list[Any]]:
+    """One list per axis, in chain order, each with one entry per combination
+    (same order as combo_records), padded with empty lists up to `count`.
+    Wired into any widget socket, ComfyUI runs that node once per entry."""
+    lists = [[axis_value(d, rec["idx_by_dim"][d["index"]]) for rec in combo_records] for d in dims_sorted[:count]]
+    return lists + [[] for _ in range(count - len(lists))]
 
 
 def extract_values(

@@ -210,7 +210,7 @@ export function refreshSummary(
         // Ignore an answer that arrives after the text has changed again.
         if (node.__sweepRemoved || !typeW || typeW.value !== type || !valuesW || valuesW.value !== values) return;
         const { text, error } = describeValues(res);
-        Object.assign(widget, { value: text, error });
+        Object.assign(widget, { value: text, error, count: res && res.ok ? res.count : undefined });
         node.setDirtyCanvas(true, true);
     }, SUMMARY_DEBOUNCE_MS);
 }
@@ -248,19 +248,19 @@ export function snapshot(node) {
     return [typeW ? typeW.value : "", valuesW ? valuesW.value : "", pylistConnected(node) ? "1" : "0"].join("\u0001");
 }
 
-/** Re-sync whenever dim_type or values changes, checking every
+/** Re-sync whenever the node's snapshot (dim_type and values by default) changes, checking every
  * POLL_INTERVAL_MS until the node is removed (node.__sweepRemoved). Calling
  * it again for the same node does nothing. */
 export function startPolling(
     node,
-    { sync = sweepSync, schedule = (fn) => setTimeout(fn, POLL_INTERVAL_MS) } = {},
+    { sync = sweepSync, schedule = (fn) => setTimeout(fn, POLL_INTERVAL_MS), snapshotFn = snapshot } = {},
 ) {
     if (node.__sweepPolling) return;
     node.__sweepPolling = true;
     node.__sweepLastSnapshot = null;
     const tick = () => {
         if (node.__sweepRemoved) return;
-        const snap = snapshot(node);
+        const snap = snapshotFn(node);
         if (snap !== node.__sweepLastSnapshot) {
             node.__sweepLastSnapshot = snap;
             sync(node);

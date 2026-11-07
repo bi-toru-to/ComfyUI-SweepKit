@@ -65,7 +65,7 @@ dims = build_chain(
     dict(dim_type="text", values="artist_a\nartist_b", dim_id="artist"),
     dict(dim_type="seed", values="1,2,3"),
 )
-combo, combo_count, dim_map = ExpanderNode.build(dimensions=dims)
+combo, combo_count, dim_map, *_ = ExpanderNode.build(dimensions=dims)
 assert combo_count == 6, combo_count
 assert "dim1: 'artist'" in dim_map and "dim2: 'seed'" in dim_map, dim_map
 
@@ -150,7 +150,7 @@ dims2 = build_chain(
     dict(dim_type="text", values="forest\ncity\nbeach", dim_id="background"),
     dict(dim_type="text", values="golden\novercast\nstudio", dim_id="lighting"),
 )
-combo2, combo_count2, _ = ExpanderNode.build(dimensions=dims2)
+combo2, combo_count2, _, *_ = ExpanderNode.build(dimensions=dims2)
 assert combo_count2 == 9
 
 (backgrounds,) = ExtractNode.build(combo=combo2, dim_id="background", component="value")
@@ -223,7 +223,7 @@ assert len(target["values"]) == 10, target["values"]  # 4 singles + 6 pairs
 assert target["combo_meta"][4] == {"arity": 2, "members": [0, 1]}, target["combo_meta"][4]
 assert target["base_values"] == ["cyberpunk", "noir", "pastel", "vintage"]
 
-combo3, combo_count3, _ = ExpanderNode.build(dimensions=combined_dim)
+combo3, combo_count3, _, *_ = ExpanderNode.build(dimensions=combined_dim)
 assert combo_count3 == 10
 images3 = [fake_image(tint=0.05 * i) for i in range(combo_count3)]
 
@@ -290,7 +290,7 @@ print("\n--- Scenario G2: UpsetConstructor's title_dim actually reorders which a
     dimensions=artist_dim2, mode="combinations", min_size=1, max_size=2, joiner=", "
 )
 (with_cfg,) = DimNode.build(dim_type="cfg", dim_id="cfg", values="4.0,7.0", lora_name="", prev_dimensions=combined_dim2)
-combo4, combo_count4, _ = ExpanderNode.build(dimensions=with_cfg)
+combo4, combo_count4, _, *_ = ExpanderNode.build(dimensions=with_cfg)
 images4 = [fake_image(tint=0.02 * i) for i in range(combo_count4)]
 target4 = [d for d in combo4["dimensions"] if "combo_meta" in d][0]
 cfg_dim4 = [d for d in combo4["dimensions"] if d["dim_id"] == "cfg"][0]
@@ -365,7 +365,7 @@ assert zipped[0]["dim_id"] == "lora_model_strength", zipped[0]["dim_id"]
 assert zipped[1]["dim_id"] == "lora_clip_strength", zipped[1]["dim_id"]
 assert zipped[0]["group_label"] == zipped[1]["group_label"] == "lora_model_strength, lora_clip_strength"
 
-combo_z, count_z, _ = ExpanderNode.build(dimensions=zipped)
+combo_z, count_z, _, *_ = ExpanderNode.build(dimensions=zipped)
 assert count_z == 3, count_z  # zipped, not 3x3=9
 
 (model_strengths,) = ExtractNode.build(combo=combo_z, dim_id="lora_model_strength", component="value")
@@ -397,7 +397,7 @@ print("PASS scenario J -", [(d["dim_id"], d["group_label"]) for d in zip3])
 print("\n--- Scenario K: zip + independent cfg (3 dims, one zipped pair) -- X/Y claim both logical axes,")
 print("--- title has nothing left, matching the exact bug report scenario ---")
 (zcfg,) = DimNode.build(dim_type="cfg", dim_id="cfg", values="4,7,10", lora_name="", prev_dimensions=zip3)
-comboK, countK, _ = ExpanderNode.build(dimensions=zcfg)
+comboK, countK, _, *_ = ExpanderNode.build(dimensions=zcfg)
 assert countK == 3 * 3, countK  # 3 zipped-pair values x 3 cfg values = 9, NOT 3x3x3=27
 imagesK = [fake_image(tint=0.03 * i) for i in range(countK)]
 for gx, gy, gt in [("auto", "auto", "none"), ("dim1", "dim3", "none"), ("dim3", "dim1", "none")]:
@@ -638,7 +638,7 @@ dims_p = build_chain(
     dict(dim_type="seed", values="1,2"),
     dict(dim_type="cfg", values="4,7"),
 )
-combo_p, n_p, _ = ExpanderNode.build(dimensions=dims_p)
+combo_p, n_p, _, *_ = ExpanderNode.build(dimensions=dims_p)
 images_p = [fake_image(0.05 * i) for i in range(n_p)]
 with Hooks() as h:
     GridNode.build(images=images_p, combo=combo_p, **grid_kwargs("TestProgress"))
@@ -699,7 +699,7 @@ print("\n--- Scenario S: UpSet title_dim='auto' leads with the first text dimens
 (sc_dim,) = SelfCombineNode.build(dimensions=sc_base, mode="combinations", min_size=1, max_size=2, joiner=", ")
 (sc_cfg,) = DimNode.build(dim_type="cfg", dim_id="cfg", values="4,7", lora_name="", prev_dimensions=sc_dim)
 (sc_mood,) = DimNode.build(dim_type="text", dim_id="mood", values="calm\nwild", lora_name="", prev_dimensions=sc_cfg)
-combo_s, n_s, _ = ExpanderNode.build(dimensions=sc_mood)
+combo_s, n_s, _, *_ = ExpanderNode.build(dimensions=sc_mood)
 images_s = [fake_image(0.03 * i) for i in range(n_s)]
 sc_target = [d for d in combo_s["dimensions"] if "combo_meta" in d][0]["dim_id"]
 UpsetNode.build(images=images_s, combo=combo_s, **upset_kwargs("TestAutoNone", sc_target))
@@ -709,5 +709,120 @@ auto_dirs = sorted({e["subfolder"].split(os.sep)[2] for e in UpsetNode.last_ui["
 assert none_dirs == ["4", "7"], none_dirs  # chain order: cfg leads
 assert auto_dirs == ["calm", "wild"], auto_dirs  # auto: the text dimension leads
 print(f"PASS scenario S - title_dim none leads with cfg {none_dirs}, auto leads with mood {auto_dirs}")
+
+print("\n--- Scenario T: Sweep Plan hands each axis out as a list, one entry per combination ---")
+from sweepkit.sweep_core import MAX_AXIS_OUTPUTS  # noqa: E402
+
+ExpanderCls = type(ExpanderNode)
+assert (
+    len(ExpanderCls.RETURN_TYPES)
+    == 3 + MAX_AXIS_OUTPUTS
+    == len(ExpanderCls.OUTPUT_IS_LIST)
+    == len(ExpanderCls.RETURN_NAMES)
+)
+assert ExpanderCls.RETURN_NAMES[:3] == ("combo", "combo_count", "dim_map"), "saved workflows link to slots 0-2"
+assert ExpanderCls.OUTPUT_IS_LIST[:3] == (False, False, False) and all(ExpanderCls.OUTPUT_IS_LIST[3:])
+assert all(t == "*" for t in ExpanderCls.RETURN_TYPES[3:])
+
+dims_t = build_chain(
+    dict(dim_type="text", dim_id="mood", values="calm\nwild"),
+    dict(dim_type="cfg", dim_id="cfg", values="4, 7"),
+    dict(dim_type="seed", dim_id="seed", values="1-3"),
+)
+combo_t, count_t, _, *axes_t = ExpanderNode.build(dimensions=dims_t)
+assert count_t == 12 and len(axes_t) == MAX_AXIS_OUTPUTS
+assert all(len(a) == 12 for a in axes_t[:3]) and all(a == [] for a in axes_t[3:]), [len(a) for a in axes_t]
+# Every combination appears exactly once, and the lists are aligned with each other.
+rows_t = list(zip(*axes_t[:3], strict=True))
+assert len(set(rows_t)) == 12 and set(rows_t) == {
+    (m, c, s) for m in ("calm", "wild") for c in (4.0, 7.0) for s in (1, 2, 3)
+}
+# Axis lists line up with Extract's output (the existing way to get the same thing).
+(seeds_t,) = ExtractNode.build(combo=combo_t, dim_id="seed", component="value")
+assert seeds_t == axes_t[2]
+
+# lora_strength comes out as the model strength; model axes as their MODEL objects.
+(ls,) = DimNode.build(
+    dim_type="lora_strength", dim_id="lora", values="0.5, 0.8:0.4", lora_name="x.safetensors", prev_dimensions=None
+)
+_, _, _, ax_ls, *_ = ExpanderNode.build(dimensions=ls)
+assert ax_ls == [0.5, 0.8], ax_ls
+m1, m2 = S.new_fake_model("m1"), S.new_fake_model("m2")
+(md,) = DimNode.build(
+    dim_type="model", dim_id="mdl", values="a\nb", lora_name="", prev_dimensions=None, model_1=m1, model_2=m2
+)
+_, _, _, ax_md, *_ = ExpanderNode.build(dimensions=md)
+assert ax_md == [m1, m2], ax_md
+# No dimensions: one combination, every axis list empty.
+_, n0, _, *ax0 = ExpanderNode.build(dimensions=None)
+assert n0 == 1 and all(a == [] for a in ax0)
+print("PASS scenario T - axis outputs are aligned lists (12 runs x 3 axes), padded, typed per axis kind")
+
+print("\n--- Scenario U: Sweep Collect gathers the images, names the files and builds the grids ---")
+CollectNode = S.ExecutorView(C["SweepCollect"]())
+assert type(CollectNode._node).INPUT_IS_LIST is True
+
+
+def collect_kwargs(prefix, **o):
+    # With INPUT_IS_LIST ComfyUI passes every input as a list.
+    d = dict(
+        filename_prefix="TestCollect",
+        save_individuals=True,
+        create_grids=True,
+        cell_size=32,
+        cell_mode="fit",
+        font_size=1.0,
+        grid_x_dim="auto",
+        grid_y_dim="auto",
+        grid_title_dim="auto",
+    )
+    d["filename_prefix"] = prefix
+    d.update(o)
+    return {k: [v] for k, v in d.items()}
+
+
+images_u = [fake_image(0.05 * (i + 1)) for i in range(count_t)]
+grids_u, summary_u = CollectNode.collect(images=images_u, combo=[combo_t], **collect_kwargs("TestCollectA"))
+ui_u = CollectNode.last_ui
+assert "12 image(s) across 3 axis(es)" in summary_u and "Saved 12 image(s)" in summary_u and "grid(s)" in summary_u, (
+    summary_u
+)
+assert "dim1='mood'" in summary_u, summary_u
+root_u = os.path.join(S.OUTPUT_DIR, "TestCollectA")
+files_u = [f for _, _, fs in os.walk(root_u) for f in fs if f.endswith(".png")]
+grid_files_u = [f for _, _, fs in os.walk(os.path.join(root_u, "_grids")) for f in fs]
+assert len(files_u) - len(grid_files_u) == 12, (len(files_u), len(grid_files_u))
+assert os.path.isdir(os.path.join(root_u, "calm")) and os.path.isdir(os.path.join(root_u, "wild")), os.listdir(root_u)
+assert ui_u["images"] and ui_u["text"] == [summary_u]
+# Names carry the values used.
+names_u = sorted(f for _, _, fs in os.walk(os.path.join(root_u, "calm")) for f in fs)
+assert any("cfg4" in n and "seed2" in n for n in names_u), names_u
+
+# Rerunning never overwrites.
+CollectNode.collect(images=images_u, combo=[combo_t], **collect_kwargs("TestCollectA"))
+files_u2 = [f for _, _, fs in os.walk(root_u) for f in fs if f.endswith(".png")]
+assert len(files_u2) == 2 * len(files_u), "a second run must add files, not replace them"
+
+# Switches: no individuals / no grids.
+CollectNode.collect(images=images_u, combo=[combo_t], **collect_kwargs("TestCollectB", save_individuals=False))
+assert not [f for _, _, fs in os.walk(os.path.join(S.OUTPUT_DIR, "TestCollectB")) for f in fs if "seed" in f]
+_, summary_ng = CollectNode.collect(
+    images=images_u, combo=[combo_t], **collect_kwargs("TestCollectC", create_grids=False)
+)
+assert "grid(s)" not in summary_ng and not os.path.isdir(os.path.join(S.OUTPUT_DIR, "TestCollectC", "_grids"))
+
+# A batch of several images in one entry is split, so each run still lines up (6 entries x 2 = 12 runs).
+batched = [S.FakeTensor(np.concatenate([i.arr, i.arr], axis=0)) for i in images_u[:6]]
+_, summary_b = CollectNode.collect(images=batched, combo=[combo_t], **collect_kwargs("TestCollectD"))
+assert "12 image(s)" in summary_b, summary_b
+
+# Too few images: a clear error that says what to wire.
+try:
+    CollectNode.collect(images=images_u[:5], combo=[combo_t], **collect_kwargs("TestCollectE"))
+    raise AssertionError("5 images for 12 runs must be refused")
+except ValueError as exc:
+    assert "5 entries" in str(exc) and "12 combo_records" in str(exc) and "axis outputs" in str(exc), exc
+print("PASS scenario U - Collect saves 12 named files + grids, never overwrites, honours switches, explains mismatches")
+
 
 print("\nALL MODULAR PIPELINE SCENARIOS PASSED")

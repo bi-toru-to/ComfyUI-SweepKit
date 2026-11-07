@@ -2,8 +2,8 @@
  * Colours that tell SweepKit's node roles apart at a glance, independent of
  * the ComfyUI app object so tests/js_look_test.mjs can import this exact code.
  *
- *   axis       blue    what to vary (Sweep Axis, Pair Axes, Subsets)
- *   generator  green   makes the images (All-in-One)
+ *   axis       blue    what to vary (Sweep Axis, Plan, Pair Axes, Subsets)
+ *   generator  green   makes or collects the images (All-in-One, Collect)
  *   output     purple  builds grids and matrices
  *   plumbing   grey    list plumbing for the modular pipeline
  *
@@ -23,9 +23,10 @@ export const NODE_ROLES = {
     SweepDimensionZip: "axis",
     SweepDimensionSelfCombine: "axis",
     SweepAllInOne: "generator",
+    SweepCollect: "generator",
     SweepGridConstructor: "output",
     SweepUpsetConstructor: "output",
-    SweepCombinationExpander: "plumbing",
+    SweepCombinationExpander: "axis",
     SweepDimensionExtract: "plumbing",
     SweepDedupeCombos: "plumbing",
     SweepGather: "plumbing",

@@ -19,7 +19,7 @@ axis you actually need instead — one generic mechanism, works for any
 dim_id including future ones.
 """
 
-from .sweep_core import LARGE_SWEEP_WARNING, PREVIEW_VALUES, build_combo_records
+from .sweep_core import LARGE_SWEEP_WARNING, MAX_AXIS_OUTPUTS, PREVIEW_VALUES, axis_output_lists, build_combo_records
 
 
 class SweepCombinationExpander:
@@ -36,12 +36,28 @@ class SweepCombinationExpander:
             },
         }
 
-    RETURN_TYPES = ("SWEEP_COMBO", "INT", "STRING")
-    RETURN_NAMES = ("combo", "combo_count", "dim_map")
+    # Slots 0-2 are the original outputs (saved workflows link to them by
+    # position). The per-axis list outputs come after, one per axis in chain
+    # order; the frontend hides the ones a chain doesn't use.
+    RETURN_TYPES = ("SWEEP_COMBO", "INT", "STRING") + ("*",) * MAX_AXIS_OUTPUTS
+    RETURN_NAMES = ("combo", "combo_count", "dim_map") + tuple(f"axis_{i}" for i in range(1, MAX_AXIS_OUTPUTS + 1))
+    OUTPUT_IS_LIST = (False, False, False) + (True,) * MAX_AXIS_OUTPUTS
+    OUTPUT_TOOLTIPS = (
+        "Every combination, for Sweep Collect and the other Advanced nodes.",
+        "How many images the sweep will make.",
+        "One line per axis: its name, type and first values.",
+    ) + tuple(
+        f"The value of axis {i} for each image, in order. Connect it to a setting (seed, cfg, prompt text, a "
+        "model or LoRA name...) and that node runs once per image."
+        for i in range(1, MAX_AXIS_OUTPUTS + 1)
+    )
     FUNCTION = "build"
-    CATEGORY = "SweepKit/Advanced"
-    DESCRIPTION = "Turns the chained axes into one list entry per image, so stock nodes (KSampler, LoRA loaders, Save Image) run once per combination."
-    SEARCH_ALIASES = ["sweep expander", "combination expander"]
+    DESCRIPTION = (
+        "Plans the sweep: turns the chained axes into every combination. Each axis comes out as a list you can "
+        "connect to any setting (seed, cfg, prompt text, model or LoRA name...), so that node runs once per image."
+    )
+    SEARCH_ALIASES = ["sweep expander", "combination expander", "sweep plan"]
+    CATEGORY = "SweepKit"
 
     def build(self, dimensions):
         active_dims = [dict(d) for d in dimensions] if dimensions else []
@@ -72,7 +88,7 @@ class SweepCombinationExpander:
 
         combo = {"dimensions": active_dims_sorted, "combo_records": combo_records}
         dim_map = "\n".join(dim_map_lines) if dim_map_lines else "(no active dimensions)"
-        return (combo, total, dim_map)
+        return (combo, total, dim_map, *axis_output_lists(active_dims_sorted, combo_records))
 
 
 NODE_CLASS_MAPPINGS = {
@@ -80,5 +96,5 @@ NODE_CLASS_MAPPINGS = {
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "SweepCombinationExpander": "Sweep Expander",
+    "SweepCombinationExpander": "Sweep Plan",
 }
