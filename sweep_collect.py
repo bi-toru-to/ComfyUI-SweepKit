@@ -13,7 +13,14 @@ import os
 
 import folder_paths
 
-from .sweep_core import GRID_AXIS_OPTIONS, build_filenames, next_versioned_path, safe_component, ui_images
+from .sweep_core import (
+    GRID_AXIS_OPTIONS,
+    build_filenames,
+    next_versioned_path,
+    safe_component,
+    ui_images,
+    write_manifest,
+)
 from .sweep_image import GridSpec, build_grids, images_by_combo, stack_padded, tensor_to_pil, unpack_combo
 
 TAG = "SweepCollect"
@@ -162,7 +169,12 @@ class SweepCollect:
             )
             grids, grid_paths = build_grids(images_by_combo(records, images, dims_sorted), dims_sorted, spec)
 
-        summary = self.summary(len(images), dims_sorted, saved, grid_paths, output_dir, folder)
+        manifest = None
+        if saved or grid_paths:
+            manifest = write_manifest(
+                os.path.join(output_dir, folder), dims_sorted, records, saved or [None] * len(records)
+            )
+        summary = self.summary(len(images), dims_sorted, saved, grid_paths, output_dir, folder, manifest)
         print(f"[{TAG}] {summary}")
         return {
             "ui": {"images": ui_images(grid_paths, output_dir), "text": [summary]},
@@ -186,12 +198,14 @@ class SweepCollect:
         return saved
 
     @staticmethod
-    def summary(count, dims_sorted, saved, grid_paths, output_dir, folder):
+    def summary(count, dims_sorted, saved, grid_paths, output_dir, folder, manifest=None):
         lines = [f"{TAG}: {count} image(s) across {len(dims_sorted)} axis(es)."]
         if saved:
             lines.append(f"Saved {len(saved)} image(s) under {os.path.join(output_dir, folder)}")
         if grid_paths:
             lines.append(f"Saved {len(grid_paths)} grid(s) under {os.path.join(output_dir, folder, '_grids')}")
+        if manifest:
+            lines.append(f"Run list (CSV): {manifest}")
         lines.append("; ".join(f"dim{d['index']}='{d['dim_id']}'" for d in dims_sorted) or "(no axes)")
         return "\n".join(lines)
 

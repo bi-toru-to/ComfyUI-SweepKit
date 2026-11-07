@@ -95,11 +95,15 @@ function axisOutputNumber(output) {
 }
 
 /** Show one axis_N output per axis in the chain, labelled with the axis name.
- * Trailing outputs nobody uses are removed; one with a link is always kept.
- * When the chain can't be read (Zip and friends), all outputs stay. */
-export function syncPlanOutputs(graph, plan) {
+ * Trailing outputs nobody uses are removed (axis_1 always stays); one with a
+ * link is always kept. When the chain can't be read (Zip and friends), all
+ * outputs stay. A Plan saved before these outputs existed is left alone
+ * (opening an old workflow must not change it) unless `upgrade` is set, as
+ * it is when the user adds an axis to it. */
+export function syncPlanOutputs(graph, plan, { upgrade = false } = {}) {
+    if (!upgrade && !(plan.outputs || []).some((o) => o.name.startsWith(OUTPUT_PREFIX))) return;
     const { axes, complete } = axisChain(graph, plan);
-    const wanted = complete ? axes.length : MAX_AXIS_OUTPUTS;
+    const wanted = complete ? Math.max(1, axes.length) : MAX_AXIS_OUTPUTS;
     const outputs = plan.outputs || [];
     for (let i = outputs.length - 1; i >= 0; i--) {
         const n = axisOutputNumber(outputs[i]);
@@ -114,7 +118,7 @@ export function syncPlanOutputs(graph, plan) {
     }
     for (const out of plan.outputs) {
         const n = axisOutputNumber(out);
-        if (!Number.isNaN(n)) out.label = n <= axes.length && complete ? axisLabel(axes[n - 1], n) : out.name;
+        if (!Number.isNaN(n)) out.label = complete && n <= axes.length ? axisLabel(axes[n - 1], n) : out.name;
     }
 }
 
@@ -245,7 +249,7 @@ export function sweepWidget(env, target, widget) {
         if (last) last.connect(0, axis, slotIndex(axis.inputs, "prev_dimensions"));
         axis.connect(0, plan, slotIndex(plan.inputs, "dimensions"));
 
-        syncPlanOutputs(graph, plan);
+        syncPlanOutputs(graph, plan, { upgrade: true });
         const position = axisChain(graph, plan).axes.indexOf(axis) + 1;
         const out = slotIndex(plan.outputs, `${OUTPUT_PREFIX}${position}`);
         const socket = (target.inputs || []).findIndex((i) => i.widget && i.widget.name === widget.name);

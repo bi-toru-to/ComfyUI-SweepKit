@@ -40,6 +40,7 @@ from .sweep_core import (
     next_versioned_path,
     safe_component,
     ui_images,
+    write_manifest,
 )
 from .sweep_image import PREVIEW_MAX_SIDE, GridSpec, LiveGrid, build_grids, resolve_axes, stack_padded, tensor_to_pil
 
@@ -478,7 +479,11 @@ class SweepAllInOne:
         grids, grid_paths = ([], [])
         if all_images and grid_axes:
             grids, grid_paths = build_grids(all_images, dims_sorted, spec, grid_axes)
-        summary = self.summarize(len(records), dims_sorted, saved_paths, grid_paths, output_dir, safe_prefix)
+        manifest = None
+        if saved_paths or grid_paths:
+            files = saved_paths or [None] * len(records)
+            manifest = write_manifest(os.path.join(output_dir, safe_prefix), dims_sorted, records, files)
+        summary = self.summarize(len(records), dims_sorted, saved_paths, grid_paths, output_dir, safe_prefix, manifest)
         print(f"[SweepAllInOne] Done. {summary}")
         return {
             "ui": {"images": ui_images(grid_paths, output_dir), "text": [summary]},
@@ -502,12 +507,14 @@ class SweepAllInOne:
         )
 
     @staticmethod
-    def summarize(count, dims_sorted, saved_paths, grid_paths, output_dir, safe_prefix):
+    def summarize(count, dims_sorted, saved_paths, grid_paths, output_dir, safe_prefix, manifest=None):
         lines = [f"SweepAllInOne: {count} image(s) generated across {len(dims_sorted)} dimension(s)."]
         if saved_paths:
             lines.append(f"Saved {len(saved_paths)} individual file(s) under {os.path.join(output_dir, safe_prefix)}")
         if grid_paths:
             lines.append(f"Saved {len(grid_paths)} grid(s) under {os.path.join(output_dir, safe_prefix, '_grids')}")
+        if manifest:
+            lines.append(f"Run list (CSV): {manifest}")
         return "\n".join(lines)
 
 

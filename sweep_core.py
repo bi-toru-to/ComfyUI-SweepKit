@@ -8,6 +8,7 @@ style imports, without needing a ComfyUI/torch environment at all.
 
 from __future__ import annotations
 
+import csv
 import itertools
 import math
 import os
@@ -765,6 +766,33 @@ def next_versioned_path(directory: str, base_filename: str, ext: str = ".png") -
         if m:
             max_counter = max(max_counter, int(m.group(1)))
     return os.path.join(directory, f"{base_filename}_{max_counter + 1:05d}{ext}")
+
+
+def write_manifest(
+    directory: str,
+    dims_sorted: Sequence[Dimension],
+    combo_records: Sequence[ComboRecord],
+    files: Sequence[str | None],
+) -> str:
+    """Write sweep_manifest_NNNNN.csv into `directory`: one row per run with
+    its number, the saved file (relative to `directory`, blank if none) and
+    the value of every axis. Makes a sweep easy to reproduce and to load into
+    a spreadsheet or script. Never overwrites an earlier manifest."""
+    headers: list[str] = []
+    for d in dims_sorted:
+        name, n = d["dim_id"], 2
+        while name in headers:  # two axes with the same name stay distinguishable
+            name, n = f"{d['dim_id']}_{n}", n + 1
+        headers.append(name)
+    path = next_versioned_path(directory, "sweep_manifest", ".csv")
+    with open(path, "w", newline="", encoding="utf-8") as fh:
+        out = csv.writer(fh)
+        out.writerow(["run", "file", *headers])
+        for rec, file in zip(combo_records, files, strict=True):
+            rel = os.path.relpath(file, directory).replace(os.sep, "/") if file else ""
+            values = [format_dim_value(d, rec["idx_by_dim"][d["index"]]) for d in dims_sorted]
+            out.writerow([rec["combo_index"] + 1, rel, *values])
+    return path
 
 
 def ui_images(paths: Sequence[str], output_dir: str) -> list[dict[str, str]]:

@@ -156,4 +156,21 @@ l1.connect(0, l2, 0);
 l2.connect(0, l1, 0);
 l2.connect(0, p2, 0);
 assert(axisChain(g, p2).axes.length === 2, "cycle is cut");
+// A fresh Plan with no axes keeps axis_1, so there is always an output to grow from.
+g = new FakeGraph();
+const fresh = g.make("SweepCombinationExpander");
+syncPlanOutputs(g, fresh);
+eq(fresh.outputs.map((o) => o.name).slice(3), ["axis_1"], "empty chain keeps axis_1");
+
+// A Plan saved before the axis outputs existed is left untouched on load, and upgraded when an axis is added.
+g = new FakeGraph();
+const legacy = g.make("SweepCombinationExpander");
+legacy.outputs = legacy.outputs.slice(0, 3);
+const la = g.make("SweepDimension", { dim_type: "seed", values: "1-3" });
+la.connect(0, legacy, 0);
+syncPlanOutputs(g, legacy);
+eq(legacy.outputs.map((o) => o.name), ["combo", "combo_count", "dim_map"], "old Plan unchanged by sync");
+const tgt = g.make("KSampler");
+assert(sweepWidget(env(g), tgt, widget(tgt, "cfg")), "sweeping a setting works through an old Plan");
+assert(legacy.outputs.some((o) => o.name === "axis_2"), "old Plan got its axis outputs once an axis was added");
 console.log("PASS test6: Plan outputs follow the chain and never lose a wired output");

@@ -826,4 +826,46 @@ assert preview_response({"dim_type": "seed", "values": "x" * (MAX_VALUES_TEXT + 
 assert preview_response({"dim_type": "nonsense", "values": "1"}) == {"ok": True, "count": 0, "labels": []}
 print("PASS scenario 30 - preview_values: counts, labels, plain errors, range and size limits")
 
+print("\n--- Scenario 31: every sweep writes a run list (CSV) beside its images ---")
+import csv  # noqa: E402
+import glob  # noqa: E402
+
+dims = build_chain(dict(dim_type="text", dim_id="mood", values="calm\nwild"), dict(dim_type="seed", values="1,2"))
+_, summary = main_node.generate(**base_kwargs(dimensions=dims, filename_prefix="TestManifest"))
+files = glob.glob(os.path.join(S.OUTPUT_DIR, "TestManifest", "sweep_manifest_*.csv"))
+assert len(files) == 1 and files[0] in summary, (files, summary)
+with open(files[0], newline="", encoding="utf-8") as fh:
+    rows = list(csv.reader(fh))
+assert rows[0] == ["run", "file", "mood", "seed"], rows[0]
+assert len(rows) == 5 and [r[0] for r in rows[1:]] == ["1", "2", "3", "4"], rows
+assert {(r[2], r[3]) for r in rows[1:]} == {("calm", "1"), ("calm", "2"), ("wild", "1"), ("wild", "2")}
+for r in rows[1:]:
+    assert r[1].endswith(".png") and os.path.isfile(os.path.join(S.OUTPUT_DIR, "TestManifest", r[1])), (
+        r
+    )  # relative path
+
+# A second run adds a second manifest instead of replacing the first.
+main_node.generate(**base_kwargs(dimensions=dims, filename_prefix="TestManifest"))
+assert len(glob.glob(os.path.join(S.OUTPUT_DIR, "TestManifest", "sweep_manifest_*.csv"))) == 2
+
+# No saved files and no grids: nothing to list, nothing written.
+main_node.generate(
+    **base_kwargs(dimensions=dims, filename_prefix="TestNoManifest", save_individuals=False, create_grids=False)
+)
+assert not glob.glob(os.path.join(S.OUTPUT_DIR, "TestNoManifest", "sweep_manifest_*.csv"))
+
+# Two axes with the same name keep distinguishable columns.
+from sweepkit.sweep_core import write_manifest  # noqa: E402
+
+dd = build_chain(dict(dim_type="seed", dim_id="x", values="1,2"), dict(dim_type="cfg", dim_id="x", values="3"))
+from sweepkit.sweep_core import build_combo_records  # noqa: E402
+
+recs, dsorted, _ = build_combo_records([dict(d) for d in dd])
+path = write_manifest(os.path.join(S.OUTPUT_DIR, "TestManifestDup"), dsorted, recs, [None] * len(recs))
+with open(path, newline="", encoding="utf-8") as fh:
+    head = next(csv.reader(fh))
+assert head == ["run", "file", "x", "x_2"], head
+print("PASS scenario 31 - run list CSV: one row per run, relative file names, never overwritten, unique headers")
+
+
 print("\nALL EXTRA SCENARIOS PASSED (v4)")

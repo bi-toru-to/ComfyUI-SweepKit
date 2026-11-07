@@ -42,8 +42,15 @@ class SweepDimensionExtract:
             },
         }
 
-    RETURN_TYPES = ("PYLIST",)
-    RETURN_NAMES = ("values",)
+    # Slot 0 is the original PyList output (saved workflows link to it). Slot 1
+    # is the same values as a native list, for connecting straight to a setting.
+    RETURN_TYPES = ("PYLIST", "*")
+    RETURN_NAMES = ("values", "list")
+    OUTPUT_IS_LIST = (False, True)
+    OUTPUT_TOOLTIPS = (
+        "The values as a PyList, for List-Utils nodes.",
+        "The values as a list: connect it to any setting and that node runs once per value.",
+    )
     FUNCTION = "build"
     CATEGORY = "SweepKit/Advanced"
     DESCRIPTION = (
@@ -52,7 +59,8 @@ class SweepDimensionExtract:
     SEARCH_ALIASES = ["extract dimension", "axis value"]
 
     def build(self, combo, dim_id, component):
-        return (extract_values(combo["dimensions"], combo["combo_records"], dim_id, component),)
+        values = extract_values(combo["dimensions"], combo["combo_records"], dim_id, component)
+        return (values, values)
 
 
 NODE_CLASS_MAPPINGS = {

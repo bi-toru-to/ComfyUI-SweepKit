@@ -69,7 +69,7 @@ combo, combo_count, dim_map, *_ = ExpanderNode.build(dimensions=dims)
 assert combo_count == 6, combo_count
 assert "dim1: 'artist'" in dim_map and "dim2: 'seed'" in dim_map, dim_map
 
-(seeds,) = ExtractNode.build(combo=combo, dim_id="seed", component="value")
+(seeds, *_) = ExtractNode.build(combo=combo, dim_id="seed", component="value")
 assert seeds == [1, 2, 3, 1, 2, 3], seeds
 
 # "sample": one distinct-tinted fake image per combo (no real KSampler needed
@@ -153,7 +153,7 @@ dims2 = build_chain(
 combo2, combo_count2, _, *_ = ExpanderNode.build(dimensions=dims2)
 assert combo_count2 == 9
 
-(backgrounds,) = ExtractNode.build(combo=combo2, dim_id="background", component="value")
+(backgrounds, *_) = ExtractNode.build(combo=combo2, dim_id="background", component="value")
 # positive_texts only ever reference background -- lighting is (deliberately,
 # same as the real-world forgotten-placeholder case) never substituted in.
 positive_texts = [f"a {bg} scene" for bg in backgrounds]
@@ -368,8 +368,8 @@ assert zipped[0]["group_label"] == zipped[1]["group_label"] == "lora_model_stren
 combo_z, count_z, _, *_ = ExpanderNode.build(dimensions=zipped)
 assert count_z == 3, count_z  # zipped, not 3x3=9
 
-(model_strengths,) = ExtractNode.build(combo=combo_z, dim_id="lora_model_strength", component="value")
-(clip_strengths,) = ExtractNode.build(combo=combo_z, dim_id="lora_clip_strength", component="value")
+(model_strengths, *_) = ExtractNode.build(combo=combo_z, dim_id="lora_model_strength", component="value")
+(clip_strengths, *_) = ExtractNode.build(combo=combo_z, dim_id="lora_clip_strength", component="value")
 assert model_strengths == [0.2, 0.6, 1.0], model_strengths
 assert clip_strengths == [0.3, 0.7, 0.9], clip_strengths
 assert model_strengths != clip_strengths, "the two zipped axes must remain independently extractable"
@@ -738,8 +738,10 @@ assert len(set(rows_t)) == 12 and set(rows_t) == {
     (m, c, s) for m in ("calm", "wild") for c in (4.0, 7.0) for s in (1, 2, 3)
 }
 # Axis lists line up with Extract's output (the existing way to get the same thing).
-(seeds_t,) = ExtractNode.build(combo=combo_t, dim_id="seed", component="value")
+(seeds_t, *_) = ExtractNode.build(combo=combo_t, dim_id="seed", component="value")
 assert seeds_t == axes_t[2]
+(_, native_seeds) = ExtractNode.build(combo=combo_t, dim_id="seed", component="value")
+assert native_seeds == seeds_t and type(ExtractNode).OUTPUT_IS_LIST == (False, True)
 
 # lora_strength comes out as the model strength; model axes as their MODEL objects.
 (ls,) = DimNode.build(
@@ -797,6 +799,16 @@ assert ui_u["images"] and ui_u["text"] == [summary_u]
 # Names carry the values used.
 names_u = sorted(f for _, _, fs in os.walk(os.path.join(root_u, "calm")) for f in fs)
 assert any("cfg4" in n and "seed2" in n for n in names_u), names_u
+
+# The run list matches what was saved.
+import csv  # noqa: E402
+
+man = [os.path.join(root_u, f) for f in os.listdir(root_u) if f.startswith("sweep_manifest_")]
+assert len(man) == 1, man
+with open(man[0], newline="", encoding="utf-8") as fh:
+    rows_m = list(csv.reader(fh))
+assert rows_m[0] == ["run", "file", "mood", "cfg", "seed"] and len(rows_m) == 13, rows_m[:2]
+assert all(os.path.isfile(os.path.join(root_u, r[1])) for r in rows_m[1:]), "manifest file column points at real files"
 
 # Rerunning never overwrites.
 CollectNode.collect(images=images_u, combo=[combo_t], **collect_kwargs("TestCollectA"))
