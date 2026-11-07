@@ -70,6 +70,15 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     **_UPSET_NAMES,
 }
 
+try:  # only inside ComfyUI; the tests import this package without a server
+    from server import PromptServer
+
+    from .sweep_routes import register_routes
+
+    register_routes(getattr(PromptServer, "instance", None))
+except ImportError:
+    pass
+
 # Tells ComfyUI to serve everything under ./web/ so the frontend extension
 # (dynamic MODEL sockets on SweepDimension nodes) actually loads.
 WEB_DIRECTORY = "web"

@@ -150,7 +150,9 @@ class SweepUpsetConstructor:
     RETURN_TYPES = ("IMAGE", "STRING")
     RETURN_NAMES = ("matrices", "summary")
     FUNCTION = "build"
-    CATEGORY = "SweepKit/Modular"
+    CATEGORY = "SweepKit/Advanced"
+    DESCRIPTION = "Draws an UpSet-style matrix of subset combinations with their result images."
+    SEARCH_ALIASES = ["upset constructor", "upset plot", "subset matrix"]
     OUTPUT_NODE = True
 
     def build(
@@ -424,5 +426,5 @@ NODE_CLASS_MAPPINGS = {
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "SweepUpsetConstructor": "Sweep Upset Constructor",
+    "SweepUpsetConstructor": "Sweep UpSet Matrix",
 }

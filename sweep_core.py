@@ -144,6 +144,11 @@ def parse_number_list(raw: Any, cast: Callable[[str], Any], dim_id: str, allow_r
         range_match = re.fullmatch(r"(-?\d+)\s*-\s*(-?\d+)", line) if allow_range else None
         if range_match:
             a, b = int(range_match[1]), int(range_match[2])
+            if abs(b - a) + 1 > MAX_DERIVED_VALUES:
+                raise ValueError(
+                    f"[SweepDimension] '{dim_id}': range '{line}' has {abs(b - a) + 1:,} values, "
+                    f"over the limit of {MAX_DERIVED_VALUES:,}."
+                )
             step = 1 if b >= a else -1
             out.extend(range(a, b + step, step))
             continue

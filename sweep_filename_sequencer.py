@@ -48,7 +48,9 @@ class SweepFilenameSequencer:
     RETURN_TYPES = ("PYLIST",)
     RETURN_NAMES = ("filenames",)
     FUNCTION = "build"
-    CATEGORY = "SweepKit/Modular"
+    CATEGORY = "SweepKit/Advanced"
+    DESCRIPTION = "Builds one file name per combination from the values used, for the stock Save Image node."
+    SEARCH_ALIASES = ["filename sequencer", "file names from values"]
 
     def build(self, combo, filename_prefix, include_combo_index):
         return (build_filenames(combo["dimensions"], combo["combo_records"], filename_prefix, include_combo_index),)
@@ -59,5 +61,5 @@ NODE_CLASS_MAPPINGS = {
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "SweepFilenameSequencer": "Sweep Filename Sequencer",
+    "SweepFilenameSequencer": "Sweep Filenames",
 }

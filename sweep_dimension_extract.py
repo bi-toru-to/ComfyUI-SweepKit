@@ -45,7 +45,11 @@ class SweepDimensionExtract:
     RETURN_TYPES = ("PYLIST",)
     RETURN_NAMES = ("values",)
     FUNCTION = "build"
-    CATEGORY = "SweepKit/Modular"
+    CATEGORY = "SweepKit/Advanced"
+    DESCRIPTION = (
+        "Pulls one axis's value out of every combination, as the list a KSampler, LoRA or text node should use."
+    )
+    SEARCH_ALIASES = ["extract dimension", "axis value"]
 
     def build(self, combo, dim_id, component):
         return (extract_values(combo["dimensions"], combo["combo_records"], dim_id, component),)
@@ -56,5 +60,5 @@ NODE_CLASS_MAPPINGS = {
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "SweepDimensionExtract": "Sweep Dimension Extract",
+    "SweepDimensionExtract": "Sweep Axis Value (Extract)",
 }

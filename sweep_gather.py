@@ -35,7 +35,9 @@ class SweepGather:
     RETURN_TYPES = ("PYLIST",)
     RETURN_NAMES = ("result",)
     FUNCTION = "build"
-    CATEGORY = "SweepKit/Modular"
+    CATEGORY = "SweepKit/Advanced"
+    DESCRIPTION = "Spreads the images made for the distinct combinations back out to every combination. Use after Sweep Skip Repeats (Dedupe)."
+    SEARCH_ALIASES = ["gather", "spread results"]
 
     def build(self, source, indices):
         return (gather(list(source), list(indices)),)

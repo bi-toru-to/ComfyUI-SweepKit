@@ -71,7 +71,9 @@ class SweepDimensionSelfCombine:
     RETURN_TYPES = ("SWEEP_DIMS",)
     RETURN_NAMES = ("dimensions",)
     FUNCTION = "build"
-    CATEGORY = "SweepKit/Modular"
+    CATEGORY = "SweepKit/Advanced"
+    DESCRIPTION = "Turns one list into every subset of it (singles, pairs, triples...), for example to test which artist names work well together. Pair it with Sweep UpSet Matrix."
+    SEARCH_ALIASES = ["self combine", "subsets", "combinations of a list", "upset"]
 
     def build(self, dimensions, mode, min_size, max_size, joiner):
         dims = [dict(d) for d in dimensions] if dimensions else []
@@ -115,5 +117,5 @@ NODE_CLASS_MAPPINGS = {
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "SweepDimensionSelfCombine": "Sweep Dimension Self-Combine",
+    "SweepDimensionSelfCombine": "Sweep Subsets of a List (Self-Combine)",
 }

@@ -39,7 +39,9 @@ class SweepCombinationExpander:
     RETURN_TYPES = ("SWEEP_COMBO", "INT", "STRING")
     RETURN_NAMES = ("combo", "combo_count", "dim_map")
     FUNCTION = "build"
-    CATEGORY = "SweepKit/Modular"
+    CATEGORY = "SweepKit/Advanced"
+    DESCRIPTION = "Turns the chained axes into one list entry per image, so stock nodes (KSampler, LoRA loaders, Save Image) run once per combination."
+    SEARCH_ALIASES = ["sweep expander", "combination expander"]
 
     def build(self, dimensions):
         active_dims = [dict(d) for d in dimensions] if dimensions else []
@@ -78,5 +80,5 @@ NODE_CLASS_MAPPINGS = {
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "SweepCombinationExpander": "Sweep Combination Expander",
+    "SweepCombinationExpander": "Sweep Expander",
 }

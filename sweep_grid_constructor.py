@@ -108,7 +108,11 @@ class SweepGridConstructor:
     RETURN_TYPES = ("IMAGE", "STRING")
     RETURN_NAMES = ("grids", "summary")
     FUNCTION = "build"
-    CATEGORY = "SweepKit/Modular"
+    CATEGORY = "SweepKit/Advanced"
+    DESCRIPTION = (
+        "Builds labelled X/Y grids from the images and their combinations, and saves them to the output folder."
+    )
+    SEARCH_ALIASES = ["grid constructor", "xy grid", "x/y plot"]
     OUTPUT_NODE = True
 
     def build(
@@ -149,5 +153,5 @@ NODE_CLASS_MAPPINGS = {
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "SweepGridConstructor": "Sweep Grid Constructor",
+    "SweepGridConstructor": "Sweep Grid",
 }

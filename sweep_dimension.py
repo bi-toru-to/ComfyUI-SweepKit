@@ -14,6 +14,7 @@ dynamic UI left is the MODEL sockets of a 'model'-type dimension
 (web/sweepkit.js).
 """
 
+import re
 import uuid
 
 import folder_paths
@@ -21,6 +22,8 @@ import folder_paths
 from .sweep_core import (
     DIM_TYPE_OPTIONS,
     MAX_MODEL_SOCKETS,
+    PREVIEW_VALUES,
+    format_dim_value,
     parse_text_list,
     parse_number_list,
     parse_lora_strength_list,
@@ -136,6 +139,8 @@ class SweepDimension:
     RETURN_NAMES = ("dimensions",)
     FUNCTION = "build"
     CATEGORY = "SweepKit"
+    DESCRIPTION = "One thing to vary in a sweep: seed, steps, cfg, prompt text, LoRA strength, a model, or any number or text list. Chain several Axis nodes (connect one's output to the next one's prev_dimensions) and SweepKit makes every combination."
+    SEARCH_ALIASES = ["sweep dimension", "sweep axis", "x/y plot", "xy plot", "grid search", "parameter sweep"]
 
     def build(self, dim_type, dim_id, values, lora_name, prev_dimensions=None, values_pylist=None, **kwargs):
         prev = list(prev_dimensions) if prev_dimensions else []
@@ -194,6 +199,19 @@ def parse_widget_values(dim_type, values, disp_id):
     return []
 
 
+def preview_values(dim_type, values):
+    """What a Sweep Axis's `values` text will parse to, for the summary line
+    under the widget: {"ok": True, "count": n, "labels": [first few]} or
+    {"ok": False, "error": plain-language reason}. Never raises."""
+    try:
+        vals = parse_text_list(values) if dim_type == "model" else parse_widget_values(dim_type, values, "axis")
+    except ValueError as exc:
+        return {"ok": False, "error": re.sub(r"^\[\w+\]\s*'[^']*':\s*", "", str(exc))}
+    dim = {"type": dim_type, "values": vals}
+    shown = [format_dim_value(dim, i) for i in range(min(len(vals), PREVIEW_VALUES))]
+    return {"ok": True, "count": len(vals), "labels": shown}
+
+
 def model_slots(values, disp_id, sockets):
     """Labels from the 'values' widget and the MODEL connected to each
     label's model_N socket (None = SweepAllInOne uses its base model)."""
@@ -223,5 +241,5 @@ NODE_CLASS_MAPPINGS = {
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "SweepDimension": "Sweep Dimension",
+    "SweepDimension": "Sweep Axis",
 }

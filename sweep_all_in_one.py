@@ -235,6 +235,8 @@ class SweepAllInOne:
     RETURN_NAMES = ("grids", "summary")
     FUNCTION = "generate"
     CATEGORY = "SweepKit"
+    DESCRIPTION = "Makes every combination of the connected axes in one node: samples each image, saves it with the values used in the file name, and builds labelled X/Y grids. The grid fills in live on the node while it runs."
+    SEARCH_ALIASES = ["sweep all in one", "xy plot", "x/y grid", "parameter sweep", "compare settings"]
     OUTPUT_NODE = True
 
     # ------------------------------------------------------------------
@@ -647,4 +649,4 @@ class _PromptEncoder:
 
 NODE_CLASS_MAPPINGS = {"SweepAllInOne": SweepAllInOne}
 
-NODE_DISPLAY_NAME_MAPPINGS = {"SweepAllInOne": "Sweep All-in-One (Modular Text Injection)"}
+NODE_DISPLAY_NAME_MAPPINGS = {"SweepAllInOne": "Sweep All-in-One"}

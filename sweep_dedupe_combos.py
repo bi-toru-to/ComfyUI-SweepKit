@@ -48,7 +48,9 @@ class SweepDedupeCombos:
     RETURN_TYPES = ("PYLIST", "PYLIST", "INT")
     RETURN_NAMES = ("unique_index_map", "expand_indices", "unique_count")
     FUNCTION = "build"
-    CATEGORY = "SweepKit/Modular"
+    CATEGORY = "SweepKit/Advanced"
+    DESCRIPTION = "Finds combinations that would make an identical image and keeps each distinct one once, so it is sampled once. Pair with Sweep Gather."
+    SEARCH_ALIASES = ["dedupe", "skip repeats", "unique combinations"]
 
     def build(self, axis_values, float_precision):
         keys = build_dedupe_keys(list(axis_values), float_precision)
@@ -69,5 +71,5 @@ NODE_CLASS_MAPPINGS = {
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "SweepDedupeCombos": "Sweep Dedupe Combos",
+    "SweepDedupeCombos": "Sweep Skip Repeats (Dedupe)",
 }

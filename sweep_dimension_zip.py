@@ -69,7 +69,9 @@ class SweepDimensionZip:
     RETURN_TYPES = ("SWEEP_DIMS",)
     RETURN_NAMES = ("dimensions",)
     FUNCTION = "build"
-    CATEGORY = "SweepKit"
+    CATEGORY = "SweepKit/Advanced"
+    DESCRIPTION = "Pairs two axes value-for-value instead of crossing them, e.g. LoRA strength 0.5 with cfg 4 and strength 1.0 with cfg 7."
+    SEARCH_ALIASES = ["sweep zip", "pair axes", "link axes"]
 
     @staticmethod
     def _group_members(dims_list):
@@ -172,5 +174,5 @@ NODE_CLASS_MAPPINGS = {
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "SweepDimensionZip": "Sweep Dimension Zip",
+    "SweepDimensionZip": "Sweep Pair Axes (Zip)",
 }

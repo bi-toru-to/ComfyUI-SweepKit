@@ -799,4 +799,31 @@ finally:
     sweep_image_mod.PREVIEW_MIN_INTERVAL = old_interval
 print("PASS scenario 29 - live frames per image, rate-limited, and a preview failure is harmless")
 
+print("\n--- Scenario 30: the summary under an axis comes from the real parser ---")
+from sweepkit.sweep_dimension import preview_values  # noqa: E402
+from sweepkit.sweep_routes import MAX_VALUES_TEXT, preview_response  # noqa: E402
+
+r = preview_values("seed", "1-3, 7")
+assert r == {"ok": True, "count": 4, "labels": ["1", "2", "3", "7"]}, r
+r = preview_values("cfg", "4\n7.0\n10")
+assert r["ok"] and r["count"] == 3 and r["labels"] == ["4", "7", "10"], r
+r = preview_values("text", "a cat, a dog\nbird")  # text values are one per line; commas stay in the text
+assert r["ok"] and r["count"] == 2 and r["labels"][0] == "a cat, a dog", r
+r = preview_values("lora_strength", "0.5, 0.8:0.4")
+assert r["ok"] and r["labels"] == ["0.5", "0.8/0.4"], r
+r = preview_values("seed", "1-100")
+assert r["count"] == 100 and len(r["labels"]) == 6, r  # only the first few labels are sent
+r = preview_values("model", "a\nb")
+assert r == {"ok": True, "count": 2, "labels": ["a", "b"]}, r
+r = preview_values("int", "1, two")
+assert r["ok"] is False and "two" in r["error"] and "[Sweep" not in r["error"], r  # plain language, no log tag
+r = preview_values("seed", "1-99999999999")
+assert r["ok"] is False and "limit" in r["error"], r  # a huge range is refused, not expanded
+r = preview_values("text", "")
+assert r == {"ok": True, "count": 0, "labels": []}, r
+assert preview_response([1, 2])["ok"] is False
+assert preview_response({"dim_type": "seed", "values": "x" * (MAX_VALUES_TEXT + 1)})["ok"] is False
+assert preview_response({"dim_type": "nonsense", "values": "1"}) == {"ok": True, "count": 0, "labels": []}
+print("PASS scenario 30 - preview_values: counts, labels, plain errors, range and size limits")
+
 print("\nALL EXTRA SCENARIOS PASSED (v4)")

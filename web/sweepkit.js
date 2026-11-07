@@ -1,5 +1,7 @@
+import { api } from "../../scripts/api.js";
 import { app } from "../../scripts/app.js";
-import { startPolling, sweepSync } from "./sweepkit_core.js";
+import { configureApi, startPolling, sweepSync } from "./sweepkit_core.js";
+import { applyLook } from "./sweepkit_look.js";
 
 /**
  * SweepDimension dynamic UI: MODEL sockets for dim_type "model" and the
@@ -8,6 +10,8 @@ import { startPolling, sweepSync } from "./sweepkit_core.js";
  */
 
 const NODE_NAME = "SweepDimension";
+
+configureApi((path, init) => api.fetchApi(path, init));
 
 /** Wrap a prototype hook so the original (if any) still runs first. */
 function chain(proto, hook, extra) {
@@ -38,5 +42,13 @@ app.registerExtension({
         chain(proto, "onRemoved", (node) => {
             node.__sweepRemoved = true;
         });
+    },
+});
+
+/** Role colours for every SweepKit node (see sweepkit_look.js). */
+app.registerExtension({
+    name: "SweepKit.Look",
+    nodeCreated(node) {
+        applyLook(node);
     },
 });
