@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import itertools
 import os
+import time
 from dataclasses import dataclass
 from typing import Any, Sequence
 
@@ -45,6 +46,8 @@ LABEL_COLOR = (210, 210, 210)
 TITLE_COLOR = (255, 255, 255)
 MISSING_OUTLINE = (90, 30, 30)
 MISSING_TEXT = (200, 120, 120)
+PENDING_OUTLINE = (55, 55, 55)
+PENDING_TEXT = (110, 110, 110)
 
 
 # ---------------------------------------------------------------- tensors
@@ -122,11 +125,23 @@ def paste_into_cell(
 
 
 def draw_missing_cell(
-    draw: ImageDraw.ImageDraw, x: int, y: int, cell_w: int, cell_h: int, font: Any, width: int = 3
+    draw: ImageDraw.ImageDraw,
+    x: int,
+    y: int,
+    cell_w: int,
+    cell_h: int,
+    font: Any,
+    width: int = 3,
+    pending: bool = False,
 ) -> None:
-    """Placeholder for a combination with no image (e.g. a deduped slot)."""
-    draw.rectangle([x, y, x + cell_w, y + cell_h], outline=MISSING_OUTLINE, width=width)
-    draw.text((x + cell_w // 2, y + cell_h // 2), "missing", fill=MISSING_TEXT, font=font, anchor="mm")
+    """Placeholder for a combination with no image: red 'missing' for a
+    deduped slot, or a quiet grey 'pending' tile while a live preview is
+    still waiting for that image."""
+    outline, color, text = (
+        (PENDING_OUTLINE, PENDING_TEXT, "…") if pending else (MISSING_OUTLINE, MISSING_TEXT, "missing")
+    )
+    draw.rectangle([x, y, x + cell_w, y + cell_h], outline=outline, width=width)
+    draw.text((x + cell_w // 2, y + cell_h // 2), text, fill=color, font=font, anchor="mm")
 
 
 def line_height(scratch: ImageDraw.ImageDraw, font: Any) -> int:
@@ -274,9 +289,10 @@ def make_grid(
     font_size: float = 0.4,
     base_px: int | None = None,
     node_tag: str = "SweepGridConstructor",
+    pending: bool = False,
 ) -> Image.Image:
     """Render one labelled X/Y grid. `images` is row-major (len rows*cols);
-    a None entry draws a 'missing' placeholder."""
+    a None entry draws a 'missing' placeholder ('pending' for live previews)."""
     lay = layout_grid(images, x_labels, y_labels, title, cell_size, cell_mode, font_size, base_px)
     check_canvas_size(lay.width, lay.height, node_tag)
     grid = Image.new("RGB", (lay.width, lay.height), BACKGROUND)
@@ -287,7 +303,7 @@ def make_grid(
         x, y = lay.label_w + c * lay.cell_w, lay.grid_top + r * lay.cell_h
         img = images[idx] if idx < len(images) else None
         if img is None:
-            draw_missing_cell(draw, x, y, lay.cell_w, lay.cell_h, lay.font_x)
+            draw_missing_cell(draw, x, y, lay.cell_w, lay.cell_h, lay.font_x, pending=pending)
         else:
             paste_into_cell(grid, tensor_to_pil(img), x, y, lay.cell_w, lay.cell_h, cell_mode)
     return grid
@@ -371,27 +387,71 @@ class GridSpec:
     base_px: int | None = None
 
 
+@dataclass
+class GridAxes:
+    """The resolved X / Y / title / grouping dimensions of a grid set, with
+    their labels. One grid is drawn per combination of `grouping` values."""
+
+    x_dim: Dimension | None
+    y_dim: Dimension | None
+    title_dim: Dimension | None
+    grouping: list[Dimension]
+    x_range: list[int]
+    x_labels: list[str]
+    y_range: list[int]
+    y_labels: list[str]
+    caption: str
+
+
+def resolve_axes(dims_sorted: Sequence[Dimension], spec: GridSpec) -> GridAxes:
+    """Resolve the X/Y/Title picks of `spec` into a GridAxes."""
+    x_dim, y_dim, title_dim, other_dims = resolve_grid_axes(
+        dims_sorted, spec.grid_x_dim, spec.grid_y_dim, spec.grid_title_dim, node_tag=spec.node_tag
+    )
+    x_range, x_labels = axis_values(x_dim, dims_sorted)
+    y_range, y_labels = axis_values(y_dim, dims_sorted)
+    return GridAxes(
+        x_dim,
+        y_dim,
+        title_dim,
+        ([title_dim] if title_dim else []) + other_dims,
+        x_range,
+        x_labels,
+        y_range,
+        y_labels,
+        axis_caption(x_dim, y_dim),
+    )
+
+
+def page_title(
+    axes: GridAxes, dims_sorted: Sequence[Dimension], page: Sequence[int], fallback: str
+) -> tuple[str, list[str]]:
+    """(grid title, shown grouping values) for one page of a grid set."""
+    shown = [
+        format_group_value(dim_group_members(d, dims_sorted), vi) for d, vi in zip(axes.grouping, page, strict=True)
+    ]
+    return grid_title(axes.grouping, shown, axes.caption, fallback), shown
+
+
 def build_grids(
-    all_images: dict[tuple, Any], dims_sorted: Sequence[Dimension], spec: GridSpec
+    all_images: dict[tuple, Any],
+    dims_sorted: Sequence[Dimension],
+    spec: GridSpec,
+    axes: GridAxes | None = None,
 ) -> tuple[list[Image.Image], list[str]]:
-    """Resolve the X/Y/Title axes, then render and save one grid per
-    combination of the remaining (grouping) axes.
+    """Resolve the X/Y/Title axes (unless `axes` is given), then render and
+    save one grid per combination of the remaining (grouping) axes.
 
     Returns (grid images, saved paths). Checks for interrupts and reports
     progress once per grid. Grids are saved under
     <output>/<prefix>/_grids/<grouping values...>_NNNNN.png and never
     overwrite earlier runs."""
-    x_dim, y_dim, title_dim, other_dims = resolve_grid_axes(
-        dims_sorted, spec.grid_x_dim, spec.grid_y_dim, spec.grid_title_dim, node_tag=spec.node_tag
-    )
-    grouping = ([title_dim] if title_dim else []) + other_dims
-    x_range, x_labels = axis_values(x_dim, dims_sorted)
-    y_range, y_labels = axis_values(y_dim, dims_sorted)
-    caption = axis_caption(x_dim, y_dim)
+    axes = axes or resolve_axes(dims_sorted, spec)
+    x_dim, y_dim, grouping = axes.x_dim, axes.y_dim, axes.grouping
     combos = list(itertools.product(*[range(len(d["values"])) for d in grouping]))
     print(
         f"[{spec.node_tag}] Building {len(combos)} grid(s) (x={x_dim['dim_id'] if x_dim else '—'}, "
-        f"y={y_dim['dim_id'] if y_dim else '—'}{', title=' + title_dim['dim_id'] if title_dim else ''})"
+        f"y={y_dim['dim_id'] if y_dim else '—'}{', title=' + axes.title_dim['dim_id'] if axes.title_dim else ''})"
     )
 
     pbar = comfy.utils.ProgressBar(len(combos))
@@ -400,17 +460,15 @@ def build_grids(
         comfy.model_management.throw_exception_if_processing_interrupted()
         fixed = {d["index"]: vi for d, vi in zip(grouping, group_combo, strict=True)}
         cells = [
-            all_images.get(cell_key(dims_sorted, fixed, (x_dim, xi), (y_dim, yi))) for yi in y_range for xi in x_range
+            all_images.get(cell_key(dims_sorted, fixed, (x_dim, xi), (y_dim, yi)))
+            for yi in axes.y_range
+            for xi in axes.x_range
         ]
-        shown = [
-            format_group_value(dim_group_members(d, dims_sorted), vi)
-            for d, vi in zip(grouping, group_combo, strict=True)
-        ]
-        title = grid_title(grouping, shown, caption, spec.prefix_folder)
+        title, shown = page_title(axes, dims_sorted, group_combo, spec.prefix_folder)
         grid = make_grid(
             cells,
-            x_labels,
-            y_labels,
+            axes.x_labels,
+            axes.y_labels,
             title,
             spec.cell_size,
             spec.cell_mode,
@@ -426,3 +484,65 @@ def build_grids(
         paths.append(path)
         pbar.update(1)
     return grids, paths
+
+
+# ------------------------------------------------------------ live preview
+
+PREVIEW_CELL = 192  # cell size of the on-node preview; the saved grid keeps its own size
+PREVIEW_MAX_SIDE = 768  # longest side of the preview image sent to the browser
+PREVIEW_MIN_INTERVAL = 0.3  # seconds between previews, so fast sweeps don't flood the socket
+
+
+class LiveGrid:
+    """The grid so far, drawn on the node while a sweep is still sampling.
+
+    Cells that haven't finished show as quiet 'pending' tiles. With several
+    grids (extra dimensions) it shows the page of the newest image. Only
+    small thumbnails are kept, so this costs little RAM and no extra
+    sampling. Frames go out through ComfyUI's progress-bar preview."""
+
+    def __init__(self, dims_sorted: Sequence[Dimension], spec: GridSpec, axes: GridAxes) -> None:
+        self.dims_sorted, self.spec, self.axes = dims_sorted, spec, axes
+        self.pages: dict[tuple, dict[tuple[int, int], Any]] = {}
+        self.latest: tuple | None = None
+        self._last_sent = 0.0
+
+    def add(self, idx_by_dim: dict[int, int], image: Any) -> None:
+        """Record a finished image under its page and cell."""
+        ax = self.axes
+        page = tuple(idx_by_dim[d["index"]] for d in ax.grouping)
+        cell = (idx_by_dim[ax.x_dim["index"]] if ax.x_dim else 0, idx_by_dim[ax.y_dim["index"]] if ax.y_dim else 0)
+        thumb = tensor_to_pil(image)
+        thumb.thumbnail((PREVIEW_CELL, PREVIEW_CELL))
+        self.pages.setdefault(page, {})[cell] = pil_to_tensor(thumb)
+        self.latest = page
+
+    def due(self, final: bool) -> bool:
+        """True when a frame should be sent now (rate-limited unless final)."""
+        now = time.monotonic()
+        if final or now - self._last_sent >= PREVIEW_MIN_INTERVAL:
+            self._last_sent = now
+            return True
+        return False
+
+    def render(self) -> Image.Image | None:
+        """The current page as one labelled image, or None before any image."""
+        if self.latest is None:
+            return None
+        ax, done = self.axes, self.pages[self.latest]
+        cells = [done.get((xi, yi)) for yi in ax.y_range for xi in ax.x_range]
+        title, _ = page_title(ax, self.dims_sorted, self.latest, self.spec.prefix_folder)
+        grid = make_grid(
+            cells,
+            ax.x_labels,
+            ax.y_labels,
+            title,
+            min(self.spec.cell_size, PREVIEW_CELL),
+            self.spec.cell_mode,
+            1.0,
+            None,
+            self.spec.node_tag,
+            pending=True,
+        )
+        grid.thumbnail((PREVIEW_MAX_SIDE, PREVIEW_MAX_SIDE))
+        return grid

@@ -509,7 +509,8 @@ orig_make_grid = sweep_image_mod.make_grid
 
 
 def spy_make_grid(images, x_labels, y_labels, title, *args, **kwargs):
-    captured_titles.append({"title": title, "x_labels": list(x_labels), "y_labels": list(y_labels)})
+    if not kwargs.get("pending"):  # the on-node live preview draws grids too; only count saved ones
+        captured_titles.append({"title": title, "x_labels": list(x_labels), "y_labels": list(y_labels)})
     return orig_make_grid(images, x_labels, y_labels, title, *args, **kwargs)
 
 
@@ -743,5 +744,59 @@ for entry in ui["images"]:
     assert os.path.isfile(os.path.join(S.OUTPUT_DIR, entry["subfolder"], entry["filename"])), entry
     assert entry["subfolder"].startswith("TestUI"), entry
 print(f"PASS scenario 28 - ui lists {len(ui['images'])} saved grid(s) plus the summary text")
+
+print("\n--- Scenario 29: the grid so far is previewed on the node while sampling ---")
+PB = sys.modules["comfy.utils"].ProgressBar
+sweep_image_mod = sys.modules["sweepkit.sweep_image"]
+
+
+def live_frames(dims, **kw):
+    PB.previews.clear()
+    main_node.generate(**base_kwargs(dimensions=dims, **kw))
+    return [f[1] for f in PB.previews]
+
+
+old_interval = sweep_image_mod.PREVIEW_MIN_INTERVAL
+sweep_image_mod.PREVIEW_MIN_INTERVAL = 0.0  # one frame per image, so the test is deterministic
+try:
+    dims = build_chain(dict(dim_type="seed", values="1,2"), dict(dim_type="cfg", values="3,6"))
+    frames = live_frames(dims, create_grids=False, save_individuals=False)
+    assert len(frames) == 4, f"expected one frame per image, got {len(frames)}"
+    assert all(max(f.size) <= sweep_image_mod.PREVIEW_MAX_SIDE for f in frames), [f.size for f in frames]
+    assert all(f[0] == "JPEG" and f[2] == sweep_image_mod.PREVIEW_MAX_SIDE for f in PB.previews)
+    # Cells fill in as images finish, so the last frame differs from the first.
+    assert frames[0].tobytes() != frames[-1].tobytes()
+
+    # Rate limit: with a long interval only the first and the final frame go out.
+    sweep_image_mod.PREVIEW_MIN_INTERVAL = 3600.0
+    frames = live_frames(dims, create_grids=False, save_individuals=False)
+    assert len(frames) == 2, f"rate limit should leave first + final frames, got {len(frames)}"
+    sweep_image_mod.PREVIEW_MIN_INTERVAL = 0.0
+
+    # Several pages (3 dimensions): one frame per image, each a normal image.
+    dims3 = build_chain(
+        dict(dim_type="text", dim_id="t", values="a\nb"),
+        dict(dim_type="seed", values="1,2"),
+        dict(dim_type="cfg", values="3,6"),
+    )
+    frames = live_frames(dims3, create_grids=True, save_individuals=False)
+    assert len(frames) == 8 and frames[-1].size[0] > 0
+
+    # A preview failure must not stop the sweep: it is switched off, results are unchanged.
+    orig_render = sweep_image_mod.LiveGrid.render
+
+    def broken_render(self):
+        raise RuntimeError("boom")
+
+    sweep_image_mod.LiveGrid.render = broken_render
+    try:
+        PB.previews.clear()
+        _, summary = main_node.generate(**base_kwargs(dimensions=dims, create_grids=True))
+    finally:
+        sweep_image_mod.LiveGrid.render = orig_render
+    assert "4 image(s) generated" in summary and "grid(s)" in summary and not PB.previews
+finally:
+    sweep_image_mod.PREVIEW_MIN_INTERVAL = old_interval
+print("PASS scenario 29 - live frames per image, rate-limited, and a preview failure is harmless")
 
 print("\nALL EXTRA SCENARIOS PASSED (v4)")

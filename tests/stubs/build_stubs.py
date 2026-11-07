@@ -122,12 +122,24 @@ utils_mod = types.ModuleType("comfy.utils")
 
 
 class _ProgressBar:
-    def __init__(self, total):
+    """Mirrors comfy.utils.ProgressBar; every preview frame sent is kept in
+    `previews` (class-level, newest last) so tests can inspect them."""
+
+    previews = []
+
+    def __init__(self, total, node_id=None):
         self.total = total
         self.n = 0
 
+    def update_absolute(self, value, total=None, preview=None):
+        if total is not None:
+            self.total = total
+        self.n = min(value, self.total)
+        if preview is not None:
+            type(self).previews.append(preview)
+
     def update(self, n):
-        self.n += n
+        self.update_absolute(self.n + n)
 
 
 def _load_torch_file(path, safe_load=True):

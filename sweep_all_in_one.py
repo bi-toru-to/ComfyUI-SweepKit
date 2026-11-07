@@ -41,7 +41,7 @@ from .sweep_core import (
     safe_component,
     ui_images,
 )
-from .sweep_image import GridSpec, build_grids, stack_padded, tensor_to_pil
+from .sweep_image import PREVIEW_MAX_SIDE, GridSpec, LiveGrid, build_grids, resolve_axes, stack_padded, tensor_to_pil
 
 LORA_OFF = 0.0001  # strengths at or below this skip loading the LoRA
 GRID_LABEL_PX = 16  # fixed label size for this node's grids (title is 1.6x)
@@ -467,11 +467,15 @@ class SweepAllInOne:
             _PromptEncoder(self, positive_prompt, negative_prompt, text_mode, text_pattern, roles.text),
         )
         save_to = (filename_prefix, output_dir) if save_individuals else None
-        all_images, saved_paths = sampler.run(records, dims_sorted, keep_images=create_grids, save_to=save_to)
-
         safe_prefix = safe_component(filename_prefix) if str(filename_prefix).strip() else "SweepKit"
-        axes = (grid_x_dim, grid_y_dim, grid_title_dim)
-        grids, grid_paths = self.grids(all_images, dims_sorted, axes, cell_size, cell_mode, safe_prefix, output_dir)
+        spec = self.grid_spec((grid_x_dim, grid_y_dim, grid_title_dim), cell_size, cell_mode, safe_prefix, output_dir)
+        grid_axes = resolve_axes(dims_sorted, spec) if dims_sorted else None
+        live = LiveGrid(dims_sorted, spec, grid_axes) if grid_axes else None
+        all_images, saved_paths = sampler.run(records, dims_sorted, create_grids, save_to, live)
+
+        grids, grid_paths = ([], [])
+        if all_images and grid_axes:
+            grids, grid_paths = build_grids(all_images, dims_sorted, spec, grid_axes)
         summary = self.summarize(len(records), dims_sorted, saved_paths, grid_paths, output_dir, safe_prefix)
         print(f"[SweepAllInOne] Done. {summary}")
         return {
@@ -480,12 +484,10 @@ class SweepAllInOne:
         }
 
     @staticmethod
-    def grids(all_images, dims_sorted, axes, cell_size, cell_mode, safe_prefix, output_dir):
-        """Grids for this node: same renderer as SweepGridConstructor, with
-        fixed-size labels. None when grids are off or nothing was swept."""
-        if not all_images or not dims_sorted:
-            return [], []
-        spec = GridSpec(
+    def grid_spec(axes, cell_size, cell_mode, safe_prefix, output_dir):
+        """Grid settings for this node: same renderer as SweepGridConstructor,
+        with fixed-size labels."""
+        return GridSpec(
             grid_x_dim=axes[0],
             grid_y_dim=axes[1],
             grid_title_dim=axes[2],
@@ -496,7 +498,6 @@ class SweepAllInOne:
             node_tag="SweepAllInOne",
             base_px=GRID_LABEL_PX,
         )
-        return build_grids(all_images, dims_sorted, spec)
 
     @staticmethod
     def summarize(count, dims_sorted, saved_paths, grid_paths, output_dir, safe_prefix):
@@ -535,14 +536,15 @@ class _SweepSampler:
         )
         return self.vae.decode(latent["samples"]), seed
 
-    def run(self, records, dims_sorted, keep_images, save_to):
+    def run(self, records, dims_sorted, keep_images, save_to, live=None):
         """Returns ({value-index tuple: image}, saved paths). Images are kept
         only when keep_images is set (for grids), so RAM doesn't grow with
         the sweep otherwise; save_to = (filename_prefix, output_dir) saves
-        each image as it is made."""
+        each image as it is made. `live` (a LiveGrid) shows the grid so far
+        on the node."""
         pbar = comfy.utils.ProgressBar(len(records))
         all_images, saved_paths = {}, []
-        for rec in records:
+        for n, rec in enumerate(records, 1):
             comfy.model_management.throw_exception_if_processing_interrupted()
             idx = rec["idx_by_dim"]
             image, seed = self.sample_one(idx)
@@ -551,8 +553,26 @@ class _SweepSampler:
             if save_to:
                 prefix, output_dir = save_to
                 saved_paths.append(self.node.save_individual(image, prefix, dims_sorted, idx, seed, output_dir))
-            pbar.update(1)
+            live = self.report(pbar, live, n, len(records), idx, image)
         return all_images, saved_paths
+
+    @staticmethod
+    def report(pbar, live, done, total, idx, image):
+        """Progress update, with the live grid frame when one is due. A
+        preview problem switches the preview off (returns None) instead of
+        stopping the sweep."""
+        if live is None:
+            pbar.update_absolute(done, total)
+            return None
+        try:
+            live.add(idx, image)
+            frame = live.render() if live.due(done == total) else None
+        except Exception as exc:  # the preview is a nicety; never fail a sweep over it
+            print(f"[SweepAllInOne] Live preview turned off: {exc}")
+            pbar.update_absolute(done, total)
+            return None
+        pbar.update_absolute(done, total, ("JPEG", frame, PREVIEW_MAX_SIDE) if frame is not None else None)
+        return live
 
 
 class _Roles:
