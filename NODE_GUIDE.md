@@ -205,7 +205,7 @@ combinations workflow below for the full walkthrough.
 | `dimensions` | SWEEP_DIMS | A chain — its **last** dimension is the one that gets recombined against itself and replaced by the derived result. |
 | `mode` | dropdown | `combinations`: order doesn't matter, no repeats within a combo (`"cyberpunk, noir"` only, never also `"noir, cyberpunk"`). `permutations`: order matters too — use this if word order actually changes your output (it often does for prompts, since early tokens carry more weight), at the cost of a much faster-growing result count. |
 | `min_size` | INT (default 1) | Smallest combo size to include. `1` also emits every base value on its own. |
-| `max_size` | INT (default 0) | Largest combo size to include. `0` means "use every base value" (the full-size combo). |
+| `max_size` | INT (default 0) | Largest combo size to include. `0` means "use every base value" (the full-size combo). The node refuses settings that would produce more than 10,000 derived values (e.g. 12 values as permutations is about 1.3 billion) and says which `max_size` would fit. |
 | `joiner` | STRING (default `", "`) | String used to join a combo's member values into one derived value. |
 
 **Outputs**
@@ -337,7 +337,7 @@ re-expand a sampled result list back out to the original length.
 | Socket | Type | Meaning |
 |---|---|---|
 | `source` | PYLIST | The list to read from. |
-| `indices` | PYLIST | Integer indices into `source`. Out-of-range indices raise an error immediately, rather than clamping or wrapping silently. |
+| `indices` | PYLIST | Integer indices into `source`. Out-of-range or non-integer indices (including `True`/`False`) raise an error immediately, rather than clamping or wrapping silently. |
 
 **Outputs**
 
@@ -410,7 +410,7 @@ rerun the sampler.
 
 | Socket | Type | Meaning |
 |---|---|---|
-| `grids` | IMAGE | All built grid images, batched. |
+| `grids` | IMAGE | All built grid images, batched. Grids of different sizes are padded with the background colour to the largest one (never stretched). The saved grids also show on the node itself, like `SaveImage`. |
 | `summary` | STRING | How many grids were built, where they were saved, and a `dim1='...', dim2='...'` position map (see Notes). |
 
 **How X/Y/Title get picked (read this if a sweep doesn't grid the way you expect)**
@@ -439,6 +439,10 @@ the same as if it had been left on `auto`.
 - `images` must be a `PYLIST`, not a single batched `IMAGE` tensor —
   per-combination images aren't guaranteed to share one resolution the
   way a real batch tensor requires.
+- A single grid image is limited to 100 megapixels; above that the node stops with a
+  message suggesting `cell_mode=fit`, a smaller `cell_size`, or another
+  `grid_title_dim` to split it into more grids. The same limit applies to
+  `SweepAllInOne` and to each `SweepUpsetConstructor` page.
 - `grid_x_dim`/`grid_y_dim`/`grid_title_dim` pick dimensions by chain
   **position** (`dim1`, `dim2`, ...), not by `dim_id` — this is a
   different lookup convention from `SweepDimensionExtract`'s exact-match
@@ -480,14 +484,14 @@ and what this actually looks like.
 | `cell_size` | INT (default 120) | Target swatch size per column — exact meaning depends on `cell_mode`. |
 | `cell_mode` | dropdown | Same meaning as `SweepGridConstructor`'s: `fit` (recommended), `square`, or `original`. |
 | `font_size` | FLOAT (default 1.0) | Same meaning as `SweepGridConstructor`'s — a fraction of the *actual rendered* swatch width, `1.0` ≈ one character per 1/16 of a swatch's width. Title, row-label, and column-label sizes stay proportionally distinct from each other at every setting; row-to-row and title/header spacing all scale along with the text so nothing collides at large font sizes or large `cell_mode='original'` images. |
-| `title_dim` | dropdown (`none`/`dim1`...`dim12`) | Which OTHER (non-target) dimension's value leads the matrix title, if set. Every other non-target dimension still page-splits normally regardless of this setting — it only reorders which one reads first in the title text. |
+| `title_dim` | dropdown (`auto`/`none`/`dim1`...`dim12`) | Which OTHER (non-target) dimension's value leads the matrix title (and the top output folder), if set. `auto` leads with the first `text`/`static` dimension; `none` keeps chain order. Every other non-target dimension still page-splits normally regardless of this setting — it only reorders which one reads first in the title text. |
 | `max_columns_per_page` | INT (default 60) | Safety valve for very large combo counts — splits into multiple numbered matrix files past this many columns, rather than one enormous image. |
 
 **Outputs**
 
 | Socket | Type | Meaning |
 |---|---|---|
-| `matrices` | IMAGE | All built matrix images, batched. |
+| `matrices` | IMAGE | All built matrix images, batched. A shorter last page is padded with the background colour, not stretched. The saved matrices also show on the node itself. |
 | `summary` | STRING | How many matrix images were built, for how many combinations/base values, where, and a `dim1='...', dim2='...'` position map (for `title_dim`'s picker). |
 
 **Notes**
@@ -541,7 +545,7 @@ this node — none of it applies to the modular pipeline.
 | `sampler_name` / `scheduler` / `denoise` | — | Standard KSampler settings, fixed across the whole sweep. |
 | `filename_prefix` | STRING (default `SweepKit`) | Top-level output folder for every saved file — always a real folder, unconditionally (blank falls back to `SweepKit`). |
 | `save_individuals` | BOOLEAN (default True) | Save each sampled image individually, in addition to any grids. |
-| `create_grids` | BOOLEAN (default True) | Build and save X/Y/Title grids. |
+| `create_grids` | BOOLEAN (default True) | Build and save X/Y/Title grids. Building grids keeps every decoded image in RAM until the end of the run (about 12.6 MB per 1024×1024 image, so ~6 GB for 500); turn it off for very large sweeps and build grids afterwards with the modular pipeline. |
 | `cell_size` / `cell_mode` | — | Same meaning as `SweepGridConstructor`'s, above. |
 | `grid_x_dim` / `grid_y_dim` / `grid_title_dim` | — | Same meaning as `SweepGridConstructor`'s, above — including the same X→Y→Title auto-fill order and 2-axis-sweep single-grid guarantee. |
 | `dimensions` *(optional)* | SWEEP_DIMS | Connect the end of an `SweepDimension` chain. Leave unconnected for a single fixed-parameter generation with no sweep at all. |
@@ -550,7 +554,7 @@ this node — none of it applies to the modular pipeline.
 
 | Socket | Type | Meaning |
 |---|---|---|
-| `grids` | IMAGE | All built grid images, batched (or one plain image if `create_grids` is off). |
+| `grids` | IMAGE | All built grid images, batched (or one plain image if `create_grids` is off). The saved grids and the summary also show on the node itself. |
 | `summary` | STRING | How many images were generated and where everything was saved. |
 
 **Notes**
