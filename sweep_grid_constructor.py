@@ -28,6 +28,9 @@ from PIL import Image, ImageDraw
 import folder_paths
 import itertools
 
+import comfy.model_management
+import comfy.utils
+
 from .sweep_core import (
     GRID_AXIS_OPTIONS,
     safe_component,
@@ -39,6 +42,10 @@ from .sweep_core import (
     font_size_for_char_width,
     wrap_text_to_width,
     next_versioned_path,
+    check_canvas_size,
+    padded_batch_size,
+    pad_image,
+    ui_images,
 )
 
 
@@ -196,6 +203,7 @@ class SweepGridConstructor:
 
         W = max(cols * cell_w + label_w + pad, title_w)
         H = rows * cell_h + title_h + title_gap + label_h + pad
+        check_canvas_size(W, H, "SweepGridConstructor")
         grid = Image.new("RGB", (W, H), (16, 16, 16))
         draw = ImageDraw.Draw(grid)
 
@@ -309,7 +317,9 @@ class SweepGridConstructor:
             axis_caption_bits.append(f"Y: {y_dim.get('group_label', y_dim['dim_id'])}")
         axis_caption = "   ".join(axis_caption_bits)
 
+        pbar = comfy.utils.ProgressBar(total_grids)
         for axis_group_combo in itertools.product(*axis_grouping_ranges) if axis_grouping_dims else [()]:
+            comfy.model_management.throw_exception_if_processing_interrupted()
             axis_group_idx = {d["index"]: vi for d, vi in zip(axis_grouping_dims, axis_group_combo)}
 
             cell_images = []
@@ -367,19 +377,20 @@ class SweepGridConstructor:
             grid_pil.save(path)
             grid_paths.append(path)
             grids.append(self.pil_to_tensor(grid_pil))
+            pbar.update(1)
 
         if not grids:
             grids = [torch.zeros(1, 512, 512, 3)]
 
         if len(grids) > 1:
-            target_shape = grids[0].shape
-            fixed = []
-            for g in grids:
-                if g.shape != target_shape:
-                    pil = self.tensor_to_pil(g[0]).resize((target_shape[2], target_shape[1]), Image.LANCZOS)
-                    g = self.pil_to_tensor(pil)
-                fixed.append(g)
-            grids = fixed
+            # Pad (never stretch) to the largest grid so they can share one batch.
+            width, height = padded_batch_size([(g.shape[2], g.shape[1]) for g in grids])
+            grids = [
+                g
+                if (g.shape[2], g.shape[1]) == (width, height)
+                else self.pil_to_tensor(pad_image(self.tensor_to_pil(g[0]), width, height))
+                for g in grids
+            ]
 
         dim_map = "; ".join(f"dim{d['index']}='{d['dim_id']}'" for d in active_dims_sorted) or "(no active dimensions)"
         summary = (
@@ -387,7 +398,10 @@ class SweepGridConstructor:
             f"under {os.path.join(output_dir, prefix_folder, '_grids')} | {dim_map}"
         )
         print(f"[SweepGridConstructor] {summary}")
-        return (torch.cat(grids, dim=0), summary)
+        return {
+            "ui": {"images": ui_images(grid_paths, output_dir), "text": [summary]},
+            "result": (torch.cat(grids, dim=0), summary),
+        }
 
 
 NODE_CLASS_MAPPINGS = {

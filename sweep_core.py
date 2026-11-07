@@ -8,6 +8,7 @@ style imports, without needing a ComfyUI/torch environment at all.
 
 import re
 import os
+import math
 import itertools
 
 DIM_TYPE_OPTIONS = [
@@ -53,6 +54,13 @@ GRID_AXIS_OPTIONS = ["auto", "none"] + [f"dim{i}" for i in range(1, GRID_AXIS_PI
 # Upper bound on a 'model' dimension's MODEL sockets. Must match MAX_SOCKETS
 # in web/sweepkit.js, which never creates more sockets than this.
 MAX_MODEL_SOCKETS = 24
+
+# SweepDimensionSelfCombine refuses to derive more values than this.
+MAX_DERIVED_VALUES = 10_000
+
+# Largest grid/matrix canvas any node will build (100 megapixels is about
+# 300 MB as RGB plus 1.2 GB as the float32 IMAGE output).
+MAX_CANVAS_PIXELS = 100_000_000
 
 # Windows device names: a path component whose stem is one of these (e.g.
 # "NUL", "con.png") refers to a device, not a file, and saving fails.
@@ -501,6 +509,22 @@ def self_combine(values, mode, min_size, max_size, joiner):
             f"[SweepDimensionSelfCombine] min_size ({min_size}) > effective max_size "
             f"({max_size}) for {n} base value(s)."
         )
+    count_fn = math.perm if mode == "permutations" else math.comb
+    total = sum(count_fn(n, r) for r in range(min_size, max_size + 1))
+    if total > MAX_DERIVED_VALUES:
+        # Counted before generating anything: 12 values as permutations is
+        # ~1.3 billion strings, which would exhaust memory long before the
+        # downstream >500-image warning could fire.
+        fitting = [
+            r
+            for r in range(min_size, max_size + 1)
+            if sum(count_fn(n, k) for k in range(min_size, r + 1)) <= MAX_DERIVED_VALUES
+        ]
+        hint = f" max_size={fitting[-1]} fits." if fitting else " Use fewer base values."
+        raise ValueError(
+            f"[SweepDimensionSelfCombine] {n} base value(s) as {mode} of sizes {min_size}-{max_size} would "
+            f"produce {total:,} derived values, over the limit of {MAX_DERIVED_VALUES:,}.{hint}"
+        )
     iterator_fn = itertools.permutations if mode == "permutations" else itertools.combinations
 
     out_values, combo_meta = [], []
@@ -590,7 +614,8 @@ def gather(source, indices):
     n = len(source)
     out = []
     for i in indices:
-        if not isinstance(i, int) or i < 0 or i >= n:
+        # bool is a subclass of int (True == 1), so check it explicitly.
+        if isinstance(i, bool) or not isinstance(i, int) or i < 0 or i >= n:
             raise ValueError(
                 f"[SweepGather] index {i!r} out of range for source of length {n} (valid range 0..{n - 1})."
             )
@@ -726,14 +751,56 @@ def next_versioned_path(directory, base_filename, ext=".png"):
     os.makedirs(directory, exist_ok=True)
     pattern = re.compile(r"^" + re.escape(base_filename) + r"_(\d+)" + re.escape(ext) + r"$")
     max_counter = 0
-    try:
-        for fname in os.listdir(directory):
-            m = pattern.match(fname)
-            if m:
-                max_counter = max(max_counter, int(m.group(1)))
-    except OSError:
-        pass
+    # No try/except: if the directory can't be listed, restarting the
+    # counter at _00001 could silently overwrite an earlier file.
+    for fname in os.listdir(directory):
+        m = pattern.match(fname)
+        if m:
+            max_counter = max(max_counter, int(m.group(1)))
     return os.path.join(directory, f"{base_filename}_{max_counter + 1:05d}{ext}")
+
+
+def check_canvas_size(width, height, node_tag):
+    """Refuse to allocate a grid/matrix canvas above MAX_CANVAS_PIXELS.
+    Called before Image.new so an oversized grid fails with advice instead
+    of exhausting RAM (the canvas is held as RGB, then again as a float32
+    tensor for the node's IMAGE output: ~15 bytes per pixel in total)."""
+    pixels = width * height
+    if pixels > MAX_CANVAS_PIXELS:
+        raise ValueError(
+            f"[{node_tag}] grid image would be {width}x{height} ({pixels / 1e6:.0f} MP), over the "
+            f"{MAX_CANVAS_PIXELS / 1e6:.0f} MP limit. Use cell_mode='fit' with a smaller cell_size, "
+            f"or set another dimension as grid_title_dim so it splits into more, smaller grids."
+        )
+
+
+def padded_batch_size(sizes):
+    """(width, height) that every image in a batch must be padded to so they
+    can be stacked into one IMAGE tensor without stretching any of them."""
+    return max(w for w, _ in sizes), max(h for _, h in sizes)
+
+
+def pad_image(pil_img, width, height, background=(16, 16, 16)):
+    """Place pil_img at the top-left of a width x height canvas filled with
+    the grid background colour (no resizing, so nothing is distorted)."""
+    from PIL import Image
+
+    if pil_img.size == (width, height):
+        return pil_img
+    canvas = Image.new("RGB", (width, height), background)
+    canvas.paste(pil_img, (0, 0))
+    return canvas
+
+
+def ui_images(paths, output_dir):
+    """ComfyUI 'ui' image entries for files saved under output_dir, so the
+    node shows its saved grids/matrices the way SaveImage does."""
+    out = []
+    root = os.path.abspath(output_dir)
+    for p in paths:
+        rel = os.path.relpath(os.path.abspath(p), root)
+        out.append({"filename": os.path.basename(rel), "subfolder": os.path.dirname(rel), "type": "output"})
+    return out
 
 
 def font_size_for_char_width(target_char_width_px, sample_px=200):

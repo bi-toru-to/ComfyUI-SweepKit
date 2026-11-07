@@ -58,7 +58,7 @@ class SweepDimensionSelfCombine:
                         "default": 0,
                         "min": 0,
                         "max": 20,
-                        "tooltip": "Largest combo size to include. 0 = use every base value (the full-size combo).",
+                        "tooltip": "Largest combo size to include. 0 = use every base value (the full-size combo). Settings producing more than 10,000 derived values are refused with a hint.",
                     },
                 ),
                 "joiner": (

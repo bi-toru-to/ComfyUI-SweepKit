@@ -34,8 +34,8 @@ ExtractNode = C["SweepDimensionExtract"]()
 DedupeNode = C["SweepDedupeCombos"]()
 GatherNode = C["SweepGather"]()
 FilenameNode = C["SweepFilenameSequencer"]()
-GridNode = C["SweepGridConstructor"]()
-UpsetNode = C["SweepUpsetConstructor"]()
+GridNode = S.ExecutorView(C["SweepGridConstructor"]())
+UpsetNode = S.ExecutorView(C["SweepUpsetConstructor"]())
 
 print(
     "Modular node classes present:",
@@ -554,5 +554,158 @@ grid_files = sorted(
 )
 assert grid_files == ["grid_00001.png", "grid_00002.png"], grid_files
 print("PASS scenario O -", upset_files, grid_files)
+
+# ------------------------------------------------------------------
+# Regression scenarios for FIX_PLAN Phase 2.
+# ------------------------------------------------------------------
+from PIL import Image  # noqa: E402
+
+
+class Interrupted(Exception):
+    pass
+
+
+class Hooks:
+    """Count interrupt checks / progress updates and optionally interrupt
+    on the Nth check, via the stub comfy modules the nodes call into."""
+
+    def __init__(self, interrupt_on=None):
+        self.checks, self.totals, self.updates, self.interrupt_on = 0, [], 0, interrupt_on
+
+    def __enter__(self):
+        hooks = self
+
+        def check():
+            hooks.checks += 1
+            if hooks.interrupt_on and hooks.checks >= hooks.interrupt_on:
+                raise Interrupted()
+
+        class Bar:
+            def __init__(self, total):
+                hooks.totals.append(total)
+
+            def update(self, n):
+                hooks.updates += n
+
+        self._saved = (S.mm_mod.throw_exception_if_processing_interrupted, S.utils_mod.ProgressBar)
+        S.mm_mod.throw_exception_if_processing_interrupted = check
+        S.utils_mod.ProgressBar = Bar
+        return self
+
+    def __exit__(self, *exc):
+        S.mm_mod.throw_exception_if_processing_interrupted, S.utils_mod.ProgressBar = self._saved
+        return False
+
+
+def grid_kwargs(prefix, **o):
+    kw = dict(
+        filename_prefix=prefix,
+        cell_size=32,
+        cell_mode="fit",
+        font_size=0.4,
+        grid_x_dim="auto",
+        grid_y_dim="auto",
+        grid_title_dim="auto",
+    )
+    kw.update(o)
+    return kw
+
+
+def upset_kwargs(prefix, dim_id, **o):
+    kw = dict(
+        dim_id=dim_id,
+        filename_prefix=prefix,
+        cell_size=32,
+        cell_mode="fit",
+        font_size=1.0,
+        title_dim="none",
+        max_columns_per_page=60,
+    )
+    kw.update(o)
+    return kw
+
+
+def files_under(*parts):
+    root = os.path.join(S.OUTPUT_DIR, *parts)
+    return sorted(os.path.relpath(os.path.join(dp, f), root) for dp, _, fs in os.walk(root) for f in fs)
+
+
+print("\n--- Scenario P: grid and UpSet nodes report progress and stop when interrupted ---")
+dims_p = build_chain(
+    dict(dim_type="text", dim_id="artist", values="a\nb\nc"),
+    dict(dim_type="seed", values="1,2"),
+    dict(dim_type="cfg", values="4,7"),
+)
+combo_p, n_p, _ = ExpanderNode.build(dimensions=dims_p)
+images_p = [fake_image(0.05 * i) for i in range(n_p)]
+with Hooks() as h:
+    GridNode.build(images=images_p, combo=combo_p, **grid_kwargs("TestProgress"))
+assert h.totals == [3] and h.updates == 3 and h.checks >= 3, (h.totals, h.updates, h.checks)
+with Hooks(interrupt_on=2) as h:
+    try:
+        GridNode.build(images=images_p, combo=combo_p, **grid_kwargs("TestInterrupt"))
+        raise AssertionError("grid build should have been interrupted")
+    except Interrupted:
+        pass
+assert len(files_under("TestInterrupt", "_grids")) == 1, files_under("TestInterrupt", "_grids")
+
+with Hooks() as h:
+    UpsetNode.build(
+        images=images3, combo=combo3, **upset_kwargs("TestUpsetProgress", target["dim_id"], max_columns_per_page=4)
+    )
+assert h.totals == [3] and h.updates == 3, (h.totals, h.updates)
+with Hooks(interrupt_on=2) as h:
+    try:
+        UpsetNode.build(
+            images=images3, combo=combo3, **upset_kwargs("TestUpsetInterrupt", target["dim_id"], max_columns_per_page=4)
+        )
+        raise AssertionError("UpSet build should have been interrupted")
+    except Interrupted:
+        pass
+assert len(files_under("TestUpsetInterrupt", "_upset")) == 1, files_under("TestUpsetInterrupt", "_upset")
+print("PASS scenario P - 3/3 progress updates; interrupting after the first grid/page stops further saves")
+
+print("\n--- Scenario Q: batched pages are padded, not stretched, to a common size ---")
+matrices_q, _ = UpsetNode.build(
+    images=images3, combo=combo3, **upset_kwargs("TestPad", target["dim_id"], max_columns_per_page=4)
+)
+saved_last = Image.open(os.path.join(S.OUTPUT_DIR, "TestPad", "_upset", "matrix_page3_00001.png")).convert("RGB")
+w3, h3 = saved_last.size
+batch_last = np.rint(matrices_q.arr[2] * 255).astype(np.uint8)
+assert batch_last.shape[1] > w3, "page 3 has fewer columns, so it must be narrower than the batch"
+assert np.array_equal(batch_last[:h3, :w3], np.asarray(saved_last)), (
+    "page 3 must be copied pixel-for-pixel, not resampled"
+)
+assert (batch_last[:, w3:] == 16).all(), "the padding must be the grid background colour"
+print(f"PASS scenario Q - last page {w3}x{h3} padded to {batch_last.shape[1]}x{batch_last.shape[0]} without resampling")
+
+print("\n--- Scenario R: grid and UpSet nodes show their saved images and summary in the UI ---")
+_, summary_r = GridNode.build(images=images_p, combo=combo_p, **grid_kwargs("TestUIGrid"))
+ui = GridNode.last_ui
+assert ui["text"] == [summary_r] and len(ui["images"]) == 3, ui
+_, summary_r2 = UpsetNode.build(
+    images=images3, combo=combo3, **upset_kwargs("TestUIUpset", target["dim_id"], max_columns_per_page=4)
+)
+ui2 = UpsetNode.last_ui
+assert ui2["text"] == [summary_r2] and len(ui2["images"]) == 3, ui2
+for entry in ui["images"] + ui2["images"]:
+    assert os.path.isfile(os.path.join(S.OUTPUT_DIR, entry["subfolder"], entry["filename"])), entry
+print("PASS scenario R - ui lists 3 grids and 3 matrix pages, all present on disk")
+
+print("\n--- Scenario S: UpSet title_dim='auto' leads with the first text dimension ---")
+(sc_base,) = DimNode.build(dim_type="text", dim_id="style", values="x\ny\nz", lora_name="", prev_dimensions=None)
+(sc_dim,) = SelfCombineNode.build(dimensions=sc_base, mode="combinations", min_size=1, max_size=2, joiner=", ")
+(sc_cfg,) = DimNode.build(dim_type="cfg", dim_id="cfg", values="4,7", lora_name="", prev_dimensions=sc_dim)
+(sc_mood,) = DimNode.build(dim_type="text", dim_id="mood", values="calm\nwild", lora_name="", prev_dimensions=sc_cfg)
+combo_s, n_s, _ = ExpanderNode.build(dimensions=sc_mood)
+images_s = [fake_image(0.03 * i) for i in range(n_s)]
+sc_target = [d for d in combo_s["dimensions"] if "combo_meta" in d][0]["dim_id"]
+UpsetNode.build(images=images_s, combo=combo_s, **upset_kwargs("TestAutoNone", sc_target))
+none_dirs = sorted({e["subfolder"].split(os.sep)[2] for e in UpsetNode.last_ui["images"]})
+UpsetNode.build(images=images_s, combo=combo_s, **upset_kwargs("TestAutoAuto", sc_target, title_dim="auto"))
+auto_dirs = sorted({e["subfolder"].split(os.sep)[2] for e in UpsetNode.last_ui["images"]})
+assert none_dirs == ["4", "7"], none_dirs  # chain order: cfg leads
+assert auto_dirs == ["calm", "wild"], auto_dirs  # auto: the text dimension leads
+print(f"PASS scenario S - title_dim none leads with cfg {none_dirs}, auto leads with mood {auto_dirs}")
 
 print("\nALL MODULAR PIPELINE SCENARIOS PASSED")

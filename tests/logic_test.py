@@ -492,6 +492,85 @@ def test_find_dim_by_id():
     print("OK test_find_dim_by_id")
 
 
+def expect_value_error(fn, *needles):
+    try:
+        fn()
+    except ValueError as e:
+        for n in needles:
+            assert n in str(e), (n, str(e))
+        return str(e)
+    raise AssertionError(f"expected ValueError containing {needles}")
+
+
+def test_self_combine_cap():
+    # Audit finding F6: 12 values as permutations (~1.3 billion) used to be
+    # materialized with no guard. Now counted first and rejected.
+    msg = expect_value_error(
+        lambda: core.self_combine(list(range(12)), "permutations", 1, 0, ", "),
+        "[SweepDimensionSelfCombine]",
+        "1,302,061,344",
+        f"{core.MAX_DERIVED_VALUES:,}",
+    )
+    assert "max_size=" in msg, msg  # tells the user which max_size would fit
+    # At/below the cap still works, and the cap applies to the requested sizes only.
+    vals, _ = core.self_combine(list(range(12)), "permutations", 1, 3, ", ")
+    assert len(vals) == 12 + 132 + 1320
+    vals, _ = core.self_combine(list(range(13)), "combinations", 1, 0, ", ")
+    assert len(vals) == 2**13 - 1  # 8191 <= 10,000
+    print("OK test_self_combine_cap")
+
+
+def test_gather_rejects_bool_indices():
+    # bool is an int subclass: [True] used to silently read source[1].
+    expect_value_error(lambda: core.gather(["a", "b"], [True]), "[SweepGather]")
+    expect_value_error(lambda: core.gather(["a", "b"], [False]), "[SweepGather]")
+    assert core.gather(["a", "b"], [1, 0]) == ["b", "a"]
+    print("OK test_gather_rejects_bool_indices")
+
+
+def test_next_versioned_path_does_not_swallow_listing_errors():
+    # Audit finding F8: a failing os.listdir was swallowed and the counter
+    # restarted at _00001, which could overwrite an existing file.
+    import tempfile
+
+    d = tempfile.mkdtemp()
+    open(os.path.join(d, "grid_00001.png"), "wb").close()
+    assert core.next_versioned_path(d, "grid").endswith("grid_00002.png")
+    real_listdir = core.os.listdir
+
+    def broken_listdir(path):
+        raise PermissionError("simulated listing failure")
+
+    core.os.listdir = broken_listdir
+    try:
+        core.next_versioned_path(d, "grid")
+        raise AssertionError("listing failure must propagate")
+    except PermissionError:
+        pass
+    finally:
+        core.os.listdir = real_listdir
+    print("OK test_next_versioned_path_does_not_swallow_listing_errors")
+
+
+def test_canvas_and_batch_helpers():
+    core.check_canvas_size(10_000, 10_000, "X")  # exactly 100 MP: allowed
+    expect_value_error(
+        lambda: core.check_canvas_size(10_001, 10_000, "SweepGridConstructor"), "[SweepGridConstructor]", "cell_mode"
+    )
+    assert core.padded_batch_size([(10, 20), (30, 5)]) == (30, 20)
+    from PIL import Image
+
+    small = Image.new("RGB", (2, 2), (255, 0, 0))
+    padded = core.pad_image(small, 4, 3)
+    assert padded.size == (4, 3)
+    assert padded.getpixel((1, 1)) == (255, 0, 0) and padded.getpixel((3, 2)) == (16, 16, 16)
+    assert core.pad_image(small, 2, 2) is small
+    out = os.path.join("C:\\" if os.name == "nt" else "/", "out")
+    ui = core.ui_images([os.path.join(out, "P", "_grids", "g_00001.png")], out)
+    assert ui == [{"filename": "g_00001.png", "subfolder": os.path.join("P", "_grids"), "type": "output"}], ui
+    print("OK test_canvas_and_batch_helpers")
+
+
 test_parse_text_list()
 test_parse_number_range()
 test_cost_sort_order()
@@ -524,5 +603,9 @@ test_build_filenames_uniqueness_and_folders()
 test_build_filenames_blank_prefix_defaults_and_self_combine_no_folder()
 test_build_filenames_opaque_model_value()
 test_find_dim_by_id()
+test_self_combine_cap()
+test_gather_rejects_bool_indices()
+test_next_versioned_path_does_not_swallow_listing_errors()
+test_canvas_and_batch_helpers()
 
 print("\nALL LOGIC TESTS PASSED")

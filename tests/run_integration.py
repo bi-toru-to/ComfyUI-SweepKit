@@ -34,7 +34,7 @@ assert "dimensions" in main_it["optional"]
 print("SweepAllInOne INPUT_TYPES OK -", len(main_it["required"]), "required entries (down from 53)")
 
 dim_node = DimNode()
-main_node = MainNode()
+main_node = S.ExecutorView(MainNode())
 
 
 def base_kwargs(**overrides):
@@ -682,5 +682,60 @@ for dp, _, fs in os.walk(os.path.join(S.OUTPUT_DIR, "_NUL")):
     saved += [os.path.join(dp, f) for f in fs]
 assert any(os.sep + "_CON" + os.sep in p for p in saved) and any(os.sep + "_aux" + os.sep in p for p in saved), saved
 print(f"PASS scenario 26 - prefix 'NUL' saved under '_NUL' ({len(saved)} files)")
+
+# ------------------------------------------------------------------
+# Regression scenarios for FIX_PLAN Phase 2.
+# ------------------------------------------------------------------
+import gc  # noqa: E402
+import weakref  # noqa: E402
+
+print("\n--- Scenario 27: decoded images are not kept in memory when create_grids is off ---")
+
+
+def peak_live_images(create_grids):
+    """Run an 8-image sweep and return the most decoded images that were
+    still alive at the start of any sampling call."""
+    refs, peak = [], [0]
+    real_decode = S.FAKE_VAE.decode
+
+    def tracking_decode(samples):
+        img = real_decode(samples)
+        refs.append(weakref.ref(img))
+        return img
+
+    orig = main_node.sample
+
+    def counting_sample(*args):
+        gc.collect()
+        peak[0] = max(peak[0], sum(r() is not None for r in refs))
+        return orig(*args)
+
+    S.FAKE_VAE.decode = tracking_decode
+    main_node.sample = counting_sample
+    try:
+        dims = build_chain(dict(dim_type="seed", values="1-8"))
+        main_node.generate(**base_kwargs(dimensions=dims, save_individuals=False, create_grids=create_grids))
+    finally:
+        main_node.sample = orig
+        del S.FAKE_VAE.decode
+    return peak[0]
+
+
+no_grid_peak = peak_live_images(create_grids=False)
+grid_peak = peak_live_images(create_grids=True)
+assert no_grid_peak <= 1, f"create_grids=False kept {no_grid_peak} decoded images alive"
+assert grid_peak == 7, f"create_grids=True should still keep earlier images for the grid ({grid_peak})"
+print(f"PASS scenario 27 - live decoded images: {no_grid_peak} without grids (was all of them), {grid_peak} with grids")
+
+print("\n--- Scenario 28: SweepAllInOne shows its saved grids and summary in the UI ---")
+dims = build_chain(dict(dim_type="text", dim_id="t", values="a\nb"), dict(dim_type="seed", values="1,2"))
+grids, summary = main_node.generate(**base_kwargs(dimensions=dims, filename_prefix="TestUI"))
+ui = main_node.last_ui
+assert ui["text"] == [summary], ui
+assert ui["images"] and all(i["type"] == "output" for i in ui["images"]), ui
+for entry in ui["images"]:
+    assert os.path.isfile(os.path.join(S.OUTPUT_DIR, entry["subfolder"], entry["filename"])), entry
+    assert entry["subfolder"].startswith("TestUI"), entry
+print(f"PASS scenario 28 - ui lists {len(ui['images'])} saved grid(s) plus the summary text")
 
 print("\nALL EXTRA SCENARIOS PASSED (v4)")

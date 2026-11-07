@@ -294,3 +294,32 @@ EXPORTS = dict(
     OUTPUT_DIR=_OUTPUT_DIR,
     sample_counter=_sample_counter,
 )
+
+
+class ExecutorView:
+    """Wrap a node instance so calling its FUNCTION behaves like ComfyUI's
+    executor: an output node's {"ui": ..., "result": (...)} return value is
+    reduced to the result tuple, and the ui part is kept on .last_ui.
+    Attribute reads and writes (e.g. monkeypatching node.sample with a spy)
+    pass straight through to the wrapped node."""
+
+    def __init__(self, node):
+        object.__setattr__(self, "_node", node)
+        object.__setattr__(self, "last_ui", None)
+
+    def __getattr__(self, name):
+        attr = getattr(self._node, name)
+        if name != getattr(type(self._node), "FUNCTION", None):
+            return attr
+
+        def call(*args, **kwargs):
+            ret = attr(*args, **kwargs)
+            if isinstance(ret, dict) and "result" in ret:
+                object.__setattr__(self, "last_ui", ret.get("ui"))
+                return ret["result"]
+            return ret
+
+        return call
+
+    def __setattr__(self, name, value):
+        setattr(self._node, name, value)

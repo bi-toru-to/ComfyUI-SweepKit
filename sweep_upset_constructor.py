@@ -25,6 +25,9 @@ from PIL import Image, ImageDraw
 import folder_paths
 import itertools
 
+import comfy.model_management
+import comfy.utils
+
 from .sweep_core import (
     GRID_AXIS_OPTIONS,
     safe_component,
@@ -37,6 +40,10 @@ from .sweep_core import (
     wrap_text_to_width,
     truncate_text_to_width,
     next_versioned_path,
+    check_canvas_size,
+    padded_batch_size,
+    pad_image,
+    ui_images,
 )
 
 
@@ -105,7 +112,7 @@ class SweepUpsetConstructor:
                     GRID_AXIS_OPTIONS,
                     {
                         "default": "none",
-                        "tooltip": "Which OTHER (non-target) dimension's value leads the matrix title, if any. Every other non-target dimension still page-splits normally regardless of this setting — it only reorders which one reads first.",
+                        "tooltip": "Which OTHER (non-target) dimension's value leads the matrix title (and top output folder). 'auto' leads with the first text/static dimension; 'none' keeps chain order. Every other non-target dimension still page-splits normally regardless of this setting — it only reorders which one reads first.",
                     },
                 ),
                 "max_columns_per_page": (
@@ -269,6 +276,7 @@ class SweepUpsetConstructor:
 
         W = row_label_w + n_cols * col_w + pad
         H = y_col_label + label_block_h + pad
+        check_canvas_size(W, H, "SweepUpsetConstructor")
         grid = Image.new("RGB", (W, H), (16, 16, 16))
         draw = ImageDraw.Draw(grid)
 
@@ -412,7 +420,13 @@ class SweepUpsetConstructor:
 
         # title_dim: pick which OTHER dimension's value leads the title,
         # if any -- doesn't change page count/membership, just ordering.
-        if title_dim != "none":
+        # 'auto' leads with the first text/static dimension, matching how
+        # the grid nodes' title auto-pick favours text.
+        if title_dim == "auto":
+            lead = next((d for d in other_dims if d["type"] in ("text", "static")), None)
+            if lead is not None:
+                other_dims = [lead] + [d for d in other_dims if d is not lead]
+        elif title_dim != "none":
             by_token = {f"dim{d['index']}": d for d in active_dims_sorted}
             picked = by_token.get(title_dim)
             if picked is None:
@@ -438,6 +452,12 @@ class SweepUpsetConstructor:
 
         matrices, paths = [], []
 
+        n_pages = max(1, (n_cols_total + max_columns_per_page - 1) // max_columns_per_page)
+        total_matrices = n_pages
+        for r in other_ranges:
+            total_matrices *= len(r)
+        pbar = comfy.utils.ProgressBar(total_matrices)
+
         for other_combo in itertools.product(*other_ranges) if other_dims else [()]:
             other_idx = {d["index"]: vi for d, vi in zip(other_dims, other_combo)}
 
@@ -456,8 +476,8 @@ class SweepUpsetConstructor:
                 folder_parts.append(safe_component(disp))
             base_title = " | ".join(title_bits) if title_bits else prefix_folder
 
-            n_pages = max(1, (n_cols_total + max_columns_per_page - 1) // max_columns_per_page)
             for page in range(n_pages):
+                comfy.model_management.throw_exception_if_processing_interrupted()
                 lo = page * max_columns_per_page
                 hi = min(lo + max_columns_per_page, n_cols_total)
                 title_text = base_title if n_pages == 1 else f"{base_title} (page {page + 1}/{n_pages})"
@@ -493,19 +513,21 @@ class SweepUpsetConstructor:
                 matrix_pil.save(path)
                 paths.append(path)
                 matrices.append(self.pil_to_tensor(matrix_pil))
+                pbar.update(1)
 
         if not matrices:
             matrices = [torch.zeros(1, 512, 512, 3)]
 
         if len(matrices) > 1:
-            target_shape = matrices[0].shape
-            fixed = []
-            for m in matrices:
-                if m.shape != target_shape:
-                    pil = self.tensor_to_pil(m[0]).resize((target_shape[2], target_shape[1]), Image.LANCZOS)
-                    m = self.pil_to_tensor(pil)
-                fixed.append(m)
-            matrices = fixed
+            # Pad (never stretch) to the largest page: a short last page used
+            # to be stretched to the full page width in the IMAGE output.
+            width, height = padded_batch_size([(m.shape[2], m.shape[1]) for m in matrices])
+            matrices = [
+                m
+                if (m.shape[2], m.shape[1]) == (width, height)
+                else self.pil_to_tensor(pad_image(self.tensor_to_pil(m[0]), width, height))
+                for m in matrices
+            ]
 
         dim_map = "; ".join(f"dim{d['index']}='{d['dim_id']}'" for d in active_dims_sorted) or "(no active dimensions)"
         summary = (
@@ -514,7 +536,10 @@ class SweepUpsetConstructor:
             f"under {os.path.join(output_dir, prefix_folder, '_upset')} | {dim_map}"
         )
         print(f"[SweepUpsetConstructor] {summary}")
-        return (torch.cat(matrices, dim=0), summary)
+        return {
+            "ui": {"images": ui_images(paths, output_dir), "text": [summary]},
+            "result": (torch.cat(matrices, dim=0), summary),
+        }
 
 
 NODE_CLASS_MAPPINGS = {

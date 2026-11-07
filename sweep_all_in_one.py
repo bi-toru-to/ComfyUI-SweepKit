@@ -45,6 +45,10 @@ from .sweep_core import (
     format_group_value,
     find_font,
     next_versioned_path,
+    check_canvas_size,
+    padded_batch_size,
+    pad_image,
+    ui_images,
 )
 
 
@@ -392,6 +396,7 @@ class SweepAllInOne:
 
         W = max(cols * cell_w + label_w + pad, title_w)
         H = rows * cell_h + title_h + label_h + pad
+        check_canvas_size(W, H, "SweepAllInOne")
         grid = Image.new("RGB", (W, H), (16, 16, 16))
         draw = ImageDraw.Draw(grid)
 
@@ -643,8 +648,11 @@ class SweepAllInOne:
             )
             image = vae.decode(latent["samples"])
 
-            key = tuple(idx_by_dim_index[d["index"]] for d in active_dims_sorted)
-            all_images[key] = image
+            if create_grids:
+                # Only kept for grid building; holding every decoded image
+                # when no grid is wanted made RAM grow with the sweep size.
+                key = tuple(idx_by_dim_index[d["index"]] for d in active_dims_sorted)
+                all_images[key] = image
 
             if save_individuals:
                 p = self.save_individual(image, filename_prefix, active_dims_sorted, idx_by_dim_index, seed, output_dir)
@@ -766,14 +774,14 @@ class SweepAllInOne:
             grids = [torch.zeros(1, 512, 512, 3)]
 
         if len(grids) > 1:
-            target_shape = grids[0].shape
-            fixed = []
-            for g in grids:
-                if g.shape != target_shape:
-                    pil = self.tensor_to_pil(g[0]).resize((target_shape[2], target_shape[1]), Image.LANCZOS)
-                    g = self.pil_to_tensor(pil)
-                fixed.append(g)
-            grids = fixed
+            # Pad (never stretch) to the largest grid so they can share one batch.
+            width, height = padded_batch_size([(g.shape[2], g.shape[1]) for g in grids])
+            grids = [
+                g
+                if (g.shape[2], g.shape[1]) == (width, height)
+                else self.pil_to_tensor(pad_image(self.tensor_to_pil(g[0]), width, height))
+                for g in grids
+            ]
 
         summary_lines = [
             f"SweepAllInOne: {count} image(s) generated across {len(active_dims)} dimension(s).",
@@ -789,7 +797,10 @@ class SweepAllInOne:
         summary = "\n".join(summary_lines)
         print(f"[SweepAllInOne] Done. {summary}")
 
-        return (torch.cat(grids, dim=0), summary)
+        return {
+            "ui": {"images": ui_images(grid_paths, output_dir), "text": [summary]},
+            "result": (torch.cat(grids, dim=0), summary),
+        }
 
 
 NODE_CLASS_MAPPINGS = {"SweepAllInOne": SweepAllInOne}
