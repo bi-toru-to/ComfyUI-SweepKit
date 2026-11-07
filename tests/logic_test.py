@@ -573,6 +573,92 @@ def test_canvas_and_batch_helpers():
     print("OK test_canvas_and_batch_helpers")
 
 
+def test_run_sweep_api_script():
+    """scripts/run_sweep_api.py: overrides, polling a (fake) server, readable summary."""
+    import importlib.util
+    import json
+    import threading
+    from http.server import BaseHTTPRequestHandler, HTTPServer
+
+    path = os.path.join(os.path.dirname(__file__), "..", "scripts", "run_sweep_api.py")
+    spec = importlib.util.spec_from_file_location("run_sweep_api", path)
+    api = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(api)
+
+    assert api.parse_override("12.values=1-8") == ("12", "values", "1-8")  # not valid JSON -> text
+    assert api.parse_override("5.cfg=7.5") == ("5", "cfg", 7.5)
+    assert api.parse_override("5.flag=true") == ("5", "flag", True)
+    assert api.parse_override('5.text="a=b"') == ("5", "text", "a=b")
+    for bad in ("nonsense", "5=1", ".x=1", "5.=1"):
+        try:
+            api.parse_override(bad)
+            assert False, bad
+        except ValueError:
+            pass
+    wf = {"5": {"inputs": {"cfg": 4}}, "6": {"class_type": "X"}}
+    out = api.apply_overrides(wf, [("5", "cfg", 9), ("6", "seed", 1)])
+    assert out["5"]["inputs"]["cfg"] == 9 and out["6"]["inputs"] == {"seed": 1}
+    try:
+        api.apply_overrides(wf, [("99", "cfg", 1)])
+        assert False
+    except KeyError as exc:
+        assert "99" in str(exc)
+
+    # A fake ComfyUI: /prompt returns an id; /history answers "not yet" once, then the result.
+    state = {"polls": 0, "posted": None}
+    result = {
+        "status": {"status_str": "success", "messages": []},
+        "outputs": {
+            "7": {
+                "text": ["8 image(s) across 3 axis(es)"],
+                "images": [{"filename": "g.png", "subfolder": "p/_grids", "type": "output"}],
+            }
+        },
+    }
+
+    class Handler(BaseHTTPRequestHandler):
+        def log_message(self, *args):
+            pass
+
+        def reply(self, obj):
+            body = json.dumps(obj).encode()
+            self.send_response(200)
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def do_POST(self):
+            state["posted"] = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+            self.reply({"prompt_id": "abc"})
+
+        def do_GET(self):
+            state["polls"] += 1
+            self.reply({} if state["polls"] < 2 else {"abc": result})
+
+    server = HTTPServer(("127.0.0.1", 0), Handler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    try:
+        api.POLL_SECONDS = 0.05
+        entry = api.run(f"http://127.0.0.1:{server.server_port}", out, timeout=10)
+    finally:
+        server.shutdown()
+    assert state["posted"] == {"prompt": out} and state["polls"] >= 2
+    lines = api.summarize(entry)
+    assert (
+        lines[0] == "status: success"
+        and any("8 image(s)" in line for line in lines)
+        and any("p/_grids/g.png" in line for line in lines)
+    )
+    failed = {
+        "status": {
+            "status_str": "error",
+            "messages": [["execution_error", {"node_id": "5", "exception_message": "boom  "}]],
+        }
+    }
+    assert api.summarize(failed) == ["status: error", "error in node 5: boom"]
+    print("OK test_run_sweep_api_script (overrides, polling, summary)")
+
+
 test_parse_text_list()
 test_parse_number_range()
 test_cost_sort_order()
@@ -609,5 +695,6 @@ test_self_combine_cap()
 test_gather_rejects_bool_indices()
 test_next_versioned_path_does_not_swallow_listing_errors()
 test_canvas_and_batch_helpers()
+test_run_sweep_api_script()
 
 print("\nALL LOGIC TESTS PASSED")
