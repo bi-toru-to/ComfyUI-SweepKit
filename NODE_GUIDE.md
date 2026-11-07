@@ -578,6 +578,12 @@ Each example gives the exact node-by-node setup. "Add" means drag a new
 node onto the canvas (search its name); "connect" means drag from an
 output socket to the matching input socket.
 
+Ready-made versions of all six are in `example_workflows/` (they also
+appear in ComfyUI's template browser under this pack). Each uses a stock
+**Load Checkpoint** set to `model.safetensors`: pick your own checkpoint
+(and LoRA in workflow 3) before queueing. Workflows 2–6 need
+ComfyUI-List-Utils.
+
 ### 1. Quickest start — the all-in-one node
 
 Good for a first sweep or anything simple. No List-Utils needed.
@@ -716,12 +722,11 @@ artist styles (14 combinations total), see the result as an UpSet matrix.
 5. Add an **SweepDimensionExtract**. Connect `combo` from the expander.
    Set `dim_id` to `artist_style (combinations)` — note the suffix
    self-combine added to the original `dim_id`.
-6. Add a text find-and-replace node (any generic one — e.g.
-   "Text Find & Replace" from another node pack; List-Utils doesn't ship
-   its own). Connect step 5's `values` through a **PyList To List** node
-   into its "find/replace value" input. Set it to replace a marker like
-   `__artist__` in a template string, e.g.
-   `"masterpiece, __artist__ style, 4k"`.
+6. Add ComfyUI's core **Replace Text** node (`StringReplace`). Set
+   `string` to a template with a marker, e.g.
+   `"masterpiece, a lighthouse at sunset, __artist__ style"`, and `find`
+   to `__artist__`. Connect step 5's `values` through a **PyList To List**
+   node into its `replace` input; it then runs once per combination.
 7. Connect that node's output into `CLIPTextEncode`'s `text` input.
 8. Wire `KSampler` → `VAEDecode` → **List To PyList** as in example 2.
 9. Add an **SweepUpsetConstructor**. Connect the step-8 `List To PyList`
@@ -761,9 +766,12 @@ background would otherwise resample an identical image.
    (two independent `text`-type dimensions, `background` and `lighting`,
    *not* zipped — you want the full 3×3 cross product of combinations,
    the dedup step is what avoids wasting samples on the ones that turn
-   out identical).
-2. After building your `positive_texts` PyList (from the text-substitute
-   step), add a List-Utils **Create PyList** node. Connect
+   out identical). Use two **Replace Text** nodes in a row: the first
+   replaces `__background__` in the template, the second replaces
+   `__lighting__` in the first one's output.
+2. Turn the second **Replace Text** output into your `positive_texts`
+   PyList with a **List To PyList** node, then add a List-Utils
+   **Create PyList** node. Connect
    `positive_texts` into its first dynamic input slot (add more slots if
    you're deduping on more than one axis — e.g. also connect a `cfg`
    `SweepDimensionExtract` output into a second slot).
