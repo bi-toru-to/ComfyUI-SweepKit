@@ -359,7 +359,7 @@ class _AxisClaims:
             return None
         d = self.by_token.get(token)
         if d is None:
-            reason = "doesn't match any active dimension"
+            reason = "doesn't match any active axis"
         elif not self.available(d):
             in_group = d.get("group") in self.used_groups
             reason = f"('{d['dim_id']}') can't be used here — " + (
@@ -478,11 +478,9 @@ def find_dim_by_id(dimensions: Sequence[Dimension], dim_id: str) -> Dimension:
     candidates = [d for d in dimensions if d["dim_id"] == dim_id]
     if not candidates:
         available = ", ".join(sorted({d["dim_id"] for d in dimensions})) or "(none)"
-        raise ValueError(f"no dimension with dim_id '{dim_id}' — available dim_ids: {available}")
+        raise ValueError(f"no axis with dim_id '{dim_id}' — available dim_ids: {available}")
     if len(candidates) > 1:
-        raise ValueError(
-            f"'{dim_id}' matches {len(candidates)} dimensions — dim_ids must be unique to look up by dim_id."
-        )
+        raise ValueError(f"'{dim_id}' matches {len(candidates)} axes — dim_ids must be unique to look up by dim_id.")
     return candidates[0]
 
 
@@ -530,7 +528,7 @@ def extract_values(
     if component != "value" and d["type"] != "lora_strength":
         raise ValueError(
             f"[SweepDimensionExtract] component='{component}' only applies to a "
-            f"lora_strength-type dimension — '{dim_id}' is '{d['type']}'."
+            f"lora_strength-type axis — '{dim_id}' is '{d['type']}'."
         )
 
     out = []
@@ -539,7 +537,7 @@ def extract_values(
         if vi is None:
             raise KeyError(
                 f"[SweepDimensionExtract] combo_index {rec['combo_index']} has no resolved "
-                f"index for dimension '{dim_id}' — combo_records looks malformed/from a "
+                f"index for axis '{dim_id}' — combo_records looks malformed/from a "
                 f"mismatched SweepCombinationExpander run."
             )
         val = d["values"][vi]
@@ -659,7 +657,7 @@ def build_dedupe_keys(axis_value_lists: Sequence[Sequence[Any]], float_precision
                 raise ValueError(
                     f"[SweepDedupeCombos] value at index {i} ({v!r}, type {type(v).__name__}) "
                     f"isn't a plain str/int/float/bool — dedup can't hash arbitrary objects "
-                    f"like MODEL/CLIP reliably. Zip a string-key companion dimension (e.g. "
+                    f"like MODEL/CLIP reliably. Zip a string-key companion axis (e.g. "
                     f"'model_key') alongside it and connect that instead."
                 )
             if isinstance(v, float):

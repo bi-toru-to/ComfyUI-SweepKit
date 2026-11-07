@@ -41,13 +41,13 @@ class SweepDimensionZip:
                 "dimensions_a": (
                     "SWEEP_DIMS",
                     {
-                        "tooltip": "A chain of SweepDimension nodes — the LAST dimension in this chain is the one that gets paired.",
+                        "tooltip": "A chain of SweepDimension nodes — the LAST axis in this chain is the one that gets paired.",
                     },
                 ),
                 "dimensions_b": (
                     "SWEEP_DIMS",
                     {
-                        "tooltip": "A second chain — its LAST dimension is paired index-for-index with dimensions_a's last dimension.",
+                        "tooltip": "A second chain — its LAST axis is paired index-for-index with dimensions_a's last axis.",
                     },
                 ),
                 "mode": (
@@ -94,8 +94,7 @@ class SweepDimensionZip:
         for name, chain in (("dimensions_a", dimensions_a), ("dimensions_b", dimensions_b)):
             if not chain:
                 raise ValueError(
-                    f"[SweepDimensionZip] {name} has no dimensions — connect a chain with at least one "
-                    f"SweepDimension in it."
+                    f"[SweepDimensionZip] {name} has no axes — connect a chain with at least one SweepDimension in it."
                 )
         group_a, passthrough_a = self._group_members(list(dimensions_a))
         group_b, passthrough_b = self._group_members(list(dimensions_b))
@@ -133,7 +132,7 @@ def merge_passthrough(group_a, group_b, passthrough):
     uids_b = {d["uid"] for d in group_b if d.get("uid")}
     if seen & uids_b:
         raise ValueError(
-            "[SweepDimensionZip] dimensions_a and dimensions_b end in the same dimension — "
+            "[SweepDimensionZip] dimensions_a and dimensions_b end in the same axis — "
             "connect two different SweepDimension chains to pair them."
         )
     seen |= uids_b

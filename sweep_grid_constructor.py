@@ -85,21 +85,21 @@ class SweepGridConstructor:
                     GRID_AXIS_OPTIONS,
                     {
                         "default": "auto",
-                        "tooltip": "Dimension for the columns, by chain position (dim1, dim2, ... as listed in the summary). auto prefers a seed, then any non-text dimension; none = one column.",
+                        "tooltip": "Axis for the columns, by chain position (dim1, dim2, ... as listed in the summary). auto prefers a seed, then any non-text axis; none = one column.",
                     },
                 ),
                 "grid_y_dim": (
                     GRID_AXIS_OPTIONS,
                     {
                         "default": "auto",
-                        "tooltip": "Dimension for the rows. auto prefers a non-text dimension not used for X; none = one row.",
+                        "tooltip": "Axis for the rows. auto prefers a non-text axis not used for X; none = one row.",
                     },
                 ),
                 "grid_title_dim": (
                     GRID_AXIS_OPTIONS,
                     {
                         "default": "auto",
-                        "tooltip": "Dimension shown in the title and used as the top folder; each value gets its own grid. auto takes whatever X and Y left over; none = no title dimension. Any remaining dimensions still split into extra grids.",
+                        "tooltip": "Axis shown in the title and used as the top folder; each value gets its own grid. auto takes whatever X and Y left over; none = no title axis. Any remaining axes still split into extra grids.",
                     },
                 ),
             },
@@ -136,7 +136,7 @@ class SweepGridConstructor:
         )
         grids, grid_paths = build_grids(images_by_combo(combo_records, images, dims_sorted), dims_sorted, spec)
 
-        dim_map = "; ".join(f"dim{d['index']}='{d['dim_id']}'" for d in dims_sorted) or "(no active dimensions)"
+        dim_map = "; ".join(f"dim{d['index']}='{d['dim_id']}'" for d in dims_sorted) or "(no active axes)"
         summary = (
             f"SweepGridConstructor: {len(grid_paths)} grid(s) built from {len(images)} image(s) "
             f"under {os.path.join(output_dir, prefix_folder, '_grids')} | {dim_map}"

@@ -50,11 +50,11 @@ class SweepDimension:
                             "SweepAllInOne's fixed_seed/fixed_steps/fixed_cfg fallback and by "
                             "grid_x_dim=auto's seed-preference — use these specifically when this "
                             "axis IS that sampler parameter; SweepAllInOne accepts at most one "
-                            "seed, steps, cfg and model dimension each. 'text' fills the next "
+                            "seed, steps, cfg and model axis each. 'text' fills the next "
                             "available {} in SweepAllInOne's positive_prompt, counting only "
-                            "text-type dimensions in chain order (closest to the start of the "
+                            "text-type axes in chain order (closest to the start of the "
                             "chain = 1st {}). 'lora_strength' sweeps the selected LoRA's strength; "
-                            "several lora_strength dimensions stack, applied in chain order. "
+                            "several lora_strength axes stack, applied in chain order. "
                             "'model' turns 'values' into a label list and spawns one MODEL "
                             "input socket per label (up to 24) instead of a value list. 'static' is a "
                             "fixed, non-swept single value (only the first line of 'values' is "
@@ -71,11 +71,11 @@ class SweepDimension:
                         "tooltip": (
                             "Identifies this axis — grid titles/filenames use it for display, and "
                             "the modular pipeline (SweepDimensionExtract, SweepUpsetConstructor) "
-                            "looks dimensions up by matching this EXACTLY, so give it a real value "
+                            "looks axes up by matching this EXACTLY, so give it a real value "
                             "if you're using those. Defaults to dim_type if left blank, which is "
                             "fine for the all-in-one SweepAllInOne node but will collide with "
-                            "any other same-typed dimension's default in the modular pipeline "
-                            "(two blank-dim_id 'cfg' dimensions can't both default to 'cfg' and "
+                            "any other same-typed axis's default in the modular pipeline "
+                            "(two blank-dim_id 'cfg' axes can't both default to 'cfg' and "
                             "still be told apart)."
                         ),
                     },
@@ -116,7 +116,7 @@ class SweepDimension:
                 "prev_dimensions": (
                     "SWEEP_DIMS",
                     {
-                        "tooltip": "Chain from another SweepDimension node to add more axes. Leave unconnected if this is the first dimension in the chain.",
+                        "tooltip": "Chain from another SweepDimension node to add more axes. Leave unconnected if this is the first axis in the chain.",
                     },
                 ),
                 "values_pylist": (
@@ -150,7 +150,7 @@ class SweepDimension:
             if not lora_name:
                 print(
                     f"[SweepDimension] '{disp_id}' is type 'lora_strength' but no LoRA file is selected "
-                    f"— this dimension will be skipped."
+                    f"— this axis will be skipped."
                 )
                 return (prev,)
             dim["lora_name"] = lora_name
@@ -165,7 +165,7 @@ class SweepDimension:
             vals = parse_widget_values(dim_type, values, disp_id)
 
         if not vals:
-            print(f"[SweepDimension] '{disp_id}' ({dim_type}) has no values — this dimension will be skipped.")
+            print(f"[SweepDimension] '{disp_id}' ({dim_type}) has no values — this axis will be skipped.")
             return (prev,)
         dim["index"] = len(prev) + 1
         dim["values"] = vals

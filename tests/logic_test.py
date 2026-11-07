@@ -299,7 +299,7 @@ def test_extract_values():
         core.extract_values(dup, records, "style")
         assert False
     except ValueError as e:
-        assert "matches 2 dimensions" in str(e)
+        assert "matches 2 axes" in str(e)
     print("OK test_extract_values")
 
 

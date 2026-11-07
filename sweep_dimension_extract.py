@@ -29,14 +29,14 @@ class SweepDimensionExtract:
                     "STRING",
                     {
                         "default": "",
-                        "tooltip": "Exact dim_id of the dimension to extract (the 'dim_id' field you gave its SweepDimension node, or its dim_type if left blank there).",
+                        "tooltip": "Exact dim_id of the axis to extract (the 'dim_id' field you gave its SweepDimension node, or its dim_type if left blank there).",
                     },
                 ),
                 "component": (
                     ["value", "model_strength", "clip_strength"],
                     {
                         "default": "value",
-                        "tooltip": "Only meaningful for a lora_strength-type dimension, whose values are (model_strength, clip_strength) tuples — pick which half to pull out as a scalar.",
+                        "tooltip": "Only meaningful for a lora_strength-type axis, whose values are (model_strength, clip_strength) tuples — pick which half to pull out as a scalar.",
                     },
                 ),
             },

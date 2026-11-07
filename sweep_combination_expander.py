@@ -67,7 +67,7 @@ class SweepCombinationExpander:
         dim_map_lines = []
         print("=" * 60)
         print(
-            f"[SweepCombinationExpander] {len(active_dims_sorted)} active dimension(s) "
+            f"[SweepCombinationExpander] {len(active_dims_sorted)} active axis(es) "
             f"in {len(sorted_groups)} group(s), {total} combination(s) total"
         )
         for d in active_dims_sorted:
@@ -87,7 +87,7 @@ class SweepCombinationExpander:
         print("=" * 60)
 
         combo = {"dimensions": active_dims_sorted, "combo_records": combo_records}
-        dim_map = "\n".join(dim_map_lines) if dim_map_lines else "(no active dimensions)"
+        dim_map = "\n".join(dim_map_lines) if dim_map_lines else "(no active axes)"
         return (combo, total, dim_map, *axis_output_lists(active_dims_sorted, combo_records))
 
 

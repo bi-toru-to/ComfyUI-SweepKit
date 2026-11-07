@@ -83,7 +83,7 @@ class SweepUpsetConstructor:
                     "STRING",
                     {
                         "default": "",
-                        "tooltip": "dim_id of the SweepDimensionSelfCombine-produced dimension to visualize.",
+                        "tooltip": "dim_id of the SweepDimensionSelfCombine-produced axis to visualize.",
                     },
                 ),
                 "filename_prefix": (
@@ -132,7 +132,7 @@ class SweepUpsetConstructor:
                     GRID_AXIS_OPTIONS,
                     {
                         "default": "none",
-                        "tooltip": "Which OTHER (non-target) dimension's value leads the matrix title (and top output folder). 'auto' leads with the first text/static dimension; 'none' keeps chain order. Every other non-target dimension still page-splits normally regardless of this setting — it only reorders which one reads first.",
+                        "tooltip": "Which OTHER (non-target) axis's value leads the matrix title (and top output folder). 'auto' leads with the first text/static axis; 'none' keeps chain order. Every other non-target axis still page-splits normally regardless of this setting — it only reorders which one reads first.",
                     },
                 ),
                 "max_columns_per_page": (
@@ -200,7 +200,7 @@ class SweepUpsetConstructor:
                 paths.append(path)
                 pbar.update(1)
 
-        dim_map = "; ".join(f"dim{d['index']}='{d['dim_id']}'" for d in dims_sorted) or "(no active dimensions)"
+        dim_map = "; ".join(f"dim{d['index']}='{d['dim_id']}'" for d in dims_sorted) or "(no active axes)"
         summary = (
             f"SweepUpsetConstructor: {len(paths)} matrix image(s) for '{dim_id}' "
             f"({n_cols} combo(s) of {len(target['base_values'])} base value(s)) "
@@ -222,7 +222,7 @@ class SweepUpsetConstructor:
         if "combo_meta" not in target:
             raise ValueError(
                 f"[SweepUpsetConstructor] '{dim_id}' has no combo_meta — it wasn't produced "
-                f"by SweepDimensionSelfCombine. Route that dimension through SweepDimensionSelfCombine first."
+                f"by SweepDimensionSelfCombine. Route that axis through SweepDimensionSelfCombine first."
             )
         return target
 
@@ -238,7 +238,7 @@ class SweepUpsetConstructor:
         else:
             picked = next((d for d in dims_sorted if f"dim{d['index']}" == title_dim), None)
             if picked is None or picked["index"] == target["index"]:
-                why = "doesn't match any active dimension" if picked is None else "is the self-combine target itself"
+                why = "doesn't match any active axis" if picked is None else "is the self-combine target itself"
                 print(f"[SweepUpsetConstructor] title_dim '{title_dim}' {why} — ignoring.")
                 return other_dims
             lead = next(

@@ -27,7 +27,7 @@ class SweepDimensionSelfCombine:
                 "dimensions": (
                     "SWEEP_DIMS",
                     {
-                        "tooltip": "A chain of SweepDimension nodes — the LAST dimension in this chain is the one that gets recombined against itself.",
+                        "tooltip": "A chain of SweepDimension nodes — the LAST axis in this chain is the one that gets recombined against itself.",
                     },
                 ),
                 "mode": (
@@ -78,9 +78,7 @@ class SweepDimensionSelfCombine:
     def build(self, dimensions, mode, min_size, max_size, joiner):
         dims = [dict(d) for d in dimensions] if dimensions else []
         if not dims:
-            raise ValueError(
-                "[SweepDimensionSelfCombine] no dimensions connected — chain at least one SweepDimension first."
-            )
+            raise ValueError("[SweepDimensionSelfCombine] no axes connected — chain at least one SweepDimension first.")
 
         target = dims[-1]
         if target.get("group"):

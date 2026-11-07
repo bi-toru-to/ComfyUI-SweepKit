@@ -667,7 +667,7 @@ assert len(records) == 4, len(records)  # 2 artists x 2 zipped (cfg, steps) pair
 (on_top,) = dim_node.build(dim_type="steps", dim_id="steps", values="10\n20", lora_name="", prev_dimensions=branch_a)
 (zipped2,) = zip_node.build(branch_a, on_top, "strict")
 assert [d["dim_id"] for d in zipped2] == ["artist", "cfg", "steps"], [d["dim_id"] for d in zipped2]
-expect_error(lambda: zip_node.build(branch_a, branch_a, "strict"), "[SweepDimensionZip]", "same dimension")
+expect_error(lambda: zip_node.build(branch_a, branch_a, "strict"), "[SweepDimensionZip]", "same axis")
 print("PASS scenario 24 - shared upstream dimension kept once (4 combos, not 8); self-zip rejected")
 
 print("\n--- Scenario 25: model labels beyond the frontend's 24-socket cap are dropped visibly ---")

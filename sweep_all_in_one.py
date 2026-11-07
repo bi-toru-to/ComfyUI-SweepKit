@@ -54,9 +54,9 @@ class SweepAllInOne:
         required = {
             "model": (
                 "MODEL",
-                {"tooltip": "Base model, used for every image unless a model-type dimension picks another."},
+                {"tooltip": "Base model, used for every image unless a model-type axis picks another."},
             ),
-            "clip": ("CLIP", {"tooltip": "Text encoder for both prompts; LoRA dimensions are applied to it as well."}),
+            "clip": ("CLIP", {"tooltip": "Text encoder for both prompts; LoRA axes are applied to it as well."}),
             "vae": ("VAE", {"tooltip": "Decodes each sampled latent into an image."}),
             # Note for anyone looking for a "positive/negative CONDITIONING
             # socket": there isn't one, on purpose. These are plain text
@@ -81,7 +81,7 @@ class SweepAllInOne:
                         "Each {} is filled in, left to right, by your 'text'-type "
                         "SweepDimension nodes in chain order — the first one fills "
                         "the 1st {}, the next fills the 2nd {}, and so on. "
-                        "Non-text dimensions in between are skipped when counting."
+                        "Non-text axes in between are skipped when counting."
                     ),
                 },
             ),
@@ -97,7 +97,7 @@ class SweepAllInOne:
             "text_mode": (
                 ["curly", "regex"],
                 {
-                    "tooltip": "curly: text dimensions fill {} placeholders, left to right. regex: they fill matches of text_regex instead, also left to right."
+                    "tooltip": "curly: text axes fill {} placeholders, left to right. regex: they fill matches of text_regex instead, also left to right."
                 },
             ),
             "text_regex": (
@@ -202,21 +202,21 @@ class SweepAllInOne:
                 GRID_AXIS_OPTIONS,
                 {
                     "default": "auto",
-                    "tooltip": "Which chained dimension (by chain position, dim1..dimN) is the grid's X axis. 'auto' prefers a seed-type dimension; 'none' = single column.",
+                    "tooltip": "Which chained axis (by chain position, dim1..dimN) is the grid's X axis. 'auto' prefers a seed-type axis; 'none' = single column.",
                 },
             ),
             "grid_y_dim": (
                 GRID_AXIS_OPTIONS,
                 {
                     "default": "auto",
-                    "tooltip": "Which dimension is the grid's Y axis. 'auto' picks whatever's left after X/Title; 'none' = single row.",
+                    "tooltip": "Which axis is the grid's Y axis. 'auto' picks whatever's left after X/Title; 'none' = single row.",
                 },
             ),
             "grid_title_dim": (
                 GRID_AXIS_OPTIONS,
                 {
                     "default": "auto",
-                    "tooltip": "Which dimension's value becomes the grid's title + top output folder. 'auto' prefers the first text/static dimension. Any dimension not used for X/Y/Title still produces its own set of extra grids — chain more than the picker lists and they'll still work, just as automatic grouping axes.",
+                    "tooltip": "Which axis's value becomes the grid's title + top output folder. 'auto' prefers the first text/static axis. Any axis not used for X/Y/Title still produces its own set of extra grids — chain more than the picker lists and they'll still work, just as automatic grouping axes.",
                 },
             ),
         }
@@ -285,9 +285,9 @@ class SweepAllInOne:
             if len(same) > 1:
                 ids = ", ".join(f"'{d['dim_id']}'" for d in same)
                 raise ValueError(
-                    f"[SweepAllInOne] {len(same)} '{dim_type}'-type dimensions are chained ({ids}), but each "
+                    f"[SweepAllInOne] {len(same)} '{dim_type}'-type axes are chained ({ids}), but each "
                     f"image can only use one {dim_type}. Remove the extra one, merge their values into a single "
-                    f"dimension, or use a generic 'int'/'float' dimension for anything that isn't this node's "
+                    f"axis, or use a generic 'int'/'float' axis for anything that isn't this node's "
                     f"own {dim_type}."
                 )
 
@@ -408,9 +408,7 @@ class SweepAllInOne:
     @staticmethod
     def announce(dims_sorted, groups, total):
         print("=" * 60)
-        print(
-            f"[SweepAllInOne] {len(dims_sorted)} active dimension(s) in {len(groups)} group(s), {total} image(s) total"
-        )
+        print(f"[SweepAllInOne] {len(dims_sorted)} active axis(es) in {len(groups)} group(s), {total} image(s) total")
         for d in dims_sorted:
             group_note = f" (zipped with group '{d['group']}')" if d.get("group") else ""
             more = " ..." if len(d["values"]) > PREVIEW_VALUES else ""
@@ -508,7 +506,7 @@ class SweepAllInOne:
 
     @staticmethod
     def summarize(count, dims_sorted, saved_paths, grid_paths, output_dir, safe_prefix, manifest=None):
-        lines = [f"SweepAllInOne: {count} image(s) generated across {len(dims_sorted)} dimension(s)."]
+        lines = [f"SweepAllInOne: {count} image(s) generated across {len(dims_sorted)} axis(es)."]
         if saved_paths:
             lines.append(f"Saved {len(saved_paths)} individual file(s) under {os.path.join(output_dir, safe_prefix)}")
         if grid_paths:

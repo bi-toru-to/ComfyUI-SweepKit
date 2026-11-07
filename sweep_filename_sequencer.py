@@ -39,7 +39,7 @@ class SweepFilenameSequencer:
                     "BOOLEAN",
                     {
                         "default": True,
-                        "tooltip": "Prefix a zero-padded running number — guarantees every filename is unique regardless of which dimensions are active.",
+                        "tooltip": "Prefix a zero-padded running number — guarantees every filename is unique regardless of which axes are active.",
                     },
                 ),
             },
