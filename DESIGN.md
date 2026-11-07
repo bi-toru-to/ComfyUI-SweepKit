@@ -135,6 +135,8 @@ structure) is the same engine as before — only how dimensions get
 | `sweep_draw.py` | Fonts, text wrapping/truncation, canvas-size limit, padding | No (PIL only) |
 | `sweep_image.py` | Tensor↔PIL conversion, cell sizing, the single grid renderer (`make_grid`) and `build_grids`, used by both `SweepAllInOne` and `SweepGridConstructor` | Yes |
 | `sweep_*.py` (one per node) | The node classes: inputs, validation, and calls into the modules above | Yes |
+| `web/sweepkit_core.js` | Frontend logic for `SweepDimension`: MODEL-socket sync, `lora_name` visibility, 10 Hz change polling. No `app` import, so `tests/*.mjs` import it directly | — |
+| `web/sweepkit.js` | Registers the extension and hooks the core functions into node create/configure/remove | — |
 
 Grid building lives in exactly one place, so `SweepAllInOne` and
 `SweepGridConstructor` can't drift apart; `SweepAllInOne` only differs in
