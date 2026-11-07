@@ -565,4 +565,122 @@ print(
     f"PASS scenario 20 - 4D and 5D (video-VAE-style) tensors of the same actual size produce identical, correct cell dims: {(w4, h4)}"
 )
 
+# ------------------------------------------------------------------
+# Regression scenarios for the 2026-11-06 quality audit (FIX_PLAN Phase 1).
+# Each one failed (or was silently wrong) before the fix.
+# ------------------------------------------------------------------
+
+
+def expect_error(fn, *needles):
+    try:
+        fn()
+    except ValueError as e:
+        msg = str(e)
+        for n in needles:
+            assert n in msg, (n, msg)
+        return msg
+    raise AssertionError(f"expected ValueError containing {needles}")
+
+
+def run_with_sample_spy(kwargs):
+    seen = []
+    orig = main_node.sample
+
+    def spy(model, positive, negative, latent, seed, steps, cfg, sampler_name, scheduler, denoise):
+        seen.append({"model_tag": getattr(model, "tag", None), "seed": seed, "steps": steps, "cfg": cfg})
+        return orig(model, positive, negative, latent, seed, steps, cfg, sampler_name, scheduler, denoise)
+
+    main_node.sample = spy
+    try:
+        main_node.generate(**kwargs)
+    finally:
+        main_node.sample = orig
+    return seen
+
+
+print("\n--- Scenario 21: two lora_strength dimensions stack instead of the second being ignored ---")
+dims = build_chain(
+    dict(dim_type="lora_strength", dim_id="la", values="0.5\n1.0", lora_name="loraA.safetensors"),
+    dict(dim_type="lora_strength", dim_id="lb", values="0.2\n0.4", lora_name="loraB.safetensors"),
+)
+seen = run_with_sample_spy(base_kwargs(dimensions=dims, save_individuals=False, create_grids=False))
+tags = [c["model_tag"] for c in seen]
+assert len(seen) == 4, len(seen)
+assert all("loraA" in t and "loraB" in t for t in tags), tags
+assert len(set(tags)) == 4, tags  # every (A strength, B strength) pair is distinct
+assert all(t.index("loraA") < t.index("loraB") for t in tags), tags  # applied in chain order
+print("PASS scenario 21 - both LoRAs applied, in chain order, for all 4 strength pairs")
+
+print("\n--- Scenario 22: a duplicate seed/steps/cfg/model dimension is rejected before any sampling ---")
+for dup_type, vals in [("cfg", ("3\n4", "7\n8")), ("seed", ("1", "2")), ("steps", ("10", "20"))]:
+    dims = build_chain(
+        dict(dim_type=dup_type, dim_id=f"{dup_type}A", values=vals[0]),
+        dict(dim_type=dup_type, dim_id=f"{dup_type}B", values=vals[1]),
+    )
+    S.sample_counter["n"] = 0
+    expect_error(
+        lambda: main_node.generate(**base_kwargs(dimensions=dims, save_individuals=False)),
+        "[SweepAllInOne]",
+        f"'{dup_type}'-type",
+        f"'{dup_type}A'",
+        f"'{dup_type}B'",
+    )
+    assert S.sample_counter["n"] == 0, "must fail before sampling anything"
+print("PASS scenario 22 - duplicate cfg/seed/steps dimensions raise a clear error, nothing sampled")
+
+print("\n--- Scenario 23: regex text_mode fills placeholders left to right, and a bad pattern is a clear error ---")
+for mode in ("curly", "regex"):
+    out = main_node.apply_text_replacements("A {} B {} C {}", ["x", "y"], mode, r"\{\}")
+    assert out == "A x B y C {}", (mode, out)
+assert main_node.apply_text_replacements("<a> <b>", ["1", "2", "3"], "regex", r"<\w>") == "1 2"
+dims = build_chain(dict(dim_type="text", dim_id="t", values="cat"))
+S.sample_counter["n"] = 0
+expect_error(
+    lambda: main_node.generate(**base_kwargs(dimensions=dims, text_mode="regex", text_regex="(")),
+    "[SweepAllInOne]",
+    "text_regex",
+)
+assert S.sample_counter["n"] == 0
+# An invalid text_regex is irrelevant (and must not error) in curly mode.
+main_node.generate(**base_kwargs(dimensions=dims, text_mode="curly", text_regex="(", save_individuals=False))
+print("PASS scenario 23 - left-to-right fill in both modes; invalid regex rejected before sampling")
+
+print("\n--- Scenario 24: zipping two branches of a shared chain keeps the shared dimension once ---")
+from sweepkit.sweep_core import build_combo_records  # noqa: E402
+
+zip_node = pkg.NODE_CLASS_MAPPINGS["SweepDimensionZip"]()
+(base,) = dim_node.build(dim_type="text", dim_id="artist", values="a\nb", lora_name="", prev_dimensions=None)
+(branch_a,) = dim_node.build(dim_type="cfg", dim_id="cfg", values="4\n5", lora_name="", prev_dimensions=base)
+(branch_b,) = dim_node.build(dim_type="steps", dim_id="steps", values="10\n20", lora_name="", prev_dimensions=base)
+(zipped,) = zip_node.build(branch_a, branch_b, "strict")
+assert [d["dim_id"] for d in zipped] == ["artist", "cfg", "steps"], [d["dim_id"] for d in zipped]
+records, _, _ = build_combo_records(zipped)
+assert len(records) == 4, len(records)  # 2 artists x 2 zipped (cfg, steps) pairs
+# b chained straight on top of a: a's tail must not reappear as pass-through either
+(on_top,) = dim_node.build(dim_type="steps", dim_id="steps", values="10\n20", lora_name="", prev_dimensions=branch_a)
+(zipped2,) = zip_node.build(branch_a, on_top, "strict")
+assert [d["dim_id"] for d in zipped2] == ["artist", "cfg", "steps"], [d["dim_id"] for d in zipped2]
+expect_error(lambda: zip_node.build(branch_a, branch_a, "strict"), "[SweepDimensionZip]", "same dimension")
+print("PASS scenario 24 - shared upstream dimension kept once (4 combos, not 8); self-zip rejected")
+
+print("\n--- Scenario 25: model labels beyond the frontend's 24-socket cap are dropped visibly ---")
+from sweepkit.sweep_core import MAX_MODEL_SOCKETS  # noqa: E402
+
+labels = "\n".join(f"m{i}" for i in range(1, 31))
+(dims,) = dim_node.build(dim_type="model", dim_id="ckpt", values=labels, lora_name="", prev_dimensions=None)
+assert len(dims[0]["values"]) == MAX_MODEL_SOCKETS == 24, len(dims[0]["values"])
+assert len(dims[0]["model_objs"]) == MAX_MODEL_SOCKETS
+js_src = open(os.path.join(_pkg_dir, "web", "sweepkit.js"), encoding="utf-8").read()
+assert f"const MAX_SOCKETS = {MAX_MODEL_SOCKETS};" in js_src, "JS and Python socket caps must match"
+print("PASS scenario 25 - 30 labels truncated to 24, matching web/sweepkit.js")
+
+print("\n--- Scenario 26: Windows reserved names as filename_prefix / text values save normally ---")
+dims = build_chain(dict(dim_type="text", dim_id="t", values="CON\naux"), dict(dim_type="seed", values="1"))
+_, summary = main_node.generate(**base_kwargs(dimensions=dims, filename_prefix="NUL"))
+saved = []
+for dp, _, fs in os.walk(os.path.join(S.OUTPUT_DIR, "_NUL")):
+    saved += [os.path.join(dp, f) for f in fs]
+assert any(os.sep + "_CON" + os.sep in p for p in saved) and any(os.sep + "_aux" + os.sep in p for p in saved), saved
+print(f"PASS scenario 26 - prefix 'NUL' saved under '_NUL' ({len(saved)} files)")
+
 print("\nALL EXTRA SCENARIOS PASSED (v4)")

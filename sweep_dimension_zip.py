@@ -104,7 +104,27 @@ class SweepDimensionZip:
         group_b, passthrough_b = self._group_members(list_b)
         group_a = [dict(d) for d in group_a]
         group_b = [dict(d) for d in group_b]
-        passthrough = [dict(d) for d in passthrough_a] + [dict(d) for d in passthrough_b]
+
+        uids_a = {d["uid"] for d in group_a if d.get("uid")}
+        uids_b = {d["uid"] for d in group_b if d.get("uid")}
+        if uids_a & uids_b:
+            raise ValueError(
+                "[SweepDimensionZip] dimensions_a and dimensions_b end in the same dimension — "
+                "connect two different SweepDimension chains to pair them."
+            )
+
+        # Both inputs often branch off one shared upstream chain (e.g.
+        # artist -> cfg and artist -> steps). Keep each upstream dimension
+        # once, matched by uid, so it isn't cross-producted with itself.
+        seen = uids_a | uids_b
+        passthrough = []
+        for d in passthrough_a + passthrough_b:
+            uid = d.get("uid")
+            if uid and uid in seen:
+                continue
+            if uid:
+                seen.add(uid)
+            passthrough.append(dict(d))
 
         len_a = len(group_a[0]["values"])
         len_b = len(group_b[0]["values"])

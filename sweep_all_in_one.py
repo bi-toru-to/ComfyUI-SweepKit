@@ -204,20 +204,50 @@ class SweepAllInOne:
         arr = np.array(pil_img).astype(np.float32) / 255.0
         return torch.from_numpy(arr).unsqueeze(0)
 
+    @staticmethod
+    def compile_text_regex(text_regex):
+        """Compile the user's text_regex once, turning a bad pattern into a
+        clear node-tagged error instead of a raw re.PatternError mid-run."""
+        try:
+            return re.compile(text_regex)
+        except re.error as e:
+            raise ValueError(
+                f"[SweepAllInOne] text_regex {text_regex!r} is not a valid regular expression: {e}. "
+                f"Use text_mode='curly' for plain {{}} placeholders."
+            ) from e
+
     def apply_text_replacements(self, prompt, replacements, mode, regex_pat):
+        """Fill placeholders left to right: the 1st text dimension fills the
+        1st placeholder, the 2nd fills the 2nd, and so on, in both modes.
+        Placeholders beyond the number of text dimensions are left as-is."""
         if mode == "curly":
             result = prompt
             for rep in replacements:
                 result = result.replace("{}", str(rep), 1)
             return result
-        else:
-            matches = list(re.finditer(regex_pat, prompt))
-            if not matches:
-                return prompt
-            result = prompt
-            for match, rep in zip(reversed(matches), reversed(replacements)):
-                result = result[: match.start()] + str(rep) + result[match.end() :]
-            return result
+        pattern = regex_pat if isinstance(regex_pat, re.Pattern) else self.compile_text_regex(regex_pat)
+        pairs = list(zip(pattern.finditer(prompt), replacements))
+        result = prompt
+        # Splice right-to-left so earlier match offsets stay valid.
+        for match, rep in reversed(pairs):
+            result = result[: match.start()] + str(rep) + result[match.end() :]
+        return result
+
+    @staticmethod
+    def check_single_sampler_dims(active_dims):
+        """Each combination can only use one model, seed, step count and cfg,
+        so more than one dimension of those types can't be honoured.
+        (lora_strength dimensions are different: several are stacked.)"""
+        for dim_type in ("model", "seed", "steps", "cfg"):
+            same = [d for d in active_dims if d["type"] == dim_type]
+            if len(same) > 1:
+                ids = ", ".join(f"'{d['dim_id']}'" for d in same)
+                raise ValueError(
+                    f"[SweepAllInOne] {len(same)} '{dim_type}'-type dimensions are chained ({ids}), but each "
+                    f"image can only use one {dim_type}. Remove the extra one, merge their values into a single "
+                    f"dimension, or use a generic 'int'/'float' dimension for anything that isn't this node's "
+                    f"own {dim_type}."
+                )
 
     def encode(self, clip, text):
         """Return conditioning in the shape ComfyUI's sampler actually
@@ -497,6 +527,10 @@ class SweepAllInOne:
 
         active_dims_sorted = sorted(active_dims, key=lambda d: d["index"])
 
+        # Fail before loading or sampling anything.
+        self.check_single_sampler_dims(active_dims)
+        text_pattern = self.compile_text_regex(text_regex) if text_mode == "regex" else None
+
         # ---------- Group-aware, cost-based execution ordering ----------
         # Dimensions zipped together by SweepDimensionZip share a 'group'
         # id and must vary in lockstep — grouped together here so the
@@ -552,6 +586,14 @@ class SweepAllInOne:
 
         combos = itertools.product(*[range(len(g[0]["values"])) for g in sorted_groups]) if sorted_groups else [()]
 
+        # At most one of each (enforced above); LoRA dims stack in chain order.
+        model_dim = next((d for d in active_dims if d["type"] == "model"), None)
+        seed_dim = next((d for d in active_dims if d["type"] == "seed"), None)
+        steps_dim = next((d for d in active_dims if d["type"] == "steps"), None)
+        cfg_dim = next((d for d in active_dims if d["type"] == "cfg"), None)
+        lora_dims = [d for d in active_dims_sorted if d["type"] == "lora_strength"]
+        text_dims = [d for d in active_dims_sorted if d["type"] == "text"]
+
         for combo in combos:
             comfy.model_management.throw_exception_if_processing_interrupted()
 
@@ -562,28 +604,24 @@ class SweepAllInOne:
 
             # ---- resolve model/clip for this combination ----
             cur_model, cur_clip = model, clip
-            model_dim = next((d for d in active_dims if d["type"] == "model"), None)
             if model_dim is not None:
                 vi = idx_by_dim_index[model_dim["index"]]
                 cur_model, cur_clip = model_dim["model_objs"][vi]
 
-            lora_dim = next((d for d in active_dims if d["type"] == "lora_strength"), None)
-            if lora_dim is not None:
-                vi = idx_by_dim_index[lora_dim["index"]]
-                sm, sc = lora_dim["values"][vi]
-                lora_name = lora_dim["lora_name"]
-                state_key = (id(cur_model), id(cur_clip), lora_name, sm, sc)
+            if lora_dims:
+                lora_settings = tuple((d["lora_name"], *d["values"][idx_by_dim_index[d["index"]]]) for d in lora_dims)
+                state_key = (id(cur_model), id(cur_clip), lora_settings)
                 if state_key != current_lora_state:
-                    cur_model, cur_clip = self.apply_lora_both(cur_model, cur_clip, lora_name, sm, sc, lora_cache)
+                    for lora_name, sm, sc in lora_settings:
+                        cur_model, cur_clip = self.apply_lora_both(cur_model, cur_clip, lora_name, sm, sc, lora_cache)
                     current_lora_state = state_key
                     current_lora_result = (cur_model, cur_clip)
                 else:
                     cur_model, cur_clip = current_lora_result
 
             # ---- build + encode the prompt ----
-            text_dims = [d for d in active_dims_sorted if d["type"] == "text"]
             replacements = [d["values"][idx_by_dim_index[d["index"]]] for d in text_dims]
-            prompt_text = self.apply_text_replacements(positive_prompt, replacements, text_mode, text_regex)
+            prompt_text = self.apply_text_replacements(positive_prompt, replacements, text_mode, text_pattern)
 
             enc_key = (id(cur_clip), prompt_text)
             if enc_key not in encode_cache:
@@ -596,9 +634,6 @@ class SweepAllInOne:
             negative = negative_cache[neg_key]
 
             # ---- seed / steps / cfg ----
-            seed_dim = next((d for d in active_dims if d["type"] == "seed"), None)
-            steps_dim = next((d for d in active_dims if d["type"] == "steps"), None)
-            cfg_dim = next((d for d in active_dims if d["type"] == "cfg"), None)
             seed = seed_dim["values"][idx_by_dim_index[seed_dim["index"]]] if seed_dim else fixed_seed
             steps = steps_dim["values"][idx_by_dim_index[steps_dim["index"]]] if steps_dim else fixed_steps
             cfg = cfg_dim["values"][idx_by_dim_index[cfg_dim["index"]]] if cfg_dim else fixed_cfg

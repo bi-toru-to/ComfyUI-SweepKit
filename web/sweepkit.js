@@ -43,7 +43,9 @@ import { app } from "../../scripts/app.js";
  */
 
 const NODE_NAME = "SweepDimension";
-const MAX_SOCKETS = 24; // sane ceiling so a fat-fingered paste can't spawn hundreds of sockets
+// Sane ceiling so a fat-fingered paste can't spawn hundreds of sockets.
+// Must match MAX_MODEL_SOCKETS in sweep_core.py (Python ignores extra labels).
+const MAX_SOCKETS = 24;
 
 function getWidget(node, name) {
     return node.widgets ? node.widgets.find((w) => w.name === name) : null;

@@ -24,10 +24,13 @@ logic that was never the source of a reported bug across the mega-node's
 several revisions.
 """
 
+import uuid
+
 import folder_paths
 
 from .sweep_core import (
     DIM_TYPE_OPTIONS,
+    MAX_MODEL_SOCKETS,
     parse_text_list,
     parse_number_list,
     parse_lora_strength_list,
@@ -53,11 +56,14 @@ class SweepDimension:
                             "'int'/'int'/'float' respectively, but are ALSO recognized by "
                             "SweepAllInOne's fixed_seed/fixed_steps/fixed_cfg fallback and by "
                             "grid_x_dim=auto's seed-preference — use these specifically when this "
-                            "axis IS that sampler parameter. 'text' fills the next available {} "
-                            "in SweepAllInOne's positive_prompt, counting text/static-type "
-                            "dimensions in chain order (closest to the start of the chain = 1st "
-                            "{}). 'model' turns 'values' into a label list and spawns one MODEL "
-                            "input socket per label instead of a value list. 'static' is a "
+                            "axis IS that sampler parameter; SweepAllInOne accepts at most one "
+                            "seed, steps, cfg and model dimension each. 'text' fills the next "
+                            "available {} in SweepAllInOne's positive_prompt, counting only "
+                            "text-type dimensions in chain order (closest to the start of the "
+                            "chain = 1st {}). 'lora_strength' sweeps the selected LoRA's strength; "
+                            "several lora_strength dimensions stack, applied in chain order. "
+                            "'model' turns 'values' into a label list and spawns one MODEL "
+                            "input socket per label (up to 24) instead of a value list. 'static' is a "
                             "fixed, non-swept single value (only the first line of 'values' is "
                             "kept) that still participates in grid titles/filenames/folders — "
                             "for tagging a whole sweep with something constant without wiring it "
@@ -87,8 +93,11 @@ class SweepDimension:
                         "multiline": True,
                         "default": "",
                         "tooltip": (
-                            "Values, one per line (commas also split). For seed/steps/int "
-                            "you can also write a range like '1-5'. For dim_type='model' "
+                            "Values, one per line. Numeric types (seed/steps/cfg/int/float/"
+                            "lora_strength) also split on commas; text/static/model values "
+                            "split on newlines only, so a comma-separated tag list stays one "
+                            "value. For seed/steps/int you can also write a range like '1-5' "
+                            "or '-3-2'. For dim_type='model' "
                             "this is a list of socket labels instead — editing it "
                             "adds/removes MODEL input sockets below."
                         ),
@@ -178,6 +187,15 @@ class SweepDimension:
                 return (prev,)
         elif dim_type == "model":
             labels = parse_text_list(values)
+            if len(labels) > MAX_MODEL_SOCKETS:
+                # web/sweepkit.js never creates more than MAX_MODEL_SOCKETS
+                # sockets, so extra labels could only ever fall back to the
+                # base model — drop them visibly instead.
+                print(
+                    f"[SweepDimension] '{disp_id}' has {len(labels)} model labels; only the first "
+                    f"{MAX_MODEL_SOCKETS} get MODEL sockets, so the rest are ignored."
+                )
+                labels = labels[:MAX_MODEL_SOCKETS]
             vals = labels
             model_objs = []
             for j, lab in enumerate(labels, start=1):
@@ -197,6 +215,10 @@ class SweepDimension:
 
         dim["index"] = len(prev) + 1
         dim["values"] = vals
+        # Stable identity for this dimension as it travels through branches:
+        # lets SweepDimensionZip recognise the same upstream dimension arriving
+        # via both of its inputs instead of counting it twice.
+        dim["uid"] = uuid.uuid4().hex
         return (prev + [dim],)
 
 

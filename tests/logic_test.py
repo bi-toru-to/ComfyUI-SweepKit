@@ -113,6 +113,36 @@ def test_safe_component():
     print("OK test_safe_component")
 
 
+def test_safe_component_windows_reserved_names():
+    # Audit finding F2: a 'NUL' filename_prefix made every save fail with
+    # FileNotFoundError on Windows. Reserved device stems get a '_' prefix.
+    for raw, expected in [
+        ("NUL", "_NUL"),
+        ("con", "_con"),
+        ("aux.txt", "_aux.txt"),
+        ("COM1", "_COM1"),
+        ("lpt9.png", "_lpt9.png"),
+        ("console", "console"),  # only exact stems are reserved
+        ("COM10", "COM10"),
+        ("nullable", "nullable"),
+    ]:
+        assert core.safe_component(raw) == expected, (raw, core.safe_component(raw))
+    # Truncation must not leave a trailing dot/space (also invalid on Windows).
+    assert not core.safe_component("a" * 79 + ". tail").endswith((".", " "))
+    print("OK test_safe_component_windows_reserved_names")
+
+
+def test_parse_number_negative_ranges():
+    # Audit finding F1: ranges with a negative start crashed with
+    # 'too many values to unpack' instead of parsing.
+    assert core.parse_number_list("-5--1", int, "seed", allow_range=True) == [-5, -4, -3, -2, -1]
+    assert core.parse_number_list("-3-2", int, "seed", allow_range=True) == [-3, -2, -1, 0, 1, 2]
+    assert core.parse_number_list("2--1", int, "seed", allow_range=True) == [2, 1, 0, -1]
+    assert core.parse_number_list("1 - 3", int, "seed", allow_range=True) == [1, 2, 3]
+    assert core.parse_number_list("-4", int, "seed", allow_range=True) == [-4]
+    print("OK test_parse_number_negative_ranges")
+
+
 def test_resize_dimension_values():
     d = {"values": [1, 2, 3, 4]}
     core.resize_dimension_values(d, 2)
@@ -470,6 +500,8 @@ test_grid_axes_two_independent_always_one_grid()
 test_grid_axes_explicit_conflict_falls_back_like_auto()
 test_grid_axes_leftover()
 test_safe_component()
+test_safe_component_windows_reserved_names()
+test_parse_number_negative_ranges()
 test_resize_dimension_values()
 test_partition_and_sort_groups()
 test_resolve_group_index()

@@ -50,11 +50,21 @@ COST_RANK = {
 GRID_AXIS_PICKER_RANGE = 12
 GRID_AXIS_OPTIONS = ["auto", "none"] + [f"dim{i}" for i in range(1, GRID_AXIS_PICKER_RANGE + 1)]
 
+# Upper bound on a 'model' dimension's MODEL sockets. Must match MAX_SOCKETS
+# in web/sweepkit.js, which never creates more sockets than this.
+MAX_MODEL_SOCKETS = 24
+
+# Windows device names: a path component whose stem is one of these (e.g.
+# "NUL", "con.png") refers to a device, not a file, and saving fails.
+_WINDOWS_RESERVED = re.compile(r"(?i)^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(\..*)?$")
+
 
 def safe_component(s):
     """Sanitize a string for use as a folder or filename component."""
     s = re.sub(r"[^\w\-. ]", "_", str(s)).strip().strip(".")
-    s = s[:80]
+    s = s[:80].rstrip(" .")
+    if _WINDOWS_RESERVED.match(s):
+        s = "_" + s
     return s if s else "_"
 
 
@@ -83,9 +93,9 @@ def parse_number_list(raw, cast, dim_id, allow_range=False):
         line = line.strip()
         if not line:
             continue
-        if allow_range and re.fullmatch(r"-?\d+\s*-\s*-?\d+", line):
-            a, b = line.split("-")
-            a, b = int(a), int(b)
+        range_match = re.fullmatch(r"(-?\d+)\s*-\s*(-?\d+)", line) if allow_range else None
+        if range_match:
+            a, b = int(range_match[1]), int(range_match[2])
             step = 1 if b >= a else -1
             out.extend(range(a, b + step, step))
             continue
