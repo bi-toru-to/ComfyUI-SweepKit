@@ -67,7 +67,7 @@
       "type": "LoraLoader",
       "pos": [
         40,
-        270
+        274
       ],
       "size": [
         330,
@@ -198,7 +198,7 @@
       "type": "CLIPTextEncode",
       "pos": [
         420,
-        280
+        284
       ],
       "size": [
         400,
@@ -246,7 +246,7 @@
       "type": "EmptyLatentImage",
       "pos": [
         40,
-        470
+        478
       ],
       "size": [
         330,
@@ -467,7 +467,7 @@
       "type": "SweepDimension",
       "pos": [
         40,
-        -600
+        -596
       ],
       "size": [
         400,
@@ -648,7 +648,7 @@
         -470
       ],
       "size": [
-        300,
+        332,
         140
       ],
       "flags": {},
@@ -701,7 +701,7 @@
       "id": 11,
       "type": "SweepDimension",
       "pos": [
-        860,
+        872,
         -470
       ],
       "size": [
@@ -790,12 +790,12 @@
       "id": 12,
       "type": "SweepCombinationExpander",
       "pos": [
-        1300,
+        1312,
         -470
       ],
       "size": [
-        190,
-        240
+        265,
+        258
       ],
       "flags": {},
       "order": 7,

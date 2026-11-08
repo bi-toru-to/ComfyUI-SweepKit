@@ -9,11 +9,11 @@
       "type": "MarkdownNote",
       "pos": [
         0,
-        -340
+        -380
       ],
       "size": [
-        460,
-        260
+        520,
+        300
       ],
       "flags": {},
       "order": 0,
@@ -22,7 +22,7 @@
       "outputs": [],
       "properties": {},
       "widgets_values": [
-        "## Sweep several checkpoints via a PyList\n\nThree checkpoints collected with List-Utils **Create PyList** into one `model`-type Sweep Dimension (via `values_pylist`, so no MODEL sockets are needed), crossed with 2 seeds: 6 images and a grid.\n\nPick your three checkpoints. Prompts use the first checkpoint's CLIP; filenames tag models as checkpoint0/1/2.\n\nSee NODE_GUIDE.md, workflow 6."
+        "## Sweep several checkpoints via a PyList\n\nThree checkpoints collected with List-Utils **Create PyList** into one `model`-type Sweep Dimension (via `values_pylist`, so no MODEL sockets are needed), crossed with 2 seeds: 6 images and a grid.\n\nPick your three checkpoints. For models that come as separate files (Flux and similar), use **Load Diffusion Model** nodes instead of Load Checkpoint, plus a Load CLIP and a Load VAE. Prompts use the first checkpoint's CLIP; filenames tag models as checkpoint0/1/2.\n\nSee NODE_GUIDE.md, workflow 6."
       ],
       "color": "#432",
       "bgcolor": "#653"
@@ -205,7 +205,7 @@
         0
       ],
       "size": [
-        140,
+        264,
         86
       ],
       "flags": {},
@@ -424,12 +424,12 @@
       "id": 8,
       "type": "SweepCombinationExpander",
       "pos": [
-        420,
+        440,
         700
       ],
       "size": [
-        239.3794921875,
-        66
+        265,
+        258
       ],
       "flags": {},
       "order": 10,
@@ -476,12 +476,12 @@
       "id": 9,
       "type": "SweepDimensionExtract",
       "pos": [
-        420,
-        860
+        440,
+        1012
       ],
       "size": [
-        270,
-        82
+        366,
+        102
       ],
       "flags": {},
       "order": 11,
@@ -535,11 +535,11 @@
       "type": "SweepDimensionExtract",
       "pos": [
         420,
-        1020
+        1168
       ],
       "size": [
-        270,
-        82
+        366,
+        102
       ],
       "flags": {},
       "order": 12,
@@ -592,11 +592,11 @@
       "id": 11,
       "type": "GODMT_PyListToList",
       "pos": [
-        760,
-        860
+        846,
+        1012
       ],
       "size": [
-        140,
+        264,
         26
       ],
       "flags": {},
@@ -630,11 +630,11 @@
       "id": 12,
       "type": "GODMT_PyListToList",
       "pos": [
-        760,
-        1020
+        826,
+        1168
       ],
       "size": [
-        140,
+        264,
         26
       ],
       "flags": {},
@@ -717,7 +717,7 @@
       "type": "CLIPTextEncode",
       "pos": [
         700,
-        220
+        254
       ],
       "size": [
         400,
@@ -765,7 +765,7 @@
       "type": "EmptyLatentImage",
       "pos": [
         700,
-        440
+        508
       ],
       "size": [
         270,
@@ -826,7 +826,7 @@
       "id": 16,
       "type": "KSampler",
       "pos": [
-        1100,
+        1140,
         0
       ],
       "size": [
@@ -943,7 +943,7 @@
       "id": 17,
       "type": "VAEDecode",
       "pos": [
-        1440,
+        1450,
         0
       ],
       "size": [
@@ -991,7 +991,7 @@
         700
       ],
       "size": [
-        286.2734375,
+        304,
         82
       ],
       "flags": {},
@@ -1045,11 +1045,11 @@
       "id": 19,
       "type": "GODMT_PyListToList",
       "pos": [
-        1440,
+        1444,
         700
       ],
       "size": [
-        140,
+        264,
         26
       ],
       "flags": {},
@@ -1127,11 +1127,11 @@
       "id": 21,
       "type": "GODMT_ListToPyList",
       "pos": [
-        1440,
+        1450,
         300
       ],
       "size": [
-        140,
+        264,
         26
       ],
       "flags": {},

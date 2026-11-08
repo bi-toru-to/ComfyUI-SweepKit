@@ -37,9 +37,11 @@ from .sweep_core import (
     PREVIEW_VALUES,
     TRUNCATED_NAME_LEN,
     build_combo_records,
+    format_dim_value,
     next_versioned_path,
     safe_component,
     ui_images,
+    validate_axis_picks,
     write_manifest,
 )
 from .sweep_image import PREVIEW_MAX_SIDE, GridSpec, LiveGrid, build_grids, resolve_axes, stack_padded, tensor_to_pil
@@ -202,7 +204,7 @@ class SweepAllInOne:
                 GRID_AXIS_OPTIONS,
                 {
                     "default": "auto",
-                    "tooltip": "Which chained axis (by chain position, dim1..dimN) is the grid's X axis. 'auto' prefers a seed-type axis; 'none' = single column.",
+                    "tooltip": "Which axis is the grid's X axis. 'auto' prefers a seed-type axis; 'none' = single column. The list shows the connected axes by name (their dim_id); older workflows' dim1, dim2... (chain position) still work.",
                 },
             ),
             "grid_y_dim": (
@@ -231,6 +233,11 @@ class SweepAllInOne:
         }
 
         return {"required": required, "optional": optional}
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, grid_x_dim, grid_y_dim, grid_title_dim):
+        # The pickers list the connected axes' dim_ids, which ComfyUI's fixed-list check doesn't know.
+        return validate_axis_picks(grid_x_dim=grid_x_dim, grid_y_dim=grid_y_dim, grid_title_dim=grid_title_dim)
 
     RETURN_TYPES = ("IMAGE", "STRING")
     RETURN_NAMES = ("grids", "summary")
@@ -362,7 +369,10 @@ class SweepAllInOne:
                 name_parts.append(comp)
             elif dtype == "model":
                 val = d["values"][vi]
-                name_parts.append(f"{safe_component(d['dim_id'])}-{safe_component(val)}")
+                if isinstance(val, str):
+                    name_parts.append(f"{safe_component(d['dim_id'])}-{safe_component(val)}")
+                else:  # a MODEL object from a PyList: its position, never a memory address
+                    name_parts.append(safe_component(format_dim_value(d, vi)))
             elif dtype == "lora_strength":
                 sm, sc = d["values"][vi]
                 name_parts.append(f"{safe_component(d['dim_id'])}{sm:g}")
@@ -402,7 +412,9 @@ class SweepAllInOne:
         dims = [dict(d) for d in dimensions] if dimensions else []
         for d in dims:
             if d["type"] == "model":
-                d["model_objs"] = [(m if m is not None else model, clip) for m in d.get("model_objs", [])]
+                # A model axis fed by a PyList has no sockets: its values are the MODEL objects.
+                slots = d["model_objs"] if "model_objs" in d else d["values"]
+                d["model_objs"] = [(m if m is not None else model, clip) for m in slots]
         return dims
 
     @staticmethod

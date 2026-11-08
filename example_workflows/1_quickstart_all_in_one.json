@@ -32,7 +32,7 @@
       "type": "CheckpointLoaderSimple",
       "pos": [
         0,
-        0
+        14
       ],
       "size": [
         270,
@@ -90,7 +90,7 @@
       "type": "EmptyLatentImage",
       "pos": [
         0,
-        160
+        166
       ],
       "size": [
         270,
@@ -324,11 +324,11 @@
       "type": "SweepAllInOne",
       "pos": [
         480,
-        0
+        14
       ],
       "size": [
         400,
-        606
+        632
       ],
       "flags": {},
       "order": 5,
@@ -573,10 +573,10 @@
       "type": "PreviewImage",
       "pos": [
         980,
-        0
+        14
       ],
       "size": [
-        140,
+        164,
         26
       ],
       "flags": {},

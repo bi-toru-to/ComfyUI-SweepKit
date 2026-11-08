@@ -3,6 +3,9 @@
 import {
     MAX_AXIS_OUTPUTS,
     axisChain,
+    axisPickerNames,
+    pickerSnapshot,
+    syncAxisPickers,
     collectHere,
     hasImageOutput,
     planSnapshot,
@@ -328,4 +331,34 @@ console.log("PASS test6: Plan outputs follow the chain and never lose a wired ou
     widget(zip, "mode").value = "longest";
     assert(planSnapshot(gz, plan) !== before, "snapshot sees a Pair Axes edit");
     console.log("PASS test10: chains through Pair Axes and Subsets are described by the backend");
+}
+
+// ---- grid axis pickers list the axes by name ----
+{
+    const gp = new FakeGraph();
+    const plan = gp.make("SweepCombinationExpander");
+    const a1 = gp.make("SweepDimension", { dim_type: "seed", dim_id: "seed", values: "1,2" });
+    const a2 = gp.make("SweepDimension", { dim_type: "text", dim_id: "style", values: "a, b\nc" });
+    a1.connect(0, a2, 0);
+    a2.connect(0, plan, 0);
+    const collect = gp.make("SweepCollect");
+    const pick = (name) => collect.widgets.find((w) => w.name === name);
+    pick("grid_x_dim").value = "dim2"; // as an older workflow saved it
+    pick("grid_title_dim").value = "gone"; // a name no axis has any more
+
+    const before = pickerSnapshot(gp, collect);
+    syncAxisPickers(gp, collect);
+    eq(pick("grid_y_dim").options.values, ["auto", "none", "dim1", "dim2", "dim3"], "no Plan connected: untouched");
+    plan.connect(0, collect, 1);
+    assert(pickerSnapshot(gp, collect) !== before, "snapshot sees the Plan being connected");
+    syncAxisPickers(gp, collect);
+    eq(pick("grid_y_dim").options.values, ["auto", "none", "seed", "style"], "names of the connected axes");
+    eq(pick("grid_x_dim").value, "style", "dimN becomes the axis name");
+    eq(pick("grid_title_dim").options.values, ["auto", "none", "seed", "style", "gone"], "a stale name stays selectable");
+
+    eq(axisPickerNames(["seed", "seed", "cfg", "auto"]), ["dim1", "dim2", "cfg", "dim4"], "shared or reserved names use positions");
+    widget(a2, "dim_id").value = "prompt";
+    syncAxisPickers(gp, collect);
+    eq(pick("grid_y_dim").options.values, ["auto", "none", "seed", "prompt"], "follows a renamed axis");
+    console.log("PASS test11: grid axis pickers list the connected axes by name");
 }

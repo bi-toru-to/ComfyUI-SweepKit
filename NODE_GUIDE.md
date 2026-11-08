@@ -308,7 +308,7 @@ images the sweep will make ("12 images: 2 × 3 × 2") once its axes are read.
 |---|---|---|
 | `combo` | SWEEP_COMBO | Axes (sorted into execution order — cost-sorted, expensive axes like model swaps outermost, cheap ones like seed innermost) plus one record per combination, bundled together. Pass this to `SweepCollect` and to every other modular node that asks for `combo`. |
 | `combo_count` | INT | Total number of combinations. Prints a console warning past 500. |
-| `dim_map` | STRING | Human-readable `dim1='...', dim2='...', ...` listing, matching what's printed to console (needed for the `grid_x_dim`/`grid_y_dim`/`grid_title_dim` pickers, which select by position). |
+| `dim_map` | STRING | Human-readable `dim1='...', dim2='...', ...` listing, matching what's printed to console (useful when an older workflow's `grid_x_dim`/`grid_y_dim`/`grid_title_dim` pickers hold position tokens like `dim2`). |
 | `axis_1` … `axis_8` | any (list) | The value of each axis for every combination, in order, aligned with each other. Connect one to a setting (seed, cfg, prompt text, a model or LoRA file name...) and ComfyUI runs that node once per combination. In the editor only as many appear as the chain has axes, labelled with the axes' names. A `lora_strength` axis gives its model strength (use `SweepDimensionExtract` for the clip strength); a `model` axis gives its MODEL objects. |
 
 **Notes**
@@ -467,7 +467,7 @@ rerun the sampler.
 | `cell_size` | INT (default 512) | Meaning depends on `cell_mode` (see below). |
 | `cell_mode` | dropdown | `fit`: scale each image to `cell_size` preserving aspect ratio (recommended). `square`: stretch to a `cell_size`×`cell_size` square (may distort non-square images). `original`: no resizing at all (sharpest, but the grid can get very large). |
 | `font_size` | FLOAT (default 0.4) | Text size as a fraction of the *actual rendered* cell width, not the `cell_size` widget — `1.0` means one character is about 1/16 of a cell's width. Sized off the real cell width specifically so `cell_mode='original'` (whose real size can differ a lot from `cell_size`) doesn't end up with text that's disproportionately tiny or huge next to the images. Matches `SweepUpsetConstructor`'s font hierarchy: title stays the most prominent, X-axis (column) labels sit at the base size, Y-axis (row) labels get a slight emphasis over the base — all four (title/X/Y/spacing) scale together so the relative proportions and the gaps between them stay consistent at every setting. Long labels word-wrap to fit their own column/row rather than overflowing into the image or a neighboring label. |
-| `grid_x_dim` | dropdown (`auto`/`none`/`dim1`...`dim12`) | Which dimension (by chain position) is the grid's X axis. `auto` prefers a `seed`-type dimension. `none` = single column. |
+| `grid_x_dim` | dropdown (`auto`/`none`/the connected axes' `dim_id`s) | Which axis is the grid's X axis. `auto` prefers a `seed`-type axis. `none` = single column. |
 | `grid_y_dim` | dropdown | Which dimension is the Y axis. `auto` prefers a non-text/static dimension. `none` = single row. |
 | `grid_title_dim` | dropdown | Which dimension's value becomes the grid's title and top output folder. `auto` takes whatever's left after X and Y. **Any dimension not assigned to X/Y/Title still produces its own set of extra grids** in nested folders — nothing is silently dropped. |
 
@@ -508,14 +508,15 @@ the same as if it had been left on `auto`.
   message suggesting `cell_mode=fit`, a smaller `cell_size`, or another
   `grid_title_dim` to split it into more grids. The same limit applies to
   `SweepAllInOne` and to each `SweepUpsetConstructor` page.
-- `grid_x_dim`/`grid_y_dim`/`grid_title_dim` pick dimensions by chain
-  **position** (`dim1`, `dim2`, ...), not by `dim_id` — this is a
-  different lookup convention from `SweepDimensionExtract`'s exact-match
-  one, intentionally: it's a dropdown picker, so a fixed positional list
-  is simpler than requiring exact-string matches. Check
-  `SweepCombinationExpander`'s `dim_map` output (or this node's own
-  `summary` output, which includes the same mapping) to see which
-  position each dimension landed at.
+- `grid_x_dim`/`grid_y_dim`/`grid_title_dim` list the connected axes by
+  name (their `dim_id`), read from the chain feeding the Sweep Plan. The list
+  updates as you add, remove or rename axes; renaming an axis you picked
+  leaves the old name selected (the run then falls back to `auto` and says
+  so in the console). Two axes with the same `dim_id` are listed by
+  position instead (`dim1`, `dim2`, ...). Workflows saved before 1.1 hold
+  position tokens like `dim2`; they still work, and in the browser they
+  turn into the axis name when the workflow opens. From a script or the
+  API, send either form.
 - A zipped pair only ever fills *one* of X/Y/Title/grouping-axis role —
   picking the second member for a different role would just repeat the
   same pairing as if it were independent, so it's avoided by construction
@@ -549,7 +550,7 @@ and what this actually looks like.
 | `cell_size` | INT (default 120) | Target swatch size per column — exact meaning depends on `cell_mode`. |
 | `cell_mode` | dropdown | Same meaning as `SweepGridConstructor`'s: `fit` (recommended), `square`, or `original`. |
 | `font_size` | FLOAT (default 1.0) | Same meaning as `SweepGridConstructor`'s — a fraction of the *actual rendered* swatch width, `1.0` ≈ one character per 1/16 of a swatch's width. Title, row-label, and column-label sizes stay proportionally distinct from each other at every setting; row-to-row and title/header spacing all scale along with the text so nothing collides at large font sizes or large `cell_mode='original'` images. |
-| `title_dim` | dropdown (`auto`/`none`/`dim1`...`dim12`) | Which OTHER (non-target) dimension's value leads the matrix title (and the top output folder), if set. `auto` leads with the first `text`/`static` dimension; `none` keeps chain order. Every other non-target dimension still page-splits normally regardless of this setting — it only reorders which one reads first in the title text. |
+| `title_dim` | dropdown (`auto`/`none`/the connected axes' `dim_id`s) | Which OTHER (non-target) dimension's value leads the matrix title (and the top output folder), if set. `auto` leads with the first `text`/`static` dimension; `none` keeps chain order. Every other non-target dimension still page-splits normally regardless of this setting — it only reorders which one reads first in the title text. |
 | `max_columns_per_page` | INT (default 60) | Safety valve for very large combo counts — splits into multiple numbered matrix files past this many columns, rather than one enormous image. |
 
 **Outputs**
@@ -873,6 +874,13 @@ background would otherwise resample an identical image.
    `SweepFilenameSequencer`/`SweepGridConstructor` exactly as in example
    2 — they don't need to know dedup happened at all.
 
+What to expect from the example (`5_dedupe_gather.json`): **only 3 images
+are generated** (one per background), but the grid is still the full
+**3 × 3, 9 cells**, and 9 files are saved. Each image appears in the 3
+lighting cells of its background, so those cells look identical. That is
+the point: the grid shows which combinations shared one image. Add
+`__lighting__` to the template and all 9 cells become different images.
+
 ### 6. Assembling a model list without dynamic sockets
 
 Sweep across 3 checkpoints using List-Utils' own list-building node
@@ -944,17 +952,18 @@ connected a `model`/`lora`/other opaque-object axis directly into
 (e.g. the checkpoint filename as text) and connect that instead.
 
 **A 2-axis sweep is coming out as more than one grid** — Check whether
-`grid_title_dim` is set to an explicit `dimN` token rather than `auto` or
+`grid_title_dim` is set to an explicit axis rather than `auto` or
 `none` — an explicit title pick is honored even when it means splitting a
 2-axis sweep into multiple grids, since you asked for that dimension
 specifically. Leave `grid_title_dim` on `auto` (or set it to `none`) if
 you want the "2 independent axes always come out as one grid" default.
 
 **A grid's title text looks fine but the grid picked the "wrong" X/Y
-axis** — `grid_x_dim`/`grid_y_dim`/`grid_title_dim` pick by chain
-position (`dim1`, `dim2`, ...), not by `dim_id`. Check
-`SweepCombinationExpander`'s `dim_map` output (or the constructor node's
-own `summary` output) to see each dimension's position.
+axis** — Check the console: a pick that names no connected axis (an axis
+you renamed or removed since) falls back to `auto` with a message. Pick the
+axis again from the dropdown. Two axes sharing a `dim_id` can't be told
+apart by name; give them different names, or pick them by position
+(`dim1`, `dim2`, ... as `dim_map` lists them).
 
 **Nothing happens when I connect a List-Utils "Split String" output
 straight into `SweepDimension`'s `values_pylist`** — Check which of its

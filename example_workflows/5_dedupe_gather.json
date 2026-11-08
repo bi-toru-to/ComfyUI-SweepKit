@@ -9,11 +9,11 @@
       "type": "MarkdownNote",
       "pos": [
         0,
-        -360
+        -420
       ],
       "size": [
-        460,
-        260
+        520,
+        330
       ],
       "flags": {},
       "order": 0,
@@ -22,7 +22,7 @@
       "outputs": [],
       "properties": {},
       "widgets_values": [
-        "## Skip duplicate samples with Dedupe + Gather\n\n**background (3) × lighting (3)** = 9 combinations, but the prompt template only uses `__background__`, so only **3 images are sampled**. Gather re-expands them to all 9 for the files and the 3×3 grid.\n\nAdd `__lighting__` to the template and all 9 become unique. Needs **ComfyUI-List-Utils**.\n\nSee NODE_GUIDE.md, workflow 5."
+        "## Skip duplicate samples with Dedupe + Gather\n\n**background (3) × lighting (3)** = 9 combinations, but the prompt template only uses `__background__`, so the 3 lighting values give identical prompts.\n\n- **Only 3 images are generated** (one per background). The queue and the sampler run 3 times, not 9.\n- **The grid is still the full 3 × 3 (9 cells)**, and 9 files are saved. Gather copies each image into the 3 lighting cells of its background, so those cells look the same. That is expected: it shows which combinations shared one image.\n\nAdd `__lighting__` to the template and all 9 become unique (9 images generated). Needs **ComfyUI-List-Utils**.\n\nSee NODE_GUIDE.md, workflow 5."
       ],
       "color": "#432",
       "bgcolor": "#653"
@@ -138,8 +138,8 @@
       "id": 4,
       "type": "EmptyLatentImage",
       "pos": [
-        420,
-        440
+        440,
+        474
       ],
       "size": [
         270,
@@ -532,12 +532,12 @@
       "id": 9,
       "type": "SweepCombinationExpander",
       "pos": [
-        420,
+        440,
         700
       ],
       "size": [
-        239.3794921875,
-        66
+        265,
+        258
       ],
       "flags": {},
       "order": 6,
@@ -584,12 +584,12 @@
       "id": 10,
       "type": "SweepDimensionExtract",
       "pos": [
-        420,
-        860
+        440,
+        1114
       ],
       "size": [
-        270,
-        82
+        366,
+        102
       ],
       "flags": {},
       "order": 7,
@@ -643,11 +643,11 @@
       "type": "SweepDimensionExtract",
       "pos": [
         420,
-        1020
+        1270
       ],
       "size": [
-        270,
-        82
+        366,
+        102
       ],
       "flags": {},
       "order": 8,
@@ -700,11 +700,11 @@
       "id": 12,
       "type": "GODMT_PyListToList",
       "pos": [
-        760,
-        860
+        846,
+        1114
       ],
       "size": [
-        140,
+        264,
         26
       ],
       "flags": {},
@@ -738,11 +738,11 @@
       "id": 13,
       "type": "GODMT_PyListToList",
       "pos": [
-        760,
-        1020
+        846,
+        1194
       ],
       "size": [
-        140,
+        264,
         26
       ],
       "flags": {},
@@ -839,8 +839,8 @@
       "id": 15,
       "type": "StringReplace",
       "pos": [
-        1000,
-        860
+        1150,
+        1114
       ],
       "size": [
         400,
@@ -903,10 +903,10 @@
       "type": "GODMT_ListToPyList",
       "pos": [
         1300,
-        860
+        1368
       ],
       "size": [
-        140,
+        266,
         26
       ],
       "flags": {},
@@ -942,10 +942,10 @@
       "type": "GODMT_CreatePyList",
       "pos": [
         1300,
-        1020
+        1448
       ],
       "size": [
-        140,
+        264,
         46
       ],
       "flags": {},
@@ -982,11 +982,11 @@
       "id": 18,
       "type": "SweepDedupeCombos",
       "pos": [
-        1540,
-        1020
+        1590,
+        1214
       ],
       "size": [
-        274.3125,
+        388,
         98
       ],
       "flags": {},
@@ -1044,11 +1044,11 @@
       "id": 19,
       "type": "SweepGather",
       "pos": [
-        1540,
-        860
+        1590,
+        1114
       ],
       "size": [
-        196.0328125,
+        344,
         46
       ],
       "flags": {},
@@ -1088,11 +1088,11 @@
       "id": 20,
       "type": "GODMT_PyListToList",
       "pos": [
-        1800,
-        860
+        1974,
+        1114
       ],
       "size": [
-        140,
+        264,
         26
       ],
       "flags": {},
@@ -1178,7 +1178,7 @@
         300
       ],
       "size": [
-        147.702734375,
+        284,
         26
       ],
       "flags": {},
@@ -1212,11 +1212,11 @@
       "id": 23,
       "type": "SweepGather",
       "pos": [
-        1700,
+        1784,
         300
       ],
       "size": [
-        217.0259765625,
+        365,
         46
       ],
       "flags": {},
@@ -1257,7 +1257,7 @@
       "id": 24,
       "type": "SweepGridConstructor",
       "pos": [
-        2000,
+        2189,
         300
       ],
       "size": [
@@ -1379,7 +1379,7 @@
         0
       ],
       "size": [
-        286.2734375,
+        304,
         82
       ],
       "flags": {},
@@ -1433,11 +1433,11 @@
       "id": 26,
       "type": "GODMT_PyListToList",
       "pos": [
-        2300,
+        2344,
         0
       ],
       "size": [
-        140,
+        264,
         26
       ],
       "flags": {},
@@ -1475,7 +1475,7 @@
         160
       ],
       "size": [
-        140,
+        264,
         26
       ],
       "flags": {},
@@ -1509,7 +1509,7 @@
       "id": 28,
       "type": "SaveImage",
       "pos": [
-        2540,
+        2648,
         0
       ],
       "size": [

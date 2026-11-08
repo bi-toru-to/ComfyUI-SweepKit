@@ -35,8 +35,10 @@ from .sweep_core import (
     format_group_value,
     next_versioned_path,
     one_per_group,
+    resolve_axis_token,
     safe_component,
     ui_images,
+    validate_axis_picks,
 )
 from .sweep_draw import (
     MIN_TITLE_WIDTH,
@@ -134,7 +136,7 @@ class SweepUpsetConstructor:
                     GRID_AXIS_OPTIONS,
                     {
                         "default": "none",
-                        "tooltip": "Which OTHER (non-target) axis's value leads the matrix title (and top output folder). 'auto' leads with the first text/static axis; 'none' keeps chain order. Every other non-target axis still page-splits normally regardless of this setting — it only reorders which one reads first.",
+                        "tooltip": "Which OTHER (non-target) axis's value leads the matrix title (and top output folder). 'auto' leads with the first text/static axis; 'none' keeps chain order. Every other non-target axis still page-splits normally regardless of this setting — it only reorders which one reads first. The list shows the connected axes by name (their dim_id); older workflows' dim1, dim2... (chain position) still work.",
                     },
                 ),
                 "max_columns_per_page": (
@@ -148,6 +150,11 @@ class SweepUpsetConstructor:
                 ),
             },
         }
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, title_dim):
+        # The picker lists the connected axes' dim_ids, which ComfyUI's fixed-list check doesn't know.
+        return validate_axis_picks(title_dim=title_dim)
 
     RETURN_TYPES = ("IMAGE", "STRING")
     RETURN_NAMES = ("matrices", "summary")
@@ -231,14 +238,14 @@ class SweepUpsetConstructor:
     @staticmethod
     def order_other_dims(other_dims, title_dim, dims_sorted, target):
         """Move the title_dim pick to the front: 'auto' = first text/static
-        dimension, 'dimN' = that dimension (or its zip group), 'none' = keep
-        chain order."""
+        dimension, a dim_id or 'dimN' = that axis (or its zip group), 'none'
+        = keep chain order."""
         if title_dim == "none":
             return other_dims
         if title_dim == "auto":
             lead = next((d for d in other_dims if d["type"] in ("text", "static")), None)
         else:
-            picked = next((d for d in dims_sorted if f"dim{d['index']}" == title_dim), None)
+            picked = resolve_axis_token(dims_sorted, title_dim)
             if picked is None or picked["index"] == target["index"]:
                 why = "doesn't match any active axis" if picked is None else "is the self-combine target itself"
                 print(f"[SweepUpsetConstructor] title_dim '{title_dim}' {why} — ignoring.")

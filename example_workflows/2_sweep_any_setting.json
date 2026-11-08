@@ -116,7 +116,7 @@
       "type": "CLIPTextEncode",
       "pos": [
         420,
-        280
+        284
       ],
       "size": [
         400,
@@ -164,7 +164,7 @@
       "type": "EmptyLatentImage",
       "pos": [
         40,
-        280
+        284
       ],
       "size": [
         330,
@@ -384,12 +384,12 @@
       "id": 7,
       "type": "SweepCombinationExpander",
       "pos": [
-        870,
+        930,
         -260
       ],
       "size": [
-        186.451171875,
-        226
+        265,
+        258
       ],
       "flags": {},
       "order": 7,
@@ -550,7 +550,7 @@
       "id": 9,
       "type": "SweepDimension",
       "pos": [
-        30,
+        50,
         -260
       ],
       "size": [
@@ -638,7 +638,7 @@
       "id": 10,
       "type": "SweepDimension",
       "pos": [
-        450,
+        490,
         -260
       ],
       "size": [

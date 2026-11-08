@@ -692,6 +692,61 @@ def test_title_wrapping_and_truncation():
     print("OK test_title_wrapping_and_truncation")
 
 
+def test_axis_picks_by_name():
+    dims = [
+        {"index": 1, "type": "seed", "dim_id": "seed"},
+        {"index": 2, "type": "text", "dim_id": "style"},
+        {"index": 3, "type": "cfg", "dim_id": "cfg"},
+    ]
+    x, y, t, other = core.resolve_grid_axes(dims, "style", "cfg", "seed")
+    assert (x["index"], y["index"], t["index"], other) == (2, 3, 1, []), (x, y, t, other)
+    # Older workflows saved the chain position; that still works.
+    x, y, t, _ = core.resolve_grid_axes(dims, "dim3", "dim1", "none")
+    assert (x["index"], y["index"], t) == (3, 1, None)
+    # A name two axes share can't pick one; its position can.
+    twins = [{"index": 1, "type": "seed", "dim_id": "s"}, {"index": 2, "type": "seed", "dim_id": "s"}]
+    assert core.resolve_axis_token(twins, "s") is None
+    assert core.resolve_axis_token(twins, "dim2")["index"] == 2
+    # An unknown name falls back to auto instead of failing.
+    x, _, _, _ = core.resolve_grid_axes(dims, "renamed", "auto", "auto")
+    assert x["type"] == "seed"
+    assert core.validate_axis_picks(grid_x_dim="style", grid_y_dim="dim2", grid_title_dim="auto") is True
+    assert core.validate_axis_picks(grid_x_dim=["style"]) is True  # list-input nodes get lists
+    assert isinstance(core.validate_axis_picks(grid_x_dim=3), str)
+    print("OK test_axis_picks_by_name")
+
+
+def test_pylist_model_axis_values():
+    # A model axis fed by a PyList carries MODEL objects as its values and has
+    # no model_objs (the KeyError reported for example 6).
+    class Model:
+        pass
+
+    m0, m1 = Model(), Model()
+    d = {"index": 1, "type": "model", "dim_id": "checkpoint", "values": [m0, m1]}
+    assert core.axis_value(d, 1) is m1
+    assert core.format_dim_value(d, 0) == "checkpoint0", core.format_dim_value(d, 0)
+    socketed = {"index": 1, "type": "model", "dim_id": "m", "values": ["a", "b"], "model_objs": [m0, None]}
+    assert core.axis_value(socketed, 0) is m0 and core.format_dim_value(socketed, 1) == "b"
+    print("OK test_pylist_model_axis_values")
+
+
+def test_manifest_keeps_commas():
+    import csv
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as tmp:
+        dims = [{"index": 1, "type": "text", "dim_id": "prompt", "values": ['a cat, "tabby", sitting']}]
+        recs = [{"combo_index": 0, "idx_by_dim": {1: 0}}]
+        f = os.path.join(tmp, core.safe_component(dims[0]["values"][0]) + ".png")
+        path = core.write_manifest(tmp, dims, recs, [f])
+        with open(path, newline="", encoding="utf-8") as fh:
+            rows = list(csv.reader(fh))
+        assert rows[1][2] == 'a cat, "tabby", sitting', rows
+        assert rows[1][1] == "a cat_ _tabby__ sitting.png", rows  # file names stay sanitized
+    print("OK test_manifest_keeps_commas")
+
+
 test_parse_text_list()
 test_parse_number_range()
 test_cost_sort_order()
@@ -730,5 +785,8 @@ test_next_versioned_path_does_not_swallow_listing_errors()
 test_canvas_and_batch_helpers()
 test_run_sweep_api_script()
 test_title_wrapping_and_truncation()
+test_axis_picks_by_name()
+test_pylist_model_axis_values()
+test_manifest_keeps_commas()
 
 print("\nALL LOGIC TESTS PASSED")

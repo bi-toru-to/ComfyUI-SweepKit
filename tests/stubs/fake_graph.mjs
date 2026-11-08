@@ -67,6 +67,12 @@ export const TEMPLATES = {
         cls: "SweepCollect",
         inputs: [{ name: "images", type: "IMAGE" }, { name: "combo", type: "SWEEP_COMBO" }],
         outputs: [{ name: "grids", type: "IMAGE" }, { name: "summary", type: "STRING" }],
+        widgets: ["grid_x_dim", "grid_y_dim", "grid_title_dim"].map((name) => ({
+            name,
+            type: "combo",
+            value: "auto",
+            options: { values: ["auto", "none", "dim1", "dim2", "dim3"] },
+        })),
     },
     SweepZip: {
         cls: "SweepDimensionZip",

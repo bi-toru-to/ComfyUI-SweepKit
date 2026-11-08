@@ -10,11 +10,13 @@ import {
     chainView,
     collectHere,
     hasImageOutput,
+    pickerSnapshot,
     planSnapshot,
     refreshChain,
     refreshRuns,
     sweepCandidates,
     sweepWidget,
+    syncAxisPickers,
     syncPlanOutputs,
 } from "./sweepkit_soft.js";
 
@@ -156,8 +158,29 @@ app.registerExtension({
                     if (!n.graph) return;
                     refreshChain(n.graph, n);
                     refreshRuns(n.graph, n);
+                    syncAxisPickers(n.graph, n);
                 },
                 snapshotFn: (n) => (n.graph ? planSnapshot(n.graph, n) : ""),
+            });
+        chain(proto, "onNodeCreated", watch);
+        chain(proto, "onConfigure", watch);
+        chain(proto, "onRemoved", (node) => {
+            node.__sweepRemoved = true;
+        });
+    },
+});
+
+/** Grid nodes fed by a Plan list the axes by name in their axis pickers. */
+const PICKER_NODES = ["SweepCollect", "SweepGridConstructor", "SweepUpsetConstructor"];
+app.registerExtension({
+    name: "SweepKit.AxisPickers",
+    async beforeRegisterNodeDef(nodeType, nodeData) {
+        if (!PICKER_NODES.includes(nodeData.name)) return;
+        const proto = nodeType.prototype;
+        const watch = (node) =>
+            startPolling(node, {
+                sync: (n) => n.graph && syncAxisPickers(n.graph, n),
+                snapshotFn: (n) => (n.graph ? pickerSnapshot(n.graph, n) : ""),
             });
         chain(proto, "onNodeCreated", watch);
         chain(proto, "onConfigure", watch);

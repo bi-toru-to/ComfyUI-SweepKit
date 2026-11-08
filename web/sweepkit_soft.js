@@ -242,6 +242,58 @@ export function planSnapshot(graph, plan) {
     return JSON.stringify([view, remote]);
 }
 
+// ---- grid axis pickers ----
+
+/** The dropdowns that pick which axis a grid uses for columns, rows or the title. */
+export const AXIS_PICKERS = ["grid_x_dim", "grid_y_dim", "grid_title_dim", "title_dim"];
+const FIXED_PICKS = ["auto", "none"];
+
+/** The node whose chain names the axes `node` can pick from: the node itself when
+ * axes feed it directly (All-in-One), else the Plan feeding its `combo`. */
+export function chainOwner(graph, node) {
+    if ((node.inputs || []).some((i) => i.name === "dimensions")) return node;
+    const up = upstreamOf(graph, node, "combo");
+    return up && classOf(up) === PLAN_CLASS ? up : null;
+}
+
+/** Dropdown entries for axes named `labels` (axis_N order): each axis's dim_id, or
+ * `dimN` (its position, which the backend also accepts) when two axes share a name. */
+export function axisPickerNames(labels) {
+    const count = new Map();
+    for (const l of labels) count.set(l, (count.get(l) || 0) + 1);
+    return labels.map((l, i) => (count.get(l) === 1 && !FIXED_PICKS.includes(l) ? l : `dim${i + 1}`));
+}
+
+/** Make the axis pickers list the connected axes by name. A value saved as `dimN`
+ * becomes that axis's name; a name no axis has any more stays selectable (the run
+ * then falls back to auto and says so). Left alone while the chain can't be read. */
+export function syncAxisPickers(graph, node) {
+    const pickers = (node.widgets || []).filter(
+        (w) => AXIS_PICKERS.includes(w.name) && w.options && Array.isArray(w.options.values),
+    );
+    if (!pickers.length) return;
+    const owner = chainOwner(graph, node);
+    const view = owner ? chainView(graph, owner) : null;
+    if (!view || !view.known || view.labels.length === 0) return;
+    const names = axisPickerNames(view.labels);
+    for (const w of pickers) {
+        let value = w.value;
+        const pos = /^dim(\d+)$/.exec(String(value));
+        if (pos && !names.includes(value) && Number(pos[1]) <= names.length) value = names[Number(pos[1]) - 1];
+        const values = [...FIXED_PICKS, ...names];
+        if (!values.includes(value)) values.push(value);
+        w.options.values = values;
+        if (w.value !== value) w.value = value;
+    }
+    if (node.setDirtyCanvas) node.setDirtyCanvas(true, true);
+}
+
+/** What polling compares for a node with axis pickers. */
+export function pickerSnapshot(graph, node) {
+    const owner = chainOwner(graph, node);
+    return JSON.stringify([owner ? owner.id : null, owner ? chainView(graph, owner).labels : null]);
+}
+
 // ---- how many images will this make? ----
 
 /** {counts, total} (counts = value count of each independent group of axes) for the

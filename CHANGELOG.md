@@ -7,6 +7,9 @@ workflows saved with 1.0.0 keep loading. The old Sweep Expander is now called
 Sweep Plan, and "dimension" is now "axis" in names and text.
 
 ### Added
+- The grid axis dropdowns (`grid_x_dim`, `grid_y_dim`, `grid_title_dim`, and the UpSet node's `title_dim`)
+  list the connected axes by name (`dim_id`) instead of `dim1`, `dim2`... Saved workflows with `dimN` values keep
+  working, and scripts can send either form.
 - **Sweep any setting of your own workflow.** Right-click a number, choice or
   text setting on any node and choose Sweep "...": a Sweep Axis is added,
   filled in from the setting and wired to it through Sweep Plan. Works with any
@@ -32,6 +35,11 @@ Sweep Plan, and "dimension" is now "axis" in names and text.
 - Flowcharts in the README (`docs/img/`, redrawn by `scripts/make_diagrams.py`).
 
 ### Fixed
+- A `model` axis fed by a PyList (example 6) no longer stops Sweep Plan with `KeyError: 'model_objs'`, and works
+  on Sweep All-in-One; grid labels and the run list show such models as `checkpoint0`, `checkpoint1`... rather than
+  an object description.
+- Example workflows: nodes are sized so titles and labels fit, and none overlap; example 5's note explains
+  that 3 images are generated while the grid still has all 9 cells.
 - A very long prompt in a grid or matrix title no longer makes the image very wide: titles wrap to at most
   three lines within the grid's own width, with the axis names on a line of their own, and long labels end in an
   ellipsis. Cutting a very long word is no longer slow.

@@ -72,15 +72,36 @@ COST_RANK = {
     "float": 3,
 }
 
-# How many "dimN" tokens the main node's grid_x_dim/grid_y_dim/grid_title_dim
-# pickers offer. This is just the size of that dropdown's option list — it
-# does NOT cap how many SweepDimension nodes you can actually chain (that's
-# unlimited now that dimensions arrive as a plain list through a socket
-# instead of being pre-declared widget slots). Dimensions beyond this count
-# still work fine; they just can't be explicitly hand-picked as X/Y/Title
-# and fall back to being automatic grouping axes (or covered by "auto").
+# The grid_x_dim / grid_y_dim / grid_title_dim pickers. In the browser the
+# list is replaced by the dim_ids of the axes actually connected (see
+# web/sweepkit_soft.js, syncAxisPickers); these "dimN" (chain position)
+# entries are what a node shows before that, and what older saved workflows
+# hold. Either form works: resolve_axis_token accepts a dim_id or dimN, so
+# the nodes skip ComfyUI's fixed-list check for these inputs (VALIDATE_INPUTS).
 GRID_AXIS_PICKER_RANGE = 12
 GRID_AXIS_OPTIONS = ["auto", "none"] + [f"dim{i}" for i in range(1, GRID_AXIS_PICKER_RANGE + 1)]
+GRID_AXIS_INPUTS = ("grid_x_dim", "grid_y_dim", "grid_title_dim")
+
+
+def validate_axis_picks(**picks: Any) -> bool | str:
+    """VALIDATE_INPUTS body for the axis pickers: any text is accepted (a
+    dim_id, dimN, auto or none); a pick that matches no axis falls back to
+    auto at run time with a printed reason."""
+    for name, value in picks.items():
+        values = value if isinstance(value, list) else [value]
+        if not all(isinstance(v, str) for v in values):
+            return f"{name} must be text (an axis name, auto or none)"
+    return True
+
+
+def resolve_axis_token(dims: Sequence[Dimension], token: str) -> Dimension | None:
+    """The axis a picker value names: a dim_id that only one axis has, or
+    'dimN' (chain position, as older workflows saved it). None if neither."""
+    named = [d for d in dims if d.get("dim_id") == token]
+    if len(named) == 1:
+        return named[0]
+    return next((d for d in dims if f"dim{d['index']}" == token), None)
+
 
 # Upper bound on a 'model' dimension's MODEL sockets. Must match MAX_SOCKETS
 # in web/sweepkit.js, which never creates more sockets than this.
@@ -201,6 +222,8 @@ def format_dim_value(d: Dimension, vi: int) -> str:
         return f"{sm:g}" if sm == sc else f"{sm:g}/{sc:g}"
     if isinstance(val, float):
         return f"{val:g}"
+    if not isinstance(val, (str, int, bool)):
+        return f"{d['dim_id']}{vi}"  # e.g. a MODEL object from a PyList: its position, as in file names
     return str(val)
 
 
@@ -338,7 +361,6 @@ class _AxisClaims:
     def __init__(self, active_dims: Sequence[Dimension], node_tag: str) -> None:
         self.active_dims = active_dims
         self.node_tag = node_tag
-        self.by_token = {f"dim{d['index']}": d for d in active_dims}
         self.used_indices = set()
         self.used_groups = set()
 
@@ -353,11 +375,11 @@ class _AxisClaims:
         return d
 
     def explicit(self, token: str, role: str) -> Dimension | None:
-        """The dimension an explicit 'dimN' token names, if it can take
-        this role; None (with a printed reason) if it can't."""
+        """The axis an explicit pick (a dim_id or 'dimN') names, if it can
+        take this role; None (with a printed reason) if it can't."""
         if token in ("auto", "none"):
             return None
-        d = self.by_token.get(token)
+        d = resolve_axis_token(self.active_dims, token)
         if d is None:
             reason = "doesn't match any active axis"
         elif not self.available(d):
@@ -488,10 +510,11 @@ def axis_value(d: Dimension, vi: int) -> Any:
     """The value a downstream node receives for axis `d` at value index vi:
     the plain value; for lora_strength the model strength (use
     SweepDimensionExtract for the clip strength); for model the connected
-    MODEL object (None where no MODEL was connected)."""
+    MODEL object (None where no MODEL was connected). A model axis fed by a
+    PyList has its MODEL objects as its values."""
     if d["type"] == "lora_strength":
         return d["values"][vi][0]
-    if d["type"] == "model":
+    if d["type"] == "model" and "model_objs" in d:
         return d["model_objs"][vi]
     return d["values"][vi]
 

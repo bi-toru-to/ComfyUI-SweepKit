@@ -111,13 +111,10 @@ active dimensions*, not "the Nth node you happen to have placed."
 The old cap existed only because widget values must be pre-declared in
 `INPUT_TYPES` up to some fixed maximum. Since dimensions now arrive as a
 plain Python list through a socket, there's no equivalent constraint —
-chain as many `SweepDimension` nodes as you want. The `grid_x_dim` /
-`grid_y_dim` / `grid_title_dim` dropdowns still only list `dim1`..`dim12`
-as directly-pickable options (that's just the size of a combo widget's
-option list, not a generation-time limit), but dimensions beyond that
-still work fine — they just can't be explicitly hand-picked as X/Y/Title
-and become automatic grouping axes instead (or you can leave those
-pickers on `auto`, which needs no fixed range at all).
+chain as many `SweepDimension` nodes as you want. (Since 1.1 the
+`grid_x_dim` / `grid_y_dim` / `grid_title_dim` dropdowns list the connected
+axes by `dim_id`, so there is no picker range either; see "Axis pickers by
+name" below.)
 
 ## Everything else is unchanged from the v2 write-up
 
@@ -546,6 +543,21 @@ ComfyUI's executor runs each node over *all* list items before the next node
 starts, so Collect can't see an image until the sampler has finished every run.
 So the Plan path gets its live grid a different way (next section): the browser
 queues the workflow once per image.
+
+### Axis pickers by name
+
+The grid nodes' `grid_x_dim` / `grid_y_dim` / `grid_title_dim` (and the UpSet
+node's `title_dim`) are declared with the fixed `auto, none, dim1..dim12` list,
+which is what a node shows before the browser has read its chain and what
+older workflows saved. `web/sweepkit_soft.js` (`syncAxisPickers`) replaces the
+list with the `dim_id`s of the axes feeding the node (directly for All-in-One,
+through the Sweep Plan on its `combo` input otherwise), using the same chain
+reading as the Plan's output labels, so chains through Pair Axes and Subsets
+are covered by the backend route. ComfyUI rejects a value outside the declared
+list, so these nodes define `VALIDATE_INPUTS` for the picker inputs, which
+makes ComfyUI skip that check; `resolve_axis_token` then accepts a unique
+`dim_id` or a `dimN` position. A pick that matches nothing falls back to
+`auto` with a console message, as an out-of-range `dimN` always did.
 
 ### A live grid on Plan + Collect: one queue entry per image
 

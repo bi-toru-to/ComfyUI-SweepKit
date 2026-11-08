@@ -139,7 +139,7 @@
       "type": "EmptyLatentImage",
       "pos": [
         420,
-        440
+        474
       ],
       "size": [
         270,
@@ -361,7 +361,7 @@
       "type": "SweepDimension",
       "pos": [
         0,
-        600
+        854
       ],
       "size": [
         400,
@@ -447,10 +447,10 @@
       "type": "SweepDimensionSelfCombine",
       "pos": [
         0,
-        900
+        1108
       ],
       "size": [
-        313.53671875,
+        451,
         130
       ],
       "flags": {},
@@ -524,12 +524,12 @@
       "id": 9,
       "type": "SweepCombinationExpander",
       "pos": [
-        420,
+        440,
         700
       ],
       "size": [
-        239.3794921875,
-        66
+        265,
+        258
       ],
       "flags": {},
       "order": 6,
@@ -574,12 +574,12 @@
       "id": 10,
       "type": "SweepDimensionExtract",
       "pos": [
-        420,
-        860
+        491,
+        1012
       ],
       "size": [
-        270,
-        82
+        366,
+        102
       ],
       "flags": {},
       "order": 7,
@@ -632,11 +632,11 @@
       "id": 11,
       "type": "GODMT_PyListToList",
       "pos": [
-        760,
-        860
+        897,
+        1108
       ],
       "size": [
-        140,
+        264,
         26
       ],
       "flags": {},
@@ -670,8 +670,8 @@
       "id": 12,
       "type": "StringReplace",
       "pos": [
-        760,
-        600
+        897,
+        854
       ],
       "size": [
         400,
@@ -732,8 +732,8 @@
       "id": 13,
       "type": "CLIPTextEncode",
       "pos": [
-        1000,
-        600
+        1201,
+        1108
       ],
       "size": [
         400,
@@ -784,7 +784,7 @@
         300
       ],
       "size": [
-        140,
+        264,
         26
       ],
       "flags": {},
@@ -821,7 +821,7 @@
         0
       ],
       "size": [
-        300.435546875,
+        323,
         222
       ],
       "flags": {},

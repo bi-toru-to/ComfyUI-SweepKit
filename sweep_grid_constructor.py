@@ -18,7 +18,7 @@ import os
 
 import folder_paths
 
-from .sweep_core import GRID_AXIS_OPTIONS, safe_component, ui_images
+from .sweep_core import GRID_AXIS_OPTIONS, safe_component, ui_images, validate_axis_picks
 from .sweep_image import GridSpec, build_grids, images_by_combo, stack_padded, unpack_combo
 
 
@@ -85,7 +85,7 @@ class SweepGridConstructor:
                     GRID_AXIS_OPTIONS,
                     {
                         "default": "auto",
-                        "tooltip": "Axis for the columns, by chain position (dim1, dim2, ... as listed in the summary). auto prefers a seed, then any non-text axis; none = one column.",
+                        "tooltip": "Axis for the columns. auto prefers a seed, then any non-text axis; none = one column. The list shows the connected axes by name (their dim_id); older workflows' dim1, dim2... (chain position) still work.",
                     },
                 ),
                 "grid_y_dim": (
@@ -104,6 +104,11 @@ class SweepGridConstructor:
                 ),
             },
         }
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, grid_x_dim, grid_y_dim, grid_title_dim):
+        # The pickers list the connected axes' dim_ids, which ComfyUI's fixed-list check doesn't know.
+        return validate_axis_picks(grid_x_dim=grid_x_dim, grid_y_dim=grid_y_dim, grid_title_dim=grid_title_dim)
 
     RETURN_TYPES = ("IMAGE", "STRING")
     RETURN_NAMES = ("grids", "summary")
