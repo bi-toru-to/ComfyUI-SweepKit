@@ -599,15 +599,20 @@ the prompt with every Sweep Collect reduced to its two links. If the next prompt
 has the same key, and `/sweepkit/live_kept` says the server still has the images,
 it queues one run instead of N (`reuseOutput`):
 
-- every node that depends on the Plan is dropped except the Collects, so nothing
-  is sampled;
+- every node that depends on the Plan other than through a Collect is dropped,
+  so nothing is sampled; nodes after a Collect (a Preview Image on its grids)
+  stay and get the new grids;
 - the rest stays unchanged, so ComfyUI marks it used and keeps it cached (loaded
   models stay loaded) without running it;
 - Collect's required `images` input gets a stand-in 8x8 `EmptyImage`, and its
   hidden `sweep_reuse` input names the kept sweep.
 
 Collect then rebuilds the grids and run list from the kept images, and saves the
-images again only if `filename_prefix` changed. If the images are gone (a
+images again only if `filename_prefix` changed. A run of chosen nodes only (a
+node's Run button sends `partial_execution_targets`) is rebuilt only when every
+chosen node is in the reduced prompt; otherwise the whole sweep runs. And when
+Sweep Collect is among the chosen nodes, `withCollectOutputs` adds the output
+nodes after it, since ComfyUI runs only the chosen nodes and their inputs. If the images are gone (a
 restart), the check fails and the whole sweep runs, as before.
 
 ### Sweeping any setting through native lists

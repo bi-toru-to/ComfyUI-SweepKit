@@ -80,16 +80,19 @@ export function sweepKey(output, planId) {
 }
 
 /** A run that has each Sweep Collect rebuild from the kept images of sweep `session`.
- * Everything that depends on the Plan (the sampler and so on) is left out, so
- * nothing is sampled; the rest stays in, unchanged, so ComfyUI keeps it cached
- * (loaded models, for one) without running it. Collect's `images` input is
- * required, so it gets a tiny stand-in image, which it ignores. */
+ * Everything that depends on the Plan other than through a Collect (the sampler
+ * and so on) is left out, so nothing is sampled. What comes after a Collect (a
+ * Preview Image on its grids) stays and gets the new grids, and the rest stays
+ * unchanged, so ComfyUI keeps it cached (loaded models, for one) without running
+ * it. Collect's `images` input is required, so it gets a tiny stand-in image,
+ * which it ignores. */
 export function reuseOutput(output, planId, session) {
+    const collects = new Set(collectsOf(output, planId).map(([id]) => id));
     const dependsOnPlan = new Set([planId]);
     for (let grew = true; grew; ) {
         grew = false;
         for (const [id, node] of Object.entries(output)) {
-            if (dependsOnPlan.has(id)) continue;
+            if (dependsOnPlan.has(id) || collects.has(id)) continue;
             const inputs = Object.values((node && node.inputs) || {});
             if (inputs.some((v) => isLink(v) && dependsOnPlan.has(String(v[0])))) {
                 dependsOnPlan.add(id);
@@ -109,6 +112,32 @@ export function reuseOutput(output, planId, session) {
         out[id] = copy;
     }
     return out;
+}
+
+/** Running Sweep Collect on its own (its Run button) also runs the output nodes
+ * after it, such as a Preview Image on its grids: ComfyUI only runs the chosen
+ * nodes and what feeds them, so they would keep showing the old grids. Returns
+ * the new target list, or `targets` unchanged when no Collect is among them. */
+export function withCollectOutputs(output, targets, isOutputNode) {
+    if (!Array.isArray(targets) || !targets.length || !output) return targets;
+    const start = targets.map(String).filter((id) => output[id] && output[id].class_type === COLLECT_CLASS);
+    if (!start.length) return targets;
+    const after = new Set(start);
+    for (let grew = true; grew; ) {
+        grew = false;
+        for (const [id, node] of Object.entries(output)) {
+            if (after.has(id)) continue;
+            const inputs = Object.values((node && node.inputs) || {});
+            if (inputs.some((v) => isLink(v) && after.has(String(v[0])))) {
+                after.add(id);
+                grew = true;
+            }
+        }
+    }
+    const extra = [...after].filter((id) => !start.includes(id) && isOutputNode(output[id].class_type));
+    const result = [...targets];
+    for (const id of extra) if (!result.map(String).includes(id)) result.push(id);
+    return result;
 }
 
 /** The last live sweep queued from this page: its key and session. */
@@ -133,9 +162,14 @@ export async function queueLive({
     options,
     totalFor,
     isKept = async () => false,
+    isOutputNode = () => false,
     memory = liveMemory,
     session = newSession(),
 }) {
+    if (options && options.partialExecutionTargets) {
+        const targets = withCollectOutputs(data && data.output, options.partialExecutionTargets, isOutputNode);
+        if (targets !== options.partialExecutionTargets) options = { ...options, partialExecutionTargets: targets };
+    }
     const planId = findLivePlan(data && data.output);
     if (planId !== null) {
         const key = sweepKey(data.output, planId);
@@ -147,7 +181,12 @@ export async function queueLive({
             } catch (_err) {
                 kept = false;
             }
-            if (kept) return queue(number, { ...data, output: reuseOutput(data.output, planId, last.session) }, options);
+            const output = kept ? reuseOutput(data.output, planId, last.session) : null;
+            // A run of chosen nodes only (a node's own Run button) must find them all in the rebuild.
+            const targets = (options && options.partialExecutionTargets) || [];
+            if (output && targets.every((id) => String(id) in output)) {
+                return queue(number, { ...data, output }, options);
+            }
         }
     }
     let total = null;

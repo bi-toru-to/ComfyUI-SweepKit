@@ -281,13 +281,16 @@ class SweepCollect:
 
     @staticmethod
     def progress(session, session_id, image):
-        """The node's output while a live sweep is part-way: the grid so far."""
+        """The node's output while a live sweep is part-way: the grid so far, both on
+        the node and on its `grids` output (so a Preview Image there fills in too).
+        Without a grid (create_grids off, no axes) the output is the latest image."""
         text = f"{TAG}: {len(session.seen)} of {len(session.records)} images"
-        shown = session.preview_file(session_id)
-        frame = tensor_to_pil(image) if shown is None else None
+        shown, frame = session.preview_file(session_id)
+        if frame is None:
+            frame = tensor_to_pil(image)
         return {
             "ui": {"images": [shown] if shown else [], "text": [text]},
-            "result": (pil_to_tensor(frame) if frame is not None else stack_padded([]), text),
+            "result": (pil_to_tensor(frame), text),
         }
 
     def finish(self, cfg, dims_sorted, records, image_map, saved, count):

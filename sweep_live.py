@@ -85,14 +85,15 @@ class LiveSession:
             return []
         return [self.saved.get(i) for i in range(len(self.records))]
 
-    def preview_file(self, session_id: str) -> dict[str, str] | None:
-        """Write the grid so far to ComfyUI's temp folder and describe it for the node's `ui`."""
+    def preview_file(self, session_id: str) -> tuple[dict[str, str] | None, Any]:
+        """Write the grid so far to ComfyUI's temp folder. Returns its entry for the
+        node's `ui` and the image itself (both None before there is a grid)."""
         frame = self.preview.render() if self.preview is not None else None
         if frame is None:
-            return None
+            return None, None
         name = f"sweepkit_live_{''.join(c for c in session_id if c.isalnum())[:40] or 'x'}.png"
         frame.save(os.path.join(folder_paths.get_temp_directory(), name))
-        return {"filename": name, "subfolder": "", "type": "temp"}
+        return {"filename": name, "subfolder": "", "type": "temp"}, frame
 
 
 _SESSIONS: OrderedDict[str, LiveSession] = OrderedDict()

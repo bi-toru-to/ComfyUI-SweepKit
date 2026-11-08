@@ -82,8 +82,10 @@ has finished, change Collect's grid axes, cell size, font size or
 `filename_prefix` and queue again: SweepKit queues one short run that rebuilds
 the grids and the run list from the images it kept in memory, without sampling.
 Images already saved under the same prefix aren't saved again; a new prefix
-saves them there. This works for the last two finished sweeps, until ComfyUI
-restarts. Change anything else (a prompt, steps, an axis...) and the sweep runs
+saves them there. Nodes after Collect (a Preview Image or Save Image on its
+`grids`) get the new grids, whether you run the whole workflow, the Preview
+node, or Collect itself. This works for the last two finished sweeps, until
+ComfyUI restarts. Change anything else (a prompt, steps, an axis...) and the sweep runs
 again, as usual. (This is needed because each image of a live sweep is its own
 run, and by default ComfyUI's cache frees results of runs other than the latest.
 A sweep run in one go doesn't need it: ComfyUI already reruns only Collect.)
@@ -636,7 +638,9 @@ native list.
   stops with a message saying what to connect.
 - **Live runs:** when the Plan runs live, this node runs once per image. It shows
   the grid so far (cells still to come as quiet tiles), saves each image as it
-  finishes, and after the last writes the grids and the run list. A sweep you
+  finishes, and after the last writes the grids and the run list. Its `grids`
+  output carries the grid so far as well, so a Preview Image wired to it
+  fills in during the sweep too. A sweep you
   cancel part-way keeps its saved files; the grids are written only when every
   image has finished. After it finishes, changing only this node's settings
   rebuilds from the kept images without sampling (see "What happens at run
@@ -969,6 +973,11 @@ connected a `model`/`lora`/other opaque-object axis directly into
 2-axis sweep into multiple grids, since you asked for that dimension
 specifically. Leave `grid_title_dim` on `auto` (or set it to `none`) if
 you want the "2 independent axes always come out as one grid" default.
+
+**Running Sweep Collect on its own (its Run button) doesn't update the
+Preview Image after it** — Fixed in 1.1: SweepKit adds the Preview and Save
+nodes wired after Collect to such a run. (ComfyUI itself runs only the chosen
+node and what feeds it.) Reload the page if you still see it.
 
 **A grid's title text looks fine but the grid picked the "wrong" X/Y
 axis** — Check the console: a pick that names no connected axis (an axis

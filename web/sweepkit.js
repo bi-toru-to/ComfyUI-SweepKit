@@ -211,6 +211,10 @@ if (!api.__sweepkitLive) {
         const info = await postJson("/sweepkit/live_kept", { session, nodes });
         return Boolean(info && info.kept);
     };
+    const isOutputNode = (cls) => {
+        const type = window.LiteGraph && window.LiteGraph.registered_node_types[cls];
+        return Boolean(type && type.nodeData && type.nodeData.output_node);
+    };
     api.queuePrompt = (number, data, options) =>
-        queueLive({ queue: queuePrompt, number, data, options, totalFor: plannedTotal, isKept });
+        queueLive({ queue: queuePrompt, number, data, options, totalFor: plannedTotal, isKept, isOutputNode });
 }

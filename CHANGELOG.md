@@ -39,6 +39,9 @@ Sweep Plan, and "dimension" is now "axis" in names and text.
 - Flowcharts in the README (`docs/img/`, redrawn by `scripts/make_diagrams.py`).
 
 ### Fixed
+- A Preview Image on Sweep Collect's `grids` shows the grid so far during a live sweep (it got a black
+  placeholder), and gets the rebuilt grids after a settings-only change instead of the run failing with
+  "Prompt has no outputs". Running Sweep Collect on its own also updates the Preview/Save nodes after it.
 - A `model` axis fed by a PyList (example 6) no longer stops Sweep Plan with `KeyError: 'model_objs'`, and works
   on Sweep All-in-One; grid labels and the run list show such models as `checkpoint0`, `checkpoint1`... rather than
   an object description.

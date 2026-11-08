@@ -1,6 +1,6 @@
 // Live grid for Plan-driven sweeps: when the browser queues one run per image,
 // exercised through the real functions from web/sweepkit_live.js.
-import { findLivePlan, liveOutput, newSession, queueLive, reuseOutput, sweepKey } from "../web/sweepkit_live.js";
+import { findLivePlan, liveOutput, newSession, queueLive, reuseOutput, sweepKey, withCollectOutputs } from "../web/sweepkit_live.js";
 
 function assert(cond, msg) {
     if (!cond) throw new Error("FAIL: " + msg);
@@ -78,6 +78,7 @@ console.log("PASS test3: one queue entry per image, order kept, falls back to on
         const p = prompt({}, {
             "5": { class_type: "CheckpointLoaderSimple", inputs: { ckpt_name: "m" } },
             "9": { class_type: "PreviewImage", inputs: { images: ["3", 0] } },
+            "10": { class_type: "PreviewImage", inputs: { images: ["4", 0] } },
         });
         Object.assign(p["4"].inputs, { grid_x_dim: "seed", cell_size: 512, ...inputs });
         return p;
@@ -89,7 +90,8 @@ console.log("PASS test3: one queue entry per image, order kept, falls back to on
     assert(sweepKey(changed, "2") !== sweepKey(a, "2"), "anything else is");
 
     const reuse = reuseOutput(a, "2", "swK");
-    eq(Object.keys(reuse).sort(), ["1", "2", "4", "5", "sweepkit_stand_in"], "nothing that depends on the Plan but Collect");
+    eq(Object.keys(reuse).sort(), ["1", "10", "2", "4", "5", "sweepkit_stand_in"], "nothing that depends on the Plan but Collect");
+    eq(reuse["10"], a["10"], "a Preview Image on Collect's grids stays and gets the new grids");
     eq(reuse["5"], a["5"], "nodes the sweep doesn't touch stay (cached, not run)");
     eq(reuse["4"].inputs.images, ["sweepkit_stand_in", 0], "a stand-in image for the required input");
     eq([reuse["4"].inputs.sweep_reuse, reuse["4"].inputs.grid_x_dim], ["swK", "seed"], "Collect's settings kept, told which sweep");
@@ -98,11 +100,12 @@ console.log("PASS test3: one queue entry per image, order kept, falls back to on
 
     const memory = { last: null };
     const asked = [];
-    const go = async (output, kept, session) => {
+    const go = async (output, kept, session, options) => {
         const calls = [];
         await queueLive({
             queue: async (n, d) => calls.push(d.output),
             number: 0,
+            options,
             data: { output },
             totalFor: async () => 4,
             isKept: async (sess, ids) => (asked.push([sess, ids]), kept),
@@ -116,6 +119,10 @@ console.log("PASS test3: one queue entry per image, order kept, falls back to on
     calls = await go(withCollect({ grid_x_dim: "none" }), true, "s2");
     eq([calls.length, calls[0]["4"].inputs.sweep_reuse, calls[0]["3"]], [1, "s1", undefined], "only Collect changed: one rebuild run");
     eq(asked.at(-1), ["s1", ["4"]], "asks the server about that sweep's Collect");
+    calls = await go(withCollect({ grid_x_dim: "cfg" }), true, "s2b", { partialExecutionTargets: ["10"] });
+    eq(calls.length, 1, "running just the Preview on Collect's grids: still one rebuild run");
+    calls = await go(withCollect({ grid_x_dim: "seed" }), true, "s2c", { partialExecutionTargets: ["9"] });
+    eq(calls.length, 4, "running a node the rebuild leaves out (a Preview of the sampler): the whole sweep");
     calls = await go(withCollect({ grid_x_dim: "none" }), false, "s3");
     eq(calls.length, 4, "images no longer kept (restart): the whole sweep");
     calls = await go(changed, true, "s4");
@@ -133,4 +140,31 @@ console.log("PASS test3: one queue entry per image, order kept, falls back to on
     });
     eq(offline, "q", "a failed check runs the whole sweep");
     console.log("PASS test4: only Collect's settings changed: rebuild from the kept images, nothing sampled");
+}
+
+// ---- running Sweep Collect on its own also runs the outputs after it ----
+{
+    const out = prompt({}, {
+        "10": { class_type: "PreviewImage", inputs: { images: ["4", 0] } },
+        "11": { class_type: "ImageScale", inputs: { image: ["4", 0] } },
+        "12": { class_type: "SaveImage", inputs: { images: ["11", 0] } },
+        "13": { class_type: "PreviewImage", inputs: { images: ["3", 0] } },
+    });
+    const isOut = (cls) => cls === "PreviewImage" || cls === "SaveImage" || cls === "SweepCollect";
+    eq(withCollectOutputs(out, ["4"], isOut), ["4", "10", "12"], "Collect's Preview and Save (through other nodes), not the sampler's Preview");
+    const t = ["13"];
+    assert(withCollectOutputs(out, t, isOut) === t, "targets without a Collect are left alone");
+    assert(withCollectOutputs(out, undefined, isOut) === undefined, "a full run has no targets");
+    const sent = [];
+    await queueLive({
+        queue: async (n, d, o) => sent.push(o),
+        number: 0,
+        data: { output: { ...out, "2": { ...out["2"], inputs: { ...out["2"].inputs, live_grid: false } } } },
+        options: { partialExecutionTargets: ["4"] },
+        totalFor: async () => 4,
+        isOutputNode: isOut,
+        memory: { last: null },
+    });
+    eq(sent[0].partialExecutionTargets, ["4", "10", "12"], "applies to a one-go run too");
+    console.log("PASS test5: running Sweep Collect alone also updates the Preview/Save nodes after it");
 }
