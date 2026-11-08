@@ -851,8 +851,8 @@ dims_v = build_chain(
 SESSION = "live-test-1"
 
 
-def plan_run(cursor, session=SESSION):
-    return ExpanderNode.build(dimensions=dims_v, live_grid=True, sweep_cursor=cursor, sweep_session=session)
+def plan_run(cursor):
+    return ExpanderNode.build(dimensions=dims_v, live_grid=True, sweep_cursor=cursor)
 
 
 # The Plan hands out only the cursor-th combination, and says which one it is.
@@ -860,7 +860,7 @@ combo_all, n_all, _, *lists_all = ExpanderNode.build(dimensions=dims_v)
 assert n_all == 8 and all(len(lst) == 8 for lst in lists_all[:3])
 for cursor in (0, 5, 7):
     combo_c, n_c, _, *lists_c = plan_run(cursor)
-    assert n_c == 8 and combo_c["live"] == {"cursor": cursor, "session": SESSION}
+    assert n_c == 8 and combo_c["live"] == {"cursor": cursor}
     assert [lst[0] for lst in lists_c[:3]] == [lst[cursor] for lst in lists_all[:3]], cursor
     assert all(len(lst) == 1 for lst in lists_c[:3]) and lists_c[3:] == [[]] * 5
 try:
@@ -875,7 +875,9 @@ PB_dir = os.path.join(S.OUTPUT_DIR, "_temp")
 results = []
 for cursor in range(8):
     combo_c, *_ = plan_run(cursor)
-    out = CollectNode.collect(images=[fake_image(0.1 * (cursor + 1))], combo=[combo_c], **collect_kwargs("TestLive"))
+    out = CollectNode.collect(
+        images=[fake_image(0.1 * (cursor + 1))], combo=[combo_c], sweep_session=[SESSION], **collect_kwargs("TestLive")
+    )
     results.append((CollectNode.last_ui, out))
 ui_mid, _ = results[3]
 assert ui_mid["text"] == ["SweepCollect: 4 of 8 images"], ui_mid
@@ -911,10 +913,11 @@ assert len(ref_grids) == len(grids_v)
 # Switches still apply in a live sweep: no files and no grids when both are off.
 sweep_live._SESSIONS.clear()
 for cursor in range(8):
-    combo_c, *_ = plan_run(cursor, "live-test-2")
+    combo_c, *_ = plan_run(cursor)
     CollectNode.collect(
         images=[fake_image(0.5)],
         combo=[combo_c],
+        sweep_session=["live-test-2"],
         **collect_kwargs("TestLiveOff", save_individuals=False, create_grids=False),
     )
 assert not os.path.isdir(os.path.join(S.OUTPUT_DIR, "TestLiveOff")) or not os.listdir(
@@ -922,9 +925,14 @@ assert not os.path.isdir(os.path.join(S.OUTPUT_DIR, "TestLiveOff")) or not os.li
 )
 
 # A wrong number of images in a live run is explained.
-combo_c, *_ = plan_run(0, "live-test-3")
+combo_c, *_ = plan_run(0)
 try:
-    CollectNode.collect(images=[fake_image(0.5), fake_image(0.6)], combo=[combo_c], **collect_kwargs("TestLiveBad"))
+    CollectNode.collect(
+        images=[fake_image(0.5), fake_image(0.6)],
+        combo=[combo_c],
+        sweep_session=["live-test-3"],
+        **collect_kwargs("TestLiveBad"),
+    )
     raise AssertionError("two images in a live run must be refused")
 except ValueError as exc:
     assert "expected 1" in str(exc) and "live_grid" in str(exc), exc
@@ -932,14 +940,149 @@ except ValueError as exc:
 # Only the newest MAX_SESSIONS unfinished sweeps are remembered.
 sweep_live._SESSIONS.clear()
 for n in range(sweep_live.MAX_SESSIONS + 3):
-    combo_c, *_ = plan_run(0, f"abandoned-{n}")
+    combo_c, *_ = plan_run(0)
     CollectNode.collect(
-        images=[fake_image(0.5)], combo=[combo_c], **collect_kwargs("TestLiveEvict", save_individuals=False)
+        images=[fake_image(0.5)],
+        combo=[combo_c],
+        sweep_session=[f"abandoned-{n}"],
+        **collect_kwargs("TestLiveEvict", save_individuals=False),
     )
 assert len(sweep_live._SESSIONS) == sweep_live.MAX_SESSIONS
+
+# The sweep id lives on Sweep Collect, so the Plan's inputs and outputs are the same from one
+# sweep to the next (ComfyUI can reuse every cached image when only Collect's settings change).
+assert plan_run(2)[0] == plan_run(2)[0]
+# Browser code from before that change put the id on the Plan; Collect still accepts it.
+sweep_live._SESSIONS.clear()
+old_style = ExpanderNode.build(dimensions=dims_v, live_grid=True, sweep_cursor=0, sweep_session="old-page")[0]
+assert old_style["live"] == {"cursor": 0, "session": "old-page"}
+CollectNode.collect(
+    images=[fake_image(0.5)], combo=[old_style], **collect_kwargs("TestLiveOld", save_individuals=False)
+)
+assert "old-page" in sweep_live._SESSIONS
 print(
     "PASS scenario V - live sweep: cursor slices, grid so far each image, files as they finish, grids after the last, sessions bounded"
 )
 
+
+# =====================================================================
+# Scenario W: a model axis fed by a PyList is labelled by file name
+# =====================================================================
+from sweepkit import sweep_core  # noqa: E402
+
+
+class FakeModel:
+    def __init__(self, path):
+        # What ComfyUI's loaders record on every MODEL (and its clones).
+        self.cached_patcher_init = (lambda *a, **k: None, (path, {}))
+
+
+class Unknown:  # e.g. a model from a custom loader that records nothing
+    pass
+
+
+base_m = FakeModel("C:/models/diffusion_models/model-a-v1.0.safetensors")
+aes_m = FakeModel("/models/checkpoints/sub/model-b-v1.1.safetensors")
+odd_m = Unknown()
+(dims_w,) = DimNode.build(
+    dim_type="model", dim_id="model", values="", lora_name="", values_pylist=[base_m, aes_m, base_m, odd_m]
+)
+(dims_w,) = DimNode.build(dim_type="seed", dim_id="seed", values="1", lora_name="", prev_dimensions=dims_w)
+want_w = ["model-a-v1.0", "model-b-v1.1", "model-a-v1.0 (2)", "model3"]
+assert dims_w[0]["values"] == want_w, dims_w[0]["values"]
+combo_w, n_w, _, *lists_w = ExpanderNode.build(dimensions=dims_w)
+assert n_w == 4 and lists_w[0] == [base_m, aes_m, base_m, odd_m]  # Plan's axis output: the MODELs
+# Extract still hands out the MODELs (example 6 wires it into the KSampler's model).
+(models_w, _) = ExtractNode.build(combo=combo_w, dim_id="model", component="value")
+assert models_w == [base_m, aes_m, base_m, odd_m]
+names_w = sweep_core.build_filenames(combo_w["dimensions"], combo_w["combo_records"], "W", False)
+assert "model-b-v1.1" in names_w[1] and "object at" not in "".join(names_w), names_w
+print("PASS scenario W - a PyList model axis is labelled by file name; Plan and Extract still give the MODELs")
+
+
+# =====================================================================
+# Scenario X: after a live sweep, changing only Collect's settings rebuilds
+# from the kept images (the browser sends sweep_reuse; nothing is sampled)
+# =====================================================================
+from sweepkit.sweep_routes import kept_response  # noqa: E402
+
+sweep_live._SESSIONS.clear()
+sweep_live._KEPT.clear()
+images_x = [fake_image(0.1 * (i + 1)) for i in range(8)]
+for cursor in range(8):
+    combo_c, *_ = plan_run(cursor)
+    CollectNode.collect(
+        images=[images_x[cursor]],
+        combo=[combo_c],
+        sweep_session=["sx"],
+        unique_id=["14"],
+        **collect_kwargs("TestReuse"),
+    )
+assert kept_response({"session": "sx", "nodes": ["14"]}) == {"kept": True}
+assert kept_response({"session": "sx", "nodes": ["15"]}) == {"kept": False}  # another Collect
+assert kept_response({"session": "nope", "nodes": ["14"]}) == {"kept": False}
+assert kept_response("junk") == {"kept": False}
+
+root_x = os.path.join(S.OUTPUT_DIR, "TestReuse")
+
+
+def pngs_under(root):
+    return sorted(f for d, _s, fs in os.walk(root) if "_grids" not in d for f in fs if f.endswith(".png"))
+
+
+before_x = pngs_under(root_x)
+grids_before = len(os.listdir(os.path.join(root_x, "_grids")))
+stand_in = fake_image(0.0)
+out_x = CollectNode.collect(
+    images=[stand_in],
+    combo=[combo_all],
+    sweep_reuse=["sx"],
+    unique_id=["14"],
+    **collect_kwargs("TestReuse", grid_x_dim="cfg", grid_y_dim="seed", grid_title_dim="subject"),
+)
+ui_x = CollectNode.last_ui
+assert "8 image(s)" in ui_x["text"][0] and ui_x["images"], ui_x
+assert pngs_under(root_x) == before_x, "same prefix: the saved images are not saved again"
+assert len(os.listdir(os.path.join(root_x, "_grids"))) > grids_before, "new grids written"
+# The rebuilt grids use the kept images, not the stand-in: same as a one-go run with the new picks.
+CollectNode.collect(
+    images=images_x,
+    combo=[combo_all],
+    **collect_kwargs("TestReuseRef", grid_x_dim="cfg", grid_y_dim="seed", grid_title_dim="subject"),
+)
+ref_x = CollectNode.last_ui
+
+
+def grid_pixels(ui):
+    return [np.asarray(Image.open(os.path.join(S.OUTPUT_DIR, i["subfolder"], i["filename"]))) for i in ui["images"]]
+
+
+assert all(np.array_equal(a, b) for a, b in zip(grid_pixels(ui_x), grid_pixels(ref_x), strict=True))
+# A new prefix saves the images there.
+CollectNode.collect(
+    images=[stand_in], combo=[combo_all], sweep_reuse=["sx"], unique_id=["14"], **collect_kwargs("TestReuse2")
+)
+assert len(pngs_under(os.path.join(S.OUTPUT_DIR, "TestReuse2"))) == 8
+# Images no longer in memory: a clear message, not a grid of stand-ins.
+try:
+    CollectNode.collect(
+        images=[stand_in], combo=[combo_all], sweep_reuse=["gone"], unique_id=["14"], **collect_kwargs("TestReuse")
+    )
+    raise AssertionError("a rebuild without kept images must be refused")
+except ValueError as exc:
+    assert "no longer in memory" in str(exc), exc
+# Only the newest MAX_KEPT finished sweeps keep their images.
+for n in range(sweep_live.MAX_KEPT + 1):
+    for cursor in range(8):
+        combo_c, *_ = plan_run(cursor)
+        CollectNode.collect(
+            images=[images_x[cursor]],
+            combo=[combo_c],
+            sweep_session=[f"k{n}"],
+            unique_id=["14"],
+            **collect_kwargs("TestReuseKeep", save_individuals=False, create_grids=False),
+        )
+assert len(sweep_live._KEPT) == sweep_live.MAX_KEPT and "sx#14" not in sweep_live._KEPT
+print("PASS scenario X - only Collect's settings changed: grids rebuilt from the kept images, files not saved twice")
 
 print("\nALL MODULAR PIPELINE SCENARIOS PASSED")

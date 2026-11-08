@@ -28,6 +28,7 @@ from .sweep_core import (
     parse_number_list,
     parse_lora_strength_list,
     cast_pylist_values,
+    model_labels,
 )
 
 
@@ -157,8 +158,13 @@ class SweepDimension:
 
         if values_pylist is not None:
             # A connected PyList overrides the widget. For 'model' it carries
-            # MODEL objects directly, so no per-slot sockets are involved.
+            # MODEL objects directly, so no per-slot sockets are involved: the
+            # objects become model_objs and their file names the values.
             vals = cast_pylist_values(list(values_pylist), dim_type, disp_id)
+            if dim_type == "model":
+                dim["model_objs"] = vals
+                dim["models_from_list"] = True  # Extract hands out the MODELs, not the labels
+                vals = model_labels(vals, disp_id)
         elif dim_type == "model":
             vals, dim["model_objs"] = model_slots(values, disp_id, kwargs)
         else:

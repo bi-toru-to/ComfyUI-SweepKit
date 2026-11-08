@@ -7,6 +7,10 @@ workflows saved with 1.0.0 keep loading. The old Sweep Expander is now called
 Sweep Plan, and "dimension" is now "axis" in names and text.
 
 ### Added
+- After a live sweep, changing only Sweep Collect's settings (grid axes, cell size, prefix...) and queueing
+  again rebuilds the grids from the kept images in one short run instead of sampling every image again.
+- A `model` axis fed by a PyList is labelled with each model's file name (e.g. `my_model`) in file names,
+  grids and the run list.
 - The grid axis dropdowns (`grid_x_dim`, `grid_y_dim`, `grid_title_dim`, and the UpSet node's `title_dim`)
   list the connected axes by name (`dim_id`) instead of `dim1`, `dim2`... Saved workflows with `dimN` values keep
   working, and scripts can send either form.

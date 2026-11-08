@@ -1,6 +1,6 @@
 // Live grid for Plan-driven sweeps: when the browser queues one run per image,
 // exercised through the real functions from web/sweepkit_live.js.
-import { findLivePlan, liveOutput, newSession, queueLive } from "../web/sweepkit_live.js";
+import { findLivePlan, liveOutput, newSession, queueLive, reuseOutput, sweepKey } from "../web/sweepkit_live.js";
 
 function assert(cond, msg) {
     if (!cond) throw new Error("FAIL: " + msg);
@@ -37,7 +37,9 @@ console.log("PASS test1: a run is live only for a Plan feeding just Sweep Collec
 const base = prompt();
 const snapshot = JSON.stringify(base);
 const run3 = liveOutput(base, "2", 3, "swX");
-eq([run3["2"].inputs.sweep_cursor, run3["2"].inputs.sweep_session], [3, "swX"], "cursor and session set on the Plan");
+eq([run3["2"].inputs.sweep_cursor, run3["2"].inputs.sweep_session], [3, undefined], "cursor on the Plan, no session there");
+eq(run3["4"].inputs.sweep_session, "swX", "the session goes to Sweep Collect");
+eq(liveOutput(base, "2", 3, "swY")["2"], liveOutput(base, "2", 3, "swX")["2"], "the Plan is the same in every sweep (cache reuse)");
 eq(run3["3"], base["3"], "everything else is untouched");
 assert(JSON.stringify(base) === snapshot, "the original prompt is not changed");
 assert(newSession(1700000000000, () => 0.5) !== newSession(1700000000001, () => 0.5) && /^sw[0-9a-z]+$/.test(newSession()), "sessions differ");
@@ -54,7 +56,7 @@ const data = { output: prompt(), workflow: { nodes: [] } };
 
 let r = await run(0, data, async () => 4);
 eq(r.calls.map((c) => c.d.output["2"].inputs.sweep_cursor), [0, 1, 2, 3], "one queue entry per image, in order");
-assert(r.calls.every((c) => c.n === 0 && c.o.x === 1 && c.d.output["2"].inputs.sweep_session === "swT" && c.d.workflow === data.workflow), "number, options, workflow pass through; one session");
+assert(r.calls.every((c) => c.n === 0 && c.o.x === 1 && c.d.output["4"].inputs.sweep_session === "swT" && c.d.workflow === data.workflow), "number, options, workflow pass through; one session");
 eq(r.result, { prompt_id: "p4" }, "returns the last queue result");
 
 r = await run(-1, data, async () => 3);
@@ -69,3 +71,66 @@ const plain = { output: { "1": { class_type: "KSampler", inputs: {} } } };
 r = await run(0, plain, async () => 4);
 assert(r.calls.length === 1 && r.calls[0].d === plain, "a workflow without a live Plan is passed straight through");
 console.log("PASS test3: one queue entry per image, order kept, falls back to one go");
+
+// ---- changing only Sweep Collect's settings rebuilds from the kept images ----
+{
+    const withCollect = (inputs) => {
+        const p = prompt({}, {
+            "5": { class_type: "CheckpointLoaderSimple", inputs: { ckpt_name: "m" } },
+            "9": { class_type: "PreviewImage", inputs: { images: ["3", 0] } },
+        });
+        Object.assign(p["4"].inputs, { grid_x_dim: "seed", cell_size: 512, ...inputs });
+        return p;
+    };
+    const a = withCollect({});
+    eq(sweepKey(withCollect({ grid_x_dim: "none", cell_size: 256 }), "2"), sweepKey(a, "2"), "Collect settings aren't part of the key");
+    const changed = withCollect({});
+    changed["3"].inputs.cfg = 8;
+    assert(sweepKey(changed, "2") !== sweepKey(a, "2"), "anything else is");
+
+    const reuse = reuseOutput(a, "2", "swK");
+    eq(Object.keys(reuse).sort(), ["1", "2", "4", "5", "sweepkit_stand_in"], "nothing that depends on the Plan but Collect");
+    eq(reuse["5"], a["5"], "nodes the sweep doesn't touch stay (cached, not run)");
+    eq(reuse["4"].inputs.images, ["sweepkit_stand_in", 0], "a stand-in image for the required input");
+    eq([reuse["4"].inputs.sweep_reuse, reuse["4"].inputs.grid_x_dim], ["swK", "seed"], "Collect's settings kept, told which sweep");
+    eq(reuse["2"].inputs.sweep_cursor, undefined, "the Plan hands out every combination");
+    assert(a["4"].inputs.sweep_reuse === undefined, "the original prompt is not changed");
+
+    const memory = { last: null };
+    const asked = [];
+    const go = async (output, kept, session) => {
+        const calls = [];
+        await queueLive({
+            queue: async (n, d) => calls.push(d.output),
+            number: 0,
+            data: { output },
+            totalFor: async () => 4,
+            isKept: async (sess, ids) => (asked.push([sess, ids]), kept),
+            memory,
+            session,
+        });
+        return calls;
+    };
+    let calls = await go(a, true, "s1");
+    eq(calls.length, 4, "first sweep: one run per image");
+    calls = await go(withCollect({ grid_x_dim: "none" }), true, "s2");
+    eq([calls.length, calls[0]["4"].inputs.sweep_reuse, calls[0]["3"]], [1, "s1", undefined], "only Collect changed: one rebuild run");
+    eq(asked.at(-1), ["s1", ["4"]], "asks the server about that sweep's Collect");
+    calls = await go(withCollect({ grid_x_dim: "none" }), false, "s3");
+    eq(calls.length, 4, "images no longer kept (restart): the whole sweep");
+    calls = await go(changed, true, "s4");
+    eq(calls.length, 4, "a sampler setting changed: the whole sweep");
+    const offline = await queueLive({
+        queue: async () => "q",
+        number: 0,
+        data: { output: changed },
+        totalFor: async () => 4,
+        isKept: async () => {
+            throw new Error("offline");
+        },
+        memory,
+        session: "s5",
+    });
+    eq(offline, "q", "a failed check runs the whole sweep");
+    console.log("PASS test4: only Collect's settings changed: rebuild from the kept images, nothing sampled");
+}

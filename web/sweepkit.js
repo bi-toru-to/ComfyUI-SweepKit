@@ -207,6 +207,10 @@ async function plannedTotal(planId) {
 if (!api.__sweepkitLive) {
     api.__sweepkitLive = true;
     const queuePrompt = api.queuePrompt.bind(api);
+    const isKept = async (session, nodes) => {
+        const info = await postJson("/sweepkit/live_kept", { session, nodes });
+        return Boolean(info && info.kept);
+    };
     api.queuePrompt = (number, data, options) =>
-        queueLive({ queue: queuePrompt, number, data, options, totalFor: plannedTotal });
+        queueLive({ queue: queuePrompt, number, data, options, totalFor: plannedTotal, isKept });
 }

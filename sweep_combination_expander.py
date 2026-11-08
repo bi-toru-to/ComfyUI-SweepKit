@@ -54,7 +54,10 @@ class SweepCombinationExpander:
                     },
                 ),
             },
-            # Filled in by the browser while it runs a live grid (see web/sweepkit_live.js).
+            # Filled in by the browser while it runs a live grid (see web/sweepkit_live.js): which
+            # combination this run is. The sweep's id goes to Sweep Collect instead, so a rerun with
+            # the same axes gives the Plan the same inputs and ComfyUI can reuse its cached results.
+            # sweep_session stays accepted (and ignored) for browser code from before that change.
             "hidden": {"sweep_cursor": ("INT", {"default": -1}), "sweep_session": ("STRING", {"default": ""})},
         }
 
@@ -99,7 +102,9 @@ class SweepCombinationExpander:
         combo = {"dimensions": active_dims_sorted, "combo_records": combo_records}
         axis_lists = axis_output_lists(active_dims_sorted, combo_records)
         if live:
-            combo["live"] = {"cursor": sweep_cursor, "session": str(sweep_session)}
+            combo["live"] = {"cursor": sweep_cursor}
+            if sweep_session:  # browser code from before the session moved to Sweep Collect
+                combo["live"]["session"] = str(sweep_session)
             axis_lists = live_slice(axis_lists, sweep_cursor)
         dim_map = "\n".join(dim_map_lines) if dim_map_lines else "(no active axes)"
         return (combo, total, dim_map, *axis_lists)

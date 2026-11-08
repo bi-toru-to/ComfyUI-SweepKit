@@ -7,6 +7,12 @@ image and write the final grids and run list after the last one.
 
 Sessions live in memory only. A sweep that is cancelled part-way leaves its
 session behind until newer ones push it out (at most MAX_SESSIONS are kept).
+
+A finished sweep's images are kept too (the last MAX_KEPT sweeps), so that when
+only Sweep Collect's own settings change (grid axes, cell size...) the browser
+can ask Collect to rebuild from them instead of sampling every image again.
+ComfyUI's cache can't do that for a live sweep: each image is a separate run,
+and by default it frees results of runs other than the latest.
 """
 
 from __future__ import annotations
@@ -22,6 +28,7 @@ from .sweep_core import build_filenames, next_versioned_path
 from .sweep_image import GridSpec, LiveGrid, resolve_axes, tensor_to_pil
 
 MAX_SESSIONS = 4
+MAX_KEPT = 2  # finished sweeps whose images stay in memory for a rebuild
 
 
 @dataclass
@@ -35,7 +42,9 @@ class LiveSession:
     filenames: list[str] | None  # relative save path of every image, or None when not saving
     preview: LiveGrid | None = None
     images: dict[tuple, Any] = field(default_factory=dict)
+    by_cursor: dict[int, Any] = field(default_factory=dict)  # every image, for a later rebuild
     saved: dict[int, str] = field(default_factory=dict)
+    prefix: str = ""
     seen: set[int] = field(default_factory=set)
 
     @classmethod
@@ -48,6 +57,7 @@ class LiveSession:
             keep_images=keep_images,
             filenames=build_filenames(dims_sorted, records, prefix, True) if save_individuals else None,
             preview=LiveGrid(dims_sorted, spec, axes) if axes else None,
+            prefix=prefix,
         )
 
     @property
@@ -61,6 +71,7 @@ class LiveSession:
             self.preview.add(idx_by_dim, image)
         if self.keep_images:
             self.images[tuple(idx_by_dim[d["index"]] for d in self.dims_sorted)] = image
+        self.by_cursor[cursor] = image
         if self.filenames is not None:
             directory, name = os.path.split(os.path.join(output_dir, self.filenames[cursor]))
             path = next_versioned_path(directory, name)
@@ -98,4 +109,38 @@ def get_session(session_id: str, make) -> LiveSession:
 
 
 def finish_session(session_id: str) -> None:
-    _SESSIONS.pop(session_id, None)
+    """Close a sweep whose last image has arrived, keeping its images for a rebuild."""
+    session = _SESSIONS.pop(session_id, None)
+    if session is None:
+        return
+    _KEPT.pop(session_id, None)
+    _KEPT[session_id] = KeptSweep(
+        images=[session.by_cursor[i] for i in range(len(session.records))],
+        saved=session.saved_paths(),
+        prefix=session.prefix,
+        count=len(session.records),
+    )
+    while len(_KEPT) > MAX_KEPT:
+        _KEPT.popitem(last=False)
+
+
+@dataclass
+class KeptSweep:
+    """The images (in combination order) and saved files of a finished sweep."""
+
+    images: list[Any]
+    saved: list[str | None]
+    prefix: str
+    count: int
+
+
+_KEPT: OrderedDict[str, KeptSweep] = OrderedDict()
+
+
+def kept_sweep(session_id: str) -> KeptSweep | None:
+    return _KEPT.get(session_id)
+
+
+def session_key(session_id: str, node_id: Any) -> str:
+    """Sessions are per Sweep Collect node, so two Collects reading one Plan keep apart."""
+    return f"{session_id}#{node_id}" if node_id not in (None, "") else str(session_id)

@@ -36,7 +36,7 @@ from .sweep_image import (
     tensor_to_pil,
     unpack_combo,
 )
-from .sweep_live import LiveSession, finish_session, get_session
+from .sweep_live import LiveSession, finish_session, get_session, kept_sweep, session_key
 
 TAG = "SweepCollect"
 
@@ -178,6 +178,17 @@ class SweepCollect:
                     },
                 ),
             },
+            # Which live sweep this run belongs to, set by the browser (web/sweepkit_live.js).
+            # It sits here rather than on Sweep Plan so that the Plan and everything after it
+            # keep the same inputs from one sweep to the next, and ComfyUI's cache can reuse
+            # every image when only this node's settings change.
+            # sweep_reuse: rebuild from a finished live sweep's kept images (the browser
+            # sends this when only this node's settings changed; `images` is then a stand-in).
+            "hidden": {
+                "sweep_session": ("STRING", {"default": ""}),
+                "sweep_reuse": ("STRING", {"default": ""}),
+                "unique_id": "UNIQUE_ID",
+            },
         }
 
     @classmethod
@@ -196,18 +207,26 @@ class SweepCollect:
     )
     SEARCH_ALIASES = ["sweep collect", "collect results", "xy plot", "x/y grid", "sweep output"]
 
-    def collect(self, images, combo, **settings):
+    def collect(self, images, combo, sweep_session=None, sweep_reuse=None, unique_id=None, **settings):
         cfg = Settings.from_lists(settings)
         combo = combo[0]
+        node_id = (unique_id or [""])[0]
+        reuse = (sweep_reuse or [""])[0]
+        if reuse:
+            return self.collect_kept(combo, cfg, session_key(reuse, node_id))
         if combo.get("live"):
-            return self.collect_live(flatten_images(images), combo, cfg)
+            # Older browser code put the session on the Plan; it now comes with this node.
+            session_id = (sweep_session or [""])[0] or combo["live"].get("session", "")
+            if not session_id:
+                raise ValueError(f"[{TAG}] live run without a session id. Reload the page and queue the sweep again.")
+            return self.collect_live(flatten_images(images), combo, cfg, session_key(session_id, node_id))
         dims_sorted, images, records = unpack_combo(flatten_images(images), combo, TAG, hint=self.WIRING_HINT)
         output_dir = folder_paths.get_output_directory()
         saved = self.save_each(images, dims_sorted, records, cfg.prefix, output_dir) if cfg.save_individuals else []
         image_map = images_by_combo(records, images, dims_sorted)
         return self.finish(cfg, dims_sorted, records, image_map, saved, len(images))
 
-    def collect_live(self, images, combo, cfg):
+    def collect_live(self, images, combo, cfg, session_id):
         """One image of a sweep the browser is running image by image: show the grid
         so far, and after the last image write the grids and run list."""
         live = combo["live"]
@@ -221,7 +240,7 @@ class SweepCollect:
             )
         output_dir = folder_paths.get_output_directory()
         session = get_session(
-            live["session"],
+            session_id,
             lambda: LiveSession.start(
                 dims_sorted,
                 records,
@@ -233,9 +252,32 @@ class SweepCollect:
         )
         session.add(cursor, images[0], output_dir)
         if session.done:
-            finish_session(live["session"])
+            finish_session(session_id)
             return self.finish(cfg, dims_sorted, records, session.images, session.saved_paths(), len(records))
-        return self.progress(session, live["session"], images[0])
+        return self.progress(session, session_id, images[0])
+
+    def collect_kept(self, combo, cfg, key):
+        """Rebuild grids and run list from a finished live sweep's kept images, after
+        only this node's settings changed. Images already saved under the same
+        prefix aren't saved again."""
+        kept = kept_sweep(key)
+        dims_sorted = sorted([dict(d) for d in combo["dimensions"]], key=lambda d: d["index"])
+        records = list(combo["combo_records"])
+        if kept is None or kept.count != len(records):
+            raise ValueError(
+                f"[{TAG}] the images of the previous sweep are no longer in memory (ComfyUI restarted, or newer "
+                f"sweeps replaced them). Queue the workflow again to run the whole sweep."
+            )
+        output_dir = folder_paths.get_output_directory()
+        if not cfg.save_individuals:
+            saved = []
+        elif kept.prefix == cfg.prefix and all(kept.saved):
+            saved = kept.saved
+        else:
+            saved = self.save_each(kept.images, dims_sorted, records, cfg.prefix, output_dir)
+        image_map = images_by_combo(records, kept.images, dims_sorted)
+        print(f"[{TAG}] rebuilding from the {len(records)} images of the previous sweep (no sampling).")
+        return self.finish(cfg, dims_sorted, records, image_map, saved, len(records))
 
     @staticmethod
     def progress(session, session_id, image):

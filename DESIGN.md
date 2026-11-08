@@ -564,10 +564,13 @@ makes ComfyUI skip that check; `resolve_axis_token` then accepts a unique
 `web/sweepkit_live.js` wraps `api.queuePrompt`. For a prompt whose single Plan has
 `live_grid` on, whose `combo` goes only to Sweep Collect, and whose image count is
 known, it queues the same prompt once per image, each copy telling the Plan which
-combination to hand out (hidden inputs `sweep_cursor` and `sweep_session`; the Plan
-then returns only that entry of every axis list). Sweep Collect receives one image
+combination to hand out (hidden input `sweep_cursor`; the Plan then returns only
+that entry of every axis list) and telling each Sweep Collect which sweep this is
+(hidden input `sweep_session`). The session id is on Collect, not the Plan, so the
+Plan and everything after it get the same inputs from one sweep to the next.
+Sweep Collect receives one image
 per run, keeps a `LiveSession` between runs (`sweep_live.py`, keyed by the session
-id, at most four unfinished sessions), shows the grid so far through its normal
+id and Collect's node id, at most four unfinished sessions), shows the grid so far through its normal
 `ui` images (a temp file rewritten each run), saves each image as it finishes, and
 after the last writes the grids and the run list.
 
@@ -579,6 +582,33 @@ runs everything in one go, and a user can switch `live_grid` off. Wrapping
 own caching re-runs only what a changed combination affects. Costs: a sweep shows
 as several queue entries, and cancelling stops only the current one (the rest can
 be cleared from the queue).
+
+### Rebuilding a live sweep without sampling
+
+A one-go sweep reruns only Sweep Collect when only Collect's settings change:
+ComfyUI's cache has the sampler's results from the previous run. A live sweep
+doesn't get that. Each image was its own run, and the default RAM-pressure cache
+frees results that the current run doesn't use whenever free memory is below its
+"inactive" threshold (by default all of system RAM, so in practice always). So
+image 1 of the next sweep finds nothing of image 1 of the last.
+
+So SweepKit keeps the images itself. When a live sweep finishes, `finish_session`
+moves its images (in combination order) and saved paths into `_KEPT` (the last
+`MAX_KEPT` = 2 sweeps). The browser remembers the last live sweep's `sweepKey`:
+the prompt with every Sweep Collect reduced to its two links. If the next prompt
+has the same key, and `/sweepkit/live_kept` says the server still has the images,
+it queues one run instead of N (`reuseOutput`):
+
+- every node that depends on the Plan is dropped except the Collects, so nothing
+  is sampled;
+- the rest stays unchanged, so ComfyUI marks it used and keeps it cached (loaded
+  models stay loaded) without running it;
+- Collect's required `images` input gets a stand-in 8x8 `EmptyImage`, and its
+  hidden `sweep_reuse` input names the kept sweep.
+
+Collect then rebuilds the grids and run list from the kept images, and saves the
+images again only if `filename_prefix` changed. If the images are gone (a
+restart), the check fails and the whole sweep runs, as before.
 
 ### Sweeping any setting through native lists
 

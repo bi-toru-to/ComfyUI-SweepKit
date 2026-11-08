@@ -5,8 +5,18 @@
  * sweep run in one go can't show its grid until the end. To show images as they
  * finish, the browser can instead queue the workflow once per image, telling
  * Sweep Plan which combination to hand out (its hidden `sweep_cursor` input) and
- * which sweep this is (`sweep_session`). Sweep Collect then keeps the images
- * between runs, shows the grid so far, and writes the final files after the last.
+ * telling Sweep Collect which sweep this is (its hidden `sweep_session`). Collect
+ * keeps the images between runs, shows the grid so far, and writes the final files
+ * after the last. The session id goes to Collect, not the Plan, so that a rerun
+ * with the same axes gives the Plan (and everything after it) the same inputs:
+ * ComfyUI's cache can then reuse what the Plan and the axis chain produced.
+ *
+ * Changing only Sweep Collect's own settings (grid axes, cell size...) shouldn't
+ * sample every image again, but ComfyUI's cache can't help there: each image was
+ * its own run, and by default it frees results of runs other than the latest. So
+ * the browser remembers the last live sweep, and when the next queued prompt
+ * differs from it only in Collect's settings (and the server still holds that
+ * sweep's images), it queues one small run that has Collect rebuild from them.
  *
  * It only happens for a run started in the browser, with the Plan's `live_grid`
  * switch on, a Sweep Collect fed by the Plan, and nothing else reading the Plan's
@@ -41,12 +51,68 @@ export function findLivePlan(output) {
 }
 
 /** The prompt for image number `cursor` of a live sweep: the same prompt, with the
- * Plan told which combination to hand out. Does not change `output`. */
+ * Plan told which combination to hand out and each Sweep Collect reading it told
+ * which sweep this is. Does not change `output`. */
 export function liveOutput(output, planId, cursor, session) {
     const copy = JSON.parse(JSON.stringify(output));
-    Object.assign(copy[planId].inputs, { sweep_cursor: cursor, sweep_session: session });
+    copy[planId].inputs.sweep_cursor = cursor;
+    for (const node of Object.values(copy)) {
+        const combo = node && node.class_type === COLLECT_CLASS && node.inputs && node.inputs.combo;
+        if (isLink(combo) && String(combo[0]) === planId) node.inputs.sweep_session = session;
+    }
     return copy;
 }
+
+const collectsOf = (output, planId) =>
+    Object.entries(output).filter(([, node]) => {
+        const combo = node && node.class_type === COLLECT_CLASS && node.inputs && node.inputs.combo;
+        return isLink(combo) && String(combo[0]) === planId;
+    });
+
+/** What a live sweep is, apart from Sweep Collect's own settings: two prompts with
+ * the same key make the same images. */
+export function sweepKey(output, planId) {
+    const copy = JSON.parse(JSON.stringify(output));
+    for (const [id, node] of collectsOf(copy, planId)) {
+        copy[id] = { class_type: node.class_type, inputs: { images: node.inputs.images, combo: node.inputs.combo } };
+    }
+    return JSON.stringify(copy);
+}
+
+/** A run that has each Sweep Collect rebuild from the kept images of sweep `session`.
+ * Everything that depends on the Plan (the sampler and so on) is left out, so
+ * nothing is sampled; the rest stays in, unchanged, so ComfyUI keeps it cached
+ * (loaded models, for one) without running it. Collect's `images` input is
+ * required, so it gets a tiny stand-in image, which it ignores. */
+export function reuseOutput(output, planId, session) {
+    const dependsOnPlan = new Set([planId]);
+    for (let grew = true; grew; ) {
+        grew = false;
+        for (const [id, node] of Object.entries(output)) {
+            if (dependsOnPlan.has(id)) continue;
+            const inputs = Object.values((node && node.inputs) || {});
+            if (inputs.some((v) => isLink(v) && dependsOnPlan.has(String(v[0])))) {
+                dependsOnPlan.add(id);
+                grew = true;
+            }
+        }
+    }
+    const out = {};
+    for (const [id, node] of Object.entries(output)) {
+        if (id === planId || !dependsOnPlan.has(id)) out[id] = JSON.parse(JSON.stringify(node));
+    }
+    const stub = "sweepkit_stand_in";
+    out[stub] = { class_type: "EmptyImage", inputs: { width: 8, height: 8, batch_size: 1, color: 0 } };
+    for (const [id, node] of collectsOf(output, planId)) {
+        const copy = JSON.parse(JSON.stringify(node));
+        Object.assign(copy.inputs, { images: [stub, 0], sweep_reuse: session });
+        out[id] = copy;
+    }
+    return out;
+}
+
+/** The last live sweep queued from this page: its key and session. */
+export const liveMemory = { last: null };
 
 /** A session id that is different for every sweep. */
 export function newSession(now = Date.now(), random = Math.random) {
@@ -56,11 +122,34 @@ export function newSession(now = Date.now(), random = Math.random) {
 /**
  * Queue a prompt, image by image when it should run live. `queue(number, data,
  * options)` is the real api.queuePrompt; `totalFor(planId)` resolves to how many
- * images the Plan makes (or null when unknown, which runs in one go). Returns
- * what the last queue call returned.
+ * images the Plan makes (or null when unknown, which runs in one go);
+ * `isKept(session, collectIds)` resolves to whether the server still holds that
+ * sweep's images. Returns what the last queue call returned.
  */
-export async function queueLive({ queue, number, data, options, totalFor, session = newSession() }) {
+export async function queueLive({
+    queue,
+    number,
+    data,
+    options,
+    totalFor,
+    isKept = async () => false,
+    memory = liveMemory,
+    session = newSession(),
+}) {
     const planId = findLivePlan(data && data.output);
+    if (planId !== null) {
+        const key = sweepKey(data.output, planId);
+        const last = memory.last;
+        if (last && last.key === key) {
+            let kept = false;
+            try {
+                kept = await isKept(last.session, collectsOf(data.output, planId).map(([id]) => id));
+            } catch (_err) {
+                kept = false;
+            }
+            if (kept) return queue(number, { ...data, output: reuseOutput(data.output, planId, last.session) }, options);
+        }
+    }
     let total = null;
     if (planId !== null) {
         try {
@@ -69,7 +158,11 @@ export async function queueLive({ queue, number, data, options, totalFor, sessio
             total = null;
         }
     }
-    if (planId === null || !Number.isInteger(total) || total < 2) return queue(number, data, options);
+    if (planId === null || !Number.isInteger(total) || total < 2) {
+        memory.last = null;
+        return queue(number, data, options);
+    }
+    memory.last = { key: sweepKey(data.output, planId), session };
     // "Queue at the front" (-1) puts each one before the others, so go backwards to keep the order.
     const order = Array.from({ length: total }, (_, i) => i);
     if (number === -1) order.reverse();

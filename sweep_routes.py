@@ -25,6 +25,7 @@ from .sweep_core import partition_into_groups, sort_groups
 from .sweep_dimension import SweepDimension, preview_values
 from .sweep_dimension_selfcombine import SweepDimensionSelfCombine
 from .sweep_dimension_zip import SweepDimensionZip
+from .sweep_live import kept_sweep, session_key
 
 # Longest `values` text the route will parse; anything longer is refused.
 MAX_VALUES_TEXT = 100_000
@@ -110,6 +111,17 @@ def chain_response(payload):
     }
 
 
+def kept_response(payload):
+    """Whether every listed Sweep Collect still holds the images of live sweep
+    `session`, so the browser can ask for a rebuild instead of a full sweep."""
+    if not isinstance(payload, dict) or not isinstance(payload.get("nodes"), list):
+        return {"kept": False}
+    session = str(payload.get("session") or "")
+    nodes = payload["nodes"]
+    kept = bool(session and nodes) and all(kept_sweep(session_key(session, str(n))) for n in nodes)
+    return {"kept": kept}
+
+
 def register_routes(server):
     """Add the routes to a running PromptServer (a no-op without one)."""
     if server is None:
@@ -129,3 +141,7 @@ def register_routes(server):
     @server.routes.post("/sweepkit/preview_chain")
     async def _preview_chain(request):
         return web.json_response(chain_response(await read_json(request)))
+
+    @server.routes.post("/sweepkit/live_kept")
+    async def _live_kept(request):
+        return web.json_response(kept_response(await read_json(request)))

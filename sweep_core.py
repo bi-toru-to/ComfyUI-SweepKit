@@ -29,6 +29,7 @@ class Dimension(TypedDict, total=False):
     uid: str  # stable identity across branches (SweepDimensionZip dedupe)
     lora_name: str  # lora_strength only: which LoRA file
     model_objs: list[Any]  # model only: MODEL per value (None = base model)
+    models_from_list: bool  # model only: model_objs came from a PyList (values are their file names)
     group: str  # set by SweepDimensionZip: members share one value index
     group_label: str  # "label_a, label_b" display name of a zipped group
     combo_meta: list[dict]  # SweepDimensionSelfCombine: {"arity", "members"} per value
@@ -506,6 +507,33 @@ def find_dim_by_id(dimensions: Sequence[Dimension], dim_id: str) -> Dimension:
     return candidates[0]
 
 
+def model_file_label(model: Any) -> str | None:
+    """The file name (without extension) a MODEL was loaded from, or None.
+    ComfyUI's loaders (Load Checkpoint, Load Diffusion Model) record how to
+    reload a model in `cached_patcher_init`, whose first argument is the
+    file's path; clones (e.g. after a LoRA) keep it."""
+    init = getattr(model, "cached_patcher_init", None)
+    args = init[1] if isinstance(init, tuple) and len(init) > 1 else None
+    path = args[0] if isinstance(args, (tuple, list)) and args else None
+    if not isinstance(path, str) or not path:
+        return None
+    return os.path.splitext(os.path.basename(path))[0] or None
+
+
+def model_labels(models: Sequence[Any], dim_id: str) -> list[str]:
+    """Labels for MODEL objects: each one's file name, or dim_id + position
+    (checkpoint0, checkpoint1...) when the file isn't known. The same file
+    twice gets ' (2)', ' (3)'... so every value stays distinct."""
+    labels: list[str] = []
+    for i, m in enumerate(models):
+        base = model_file_label(m) or f"{dim_id}{i}"
+        label, n = base, 2
+        while label in labels:
+            label, n = f"{base} ({n})", n + 1
+        labels.append(label)
+    return labels
+
+
 def axis_value(d: Dimension, vi: int) -> Any:
     """The value a downstream node receives for axis `d` at value index vi:
     the plain value; for lora_strength the model strength (use
@@ -570,7 +598,7 @@ def extract_values(
                 f"index for axis '{dim_id}' — combo_records looks malformed/from a "
                 f"mismatched SweepCombinationExpander run."
             )
-        val = d["values"][vi]
+        val = d["model_objs"][vi] if d.get("models_from_list") else d["values"][vi]
         if component == "model_strength":
             val = val[0]
         elif component == "clip_strength":

@@ -77,6 +77,17 @@ one**. Files are saved as they finish, and the final grids and run list are
 written after the last image. Your settings, upstream nodes and models are not
 re-run needlessly: ComfyUI reuses what hasn't changed.
 
+**Changing only Sweep Collect's settings doesn't resample.** After a live sweep
+has finished, change Collect's grid axes, cell size, font size or
+`filename_prefix` and queue again: SweepKit queues one short run that rebuilds
+the grids and the run list from the images it kept in memory, without sampling.
+Images already saved under the same prefix aren't saved again; a new prefix
+saves them there. This works for the last two finished sweeps, until ComfyUI
+restarts. Change anything else (a prompt, steps, an axis...) and the sweep runs
+again, as usual. (This is needed because each image of a live sweep is its own
+run, and by default ComfyUI's cache frees results of runs other than the latest.
+A sweep run in one go doesn't need it: ComfyUI already reruns only Collect.)
+
 Turn off `live_grid` on the Sweep Plan to run everything in one go instead (one
 queue entry; the grid appears at the end). Run from a script or the API, a sweep
 always runs in one go. Live running only happens when the Plan's `combo` goes
@@ -442,11 +453,12 @@ Builds one filename per combination, ready to pair against a stock
   one), so folder-per-value would put every single image in its own
   folder instead of grouping anything. It still contributes to the
   filename itself.
-- A dimension whose values aren't plain `str`/`int`/`float`/`bool` (an
-  opaque `MODEL` object from a `values_pylist`-fed `model` dimension, say)
-  falls back to a stable positional tag (`checkpoint0`, `checkpoint1`,
-  ...) rather than trying to stringify the object, which would bake a
-  memory address into the filename and change on every run.
+- A `model` axis fed by a `values_pylist` is labelled with each model's
+  file name (without the extension), which ComfyUI's Load Checkpoint and
+  Load Diffusion Model nodes record on the model. The same file twice gets
+  ` (2)`. A model from a loader that records no file name (some custom
+  loaders) falls back to a stable positional tag (`checkpoint0`,
+  `checkpoint1`, ...) rather than a memory address that changes every run.
 
 ---
 
@@ -626,7 +638,9 @@ native list.
   the grid so far (cells still to come as quiet tiles), saves each image as it
   finishes, and after the last writes the grids and the run list. A sweep you
   cancel part-way keeps its saved files; the grids are written only when every
-  image has finished.
+  image has finished. After it finishes, changing only this node's settings
+  rebuilds from the kept images without sampling (see "What happens at run
+  time" in the Sweep Plan section).
 
 ---
 
@@ -898,12 +912,10 @@ instead of `SweepDimension`'s dynamic MODEL-socket mechanism.
    of real `MODEL` objects, one per combination, ready for **PyList To
    List** straight into `KSampler`'s `model` input (or a `LoraLoader`'s,
    if you're also sweeping LoRAs).
-5. If you're also building filenames for this sweep,
-   `SweepFilenameSequencer` can't put a real `MODEL` object's contents
-   into a filename (there's nothing meaningful to show) — it falls back
-   to a stable `checkpoint0`/`checkpoint1`/`checkpoint2`-style positional
-   tag automatically, so filenames stay unique without needing anything
-   extra from you.
+5. File names, grid labels and the run list name each model after its
+   file (`my_model`, ...), read from the loaded model. Only a model
+   from a loader that doesn't record its file falls back to a positional
+   `checkpoint0`/`checkpoint1` tag.
 
 ---
 
