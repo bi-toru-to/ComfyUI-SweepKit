@@ -70,10 +70,18 @@ To collect the results, right-click your final image node (for example
 VAE Decode) and choose **Sweep: collect results here**. That adds **Sweep
 Collect**, wired to the image and to the Plan's `combo` output.
 
-What happens at run time: ComfyUI runs each connected node once per
-combination, one after another. Because each node finishes all of its runs
-before the next one starts, the grid appears when the run finishes (the
-All-in-One node, which does its own looping, can show it live).
+What happens at run time. Started from the browser, the sweep runs one image at
+a time: SweepKit queues your workflow once per image (the queue panel shows
+them), and **Sweep Collect shows the grid so far under the node after each
+one**. Files are saved as they finish, and the final grids and run list are
+written after the last image. Your settings, upstream nodes and models are not
+re-run needlessly: ComfyUI reuses what hasn't changed.
+
+Turn off `live_grid` on the Sweep Plan to run everything in one go instead (one
+queue entry; the grid appears at the end). Run from a script or the API, a sweep
+always runs in one go. Live running only happens when the Plan's `combo` goes
+only to a Sweep Collect; if you connect it to other nodes too (Extract, Grid,
+Filenames...), the sweep runs in one go.
 
 Notes:
 
@@ -234,8 +242,8 @@ lora × steps × cfg.
 - Any *other* dimensions earlier in either input chain pass through
   unchanged and stay independent (still cross-producted normally against
   everything else) — only the two tail dimensions actually get paired.
-  If both inputs branch off the same upstream chain (e.g. `artist → cfg`
-  and `artist → steps`), the shared `artist` dimension is kept once, not
+  If both inputs branch off the same upstream chain (e.g. `style → cfg`
+  and `style → steps`), the shared `style` dimension is kept once, not
   twice. Connecting the same chain to both inputs is an error.
 
 ---
@@ -292,6 +300,7 @@ images the sweep will make ("12 images: 2 × 3 × 2") once its axes are read.
 | Socket | Type | Meaning |
 |---|---|---|
 | `dimensions` | SWEEP_DIMS | The end of your axis chain. |
+| `live_grid` | BOOLEAN (default on) | Run from the browser one image at a time, so Sweep Collect can show the grid as images finish. Off = run everything in one go. Scripts and the API always run in one go. |
 
 **Outputs**
 
@@ -553,7 +562,7 @@ and what this actually looks like.
 **Notes**
 
 - Scoped to exactly one self-combine axis's own structure. Any *other*
-  independent dimension in the graph (sweeping `cfg` alongside artist
+  independent dimension in the graph (sweeping `cfg` alongside style
   combos, say) is handled the same way `SweepGridConstructor` handles
   leftover axes — as a page split, producing one matrix per combination
   of the other axes, never crammed into the same matrix.
@@ -612,6 +621,11 @@ native list.
   in a spreadsheet, or load it in a script.
 - If the number of images doesn't match the Plan's `combo_count`, the node
   stops with a message saying what to connect.
+- **Live runs:** when the Plan runs live, this node runs once per image. It shows
+  the grid so far (cells still to come as quiet tiles), saves each image as it
+  finishes, and after the last writes the grids and the run list. A sweep you
+  cancel part-way keeps its saved files; the grids are written only when every
+  image has finished.
 
 ---
 
@@ -764,15 +778,15 @@ Sweep 5 paired `(model_strength, clip_strength)` values through a real
    (the paired strengths count as one axis, cfg is the other), plus the named
    files and the run list.
 
-### 4. Artist-style combinations + UpSet matrix
+### 4. Style combinations + UpSet matrix
 
 Try every single style, every pair, and every triple from a list of 4
-artist styles (14 combinations total), see the result as an UpSet matrix.
+styles (14 combinations total), see the result as an UpSet matrix.
 
 1. Add a **CLIPTextEncode**, `KSampler`, `VAEDecode` base workflow as in
    example 2 (positive text will come from a substitution step instead of
    being typed directly into `CLIPTextEncode`).
-2. Add an **SweepDimension**: `dim_type=text`, `dim_id=artist_style`,
+2. Add an **SweepDimension**: `dim_type=text`, `dim_id=style`,
    `values` = one style per line, e.g.:
    ```
    cyberpunk
@@ -786,24 +800,24 @@ artist styles (14 combinations total), see the result as an UpSet matrix.
 4. Add an **SweepCombinationExpander**, connect the self-combine node's
    `dimensions` output into it. `combo_count` should read 14 (4 + 6 + 4).
 5. Add an **SweepDimensionExtract**. Connect `combo` from the expander.
-   Set `dim_id` to `artist_style (combinations)` — note the suffix
+   Set `dim_id` to `style (combinations)` — note the suffix
    self-combine added to the original `dim_id`.
 6. Add ComfyUI's core **Replace Text** node (`StringReplace`). Set
    `string` to a template with a marker, e.g.
-   `"masterpiece, a lighthouse at sunset, __artist__ style"`, and `find`
-   to `__artist__`. Connect step 5's `values` through a **PyList To List**
+   `"masterpiece, a lighthouse at sunset, __style__"`, and `find`
+   to `__style__`. Connect step 5's `values` through a **PyList To List**
    node into its `replace` input; it then runs once per combination.
 7. Connect that node's output into `CLIPTextEncode`'s `text` input.
 8. Wire `KSampler` → `VAEDecode` → **List To PyList** as in example 2.
 9. Add an **SweepUpsetConstructor**. Connect the step-8 `List To PyList`
    output to `images`, the expander's `combo` output to `combo`, and set
-   `dim_id` to `artist_style (combinations)` (same value as step 5). Leave
+   `dim_id` to `style (combinations)` (same value as step 5). Leave
    `cell_size`/`cell_mode`/`title_dim`/`max_columns_per_page` on their
    defaults.
 10. Queue the prompt. You'll get one matrix image: 14 columns (grouped
     into "Arity 1 (4)" / "Arity 2 (6)" / "Arity 3 (4)" bands), each
     column's real generated image as its swatch, and a dot-matrix below
-    showing exactly which artist styles that column combines, with a
+    showing exactly which styles that column combines, with a
     guide line per row so a wide matrix stays easy to trace by eye.
 11. (Optional) Add an **SweepFilenameSequencer** + **SweepGridConstructor**
     the same way as example 2/3 if you also want the 14 images saved
@@ -901,17 +915,20 @@ final image goes into Collect, and that `batch_size` is 1.
 reach the node that makes the image (directly or through other nodes); a
 connection that ends in a node nothing depends on is never run.
 
-**The grid only appears at the end of the run** — Expected for the Plan +
-Collect path: ComfyUI finishes each node's runs before the next node starts.
-Sweep All-in-One shows the grid as it fills.
+**The grid only appears at the end of the run** — Check that `live_grid` is on
+for the Sweep Plan, that you started the run from the browser (scripts and the
+API run in one go), and that the Plan's `combo` goes only to Sweep Collect
+(anything else reading it makes the sweep run in one go). Then the grid shows
+under Sweep Collect after each image. Sweep All-in-One shows its grid on
+the node as it fills.
 
-**"no dimension with dim_id 'X' — available dim_ids: ..."** — An
+**"no axis with dim_id 'X' — available dim_ids: ..."** — An
 `SweepDimensionExtract` or `SweepUpsetConstructor`'s `dim_id` doesn't
-exactly match any dimension's `dim_id`. Check for typos, and remember
+exactly match any axis's `dim_id`. Check for typos, and remember
 `SweepDimensionSelfCombine` appends `" (mode)"` to the `dim_id` it
 consumes.
 
-**"'X' matches N dimensions — dim_ids must be unique..."** — Two or more
+**"'X' matches N axes — dim_ids must be unique..."** — Two or more
 `SweepDimension` nodes have the same `dim_id`. Give them distinct values.
 
 **"images has N entries but combo has M combo_records..."** — Something

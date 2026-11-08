@@ -22,7 +22,7 @@
       "outputs": [],
       "properties": {},
       "widgets_values": [
-        "## Style combinations + UpSet matrix\n\nEvery single style, pair and triple of 4 styles (**14 combinations**), each rendered once and shown as an UpSet matrix: one column per combination, dots marking which styles it uses.\n\nEdit the style list and the prompt template (`__artist__` is replaced). Needs **ComfyUI-List-Utils**.\n\nSee NODE_GUIDE.md, workflow 4."
+        "## Style combinations + UpSet matrix\n\nEvery single style, pair and triple of 4 styles (**14 combinations**), each rendered once and shown as an UpSet matrix: one column per combination, dots marking which styles it uses.\n\nEdit the style list and the prompt template (`__style__` is replaced). Needs **ComfyUI-List-Utils**.\n\nSee NODE_GUIDE.md, workflow 4."
       ],
       "color": "#432",
       "bgcolor": "#653"
@@ -437,7 +437,7 @@
       },
       "widgets_values": [
         "text",
-        "artist_style",
+        "style",
         "cyberpunk\nnoir\npastel\nvintage",
         ""
       ]
@@ -624,7 +624,7 @@
         "Node name for S&R": "SweepDimensionExtract"
       },
       "widgets_values": [
-        "artist_style (combinations)",
+        "style (combinations)",
         "value"
       ]
     },
@@ -723,8 +723,8 @@
         "Node name for S&R": "StringReplace"
       },
       "widgets_values": [
-        "masterpiece, best quality, a lighthouse on a cliff at sunset, __artist__ style",
-        "__artist__",
+        "masterpiece, best quality, a lighthouse on a cliff at sunset, __style__",
+        "__style__",
         ""
       ]
     },
@@ -922,7 +922,7 @@
         "Node name for S&R": "SweepUpsetConstructor"
       },
       "widgets_values": [
-        "artist_style (combinations)",
+        "style (combinations)",
         "SweepKit_styles",
         120,
         "fit",

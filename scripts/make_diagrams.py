@@ -128,7 +128,13 @@ def any_setting() -> Svg:
     s.box(420, 350, 190, 54, "result", ["run list (CSV)", "values for every image"], size=14)
     for tx in (725, 925, 515):
         s.arrow([(900, 280), (900, 312), (tx, 312), (tx, 350)])
-    s.text(520, 445, "ComfyUI runs the connected nodes once per combination, one image at a time.", 13, MUTED)
+    s.text(
+        520,
+        445,
+        "ComfyUI runs the connected nodes once per combination, one image at a time; the grid fills in as they finish.",
+        13,
+        MUTED,
+    )
     return s
 
 

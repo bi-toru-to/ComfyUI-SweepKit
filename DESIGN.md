@@ -541,12 +541,32 @@ resolved axes (`GridAxes`) as the saved grids, so the preview and the result
 can't disagree. A preview failure turns the preview off and the sweep carries
 on.
 
-It is only possible for a node that does its own looping. In the Plan + Collect
-path ComfyUI's executor runs each node over *all* list items before the next
-node starts, so the decode and collect steps can't see an image until the
-sampler has finished every run. Real-time there would need the browser to queue
-one run per cell (what quick XY-plot nodes do), which gives up running from
-scripts and the API. SweepKit keeps the server-side loop.
+That preview is for a node that does its own looping. In the Plan + Collect path
+ComfyUI's executor runs each node over *all* list items before the next node
+starts, so Collect can't see an image until the sampler has finished every run.
+So the Plan path gets its live grid a different way (next section): the browser
+queues the workflow once per image.
+
+### A live grid on Plan + Collect: one queue entry per image
+
+`web/sweepkit_live.js` wraps `api.queuePrompt`. For a prompt whose single Plan has
+`live_grid` on, whose `combo` goes only to Sweep Collect, and whose image count is
+known, it queues the same prompt once per image, each copy telling the Plan which
+combination to hand out (hidden inputs `sweep_cursor` and `sweep_session`; the Plan
+then returns only that entry of every axis list). Sweep Collect receives one image
+per run, keeps a `LiveSession` between runs (`sweep_live.py`, keyed by the session
+id, at most four unfinished sessions), shows the grid so far through its normal
+`ui` images (a temp file rewritten each run), saves each image as it finishes, and
+after the last writes the grids and the run list.
+
+Why this shape: it is the same trick quick XY-plot nodes use, but kept optional.
+The cursor is just an input, so a prompt posted to the API without it still
+runs everything in one go, and a user can switch `live_grid` off. Wrapping
+`api.queuePrompt` (the call that sends an already-built prompt) rather than
+`app.queuePrompt` means nothing is patched before the prompt exists, and ComfyUI's
+own caching re-runs only what a changed combination affects. Costs: a sweep shows
+as several queue entries, and cancelling stops only the current one (the rest can
+be cleared from the queue).
 
 ### Sweeping any setting through native lists
 
@@ -560,7 +580,7 @@ frontend's queueing:
   one list per axis, each expanded to the full product, gives every combination
   exactly once.
 - A node with `INPUT_IS_LIST` receives the whole set of images at the end
-  (`SweepCollect`), no List-Utils needed.
+  (`SweepCollect`), no List-Utils needed. (In a live run it receives one.)
 
 So `SweepCombinationExpander` (the Plan) keeps its three original outputs in
 slots 0-2 (saved workflows link by position) and gains eight list outputs

@@ -1,13 +1,17 @@
 import { api } from "../../scripts/api.js";
 import { app } from "../../scripts/app.js";
-import { configureApi, startPolling, sweepSync } from "./sweepkit_core.js";
+import { configureApi, postJson, startPolling, sweepSync } from "./sweepkit_core.js";
+import { queueLive } from "./sweepkit_live.js";
 import { applyLook } from "./sweepkit_look.js";
 import { currentSelection, openPicker, storedOptions } from "./sweepkit_pick.js";
 import {
     PLAN_CLASS,
+    chainSpec,
+    chainView,
     collectHere,
     hasImageOutput,
     planSnapshot,
+    refreshChain,
     refreshRuns,
     sweepCandidates,
     sweepWidget,
@@ -74,6 +78,7 @@ app.registerExtension({
             startPolling(node, {
                 sync: (n) => {
                     if (!n.graph) return;
+                    refreshChain(n.graph, n);
                     syncPlanOutputs(n.graph, n);
                     refreshRuns(n.graph, n);
                 },
@@ -147,7 +152,11 @@ app.registerExtension({
         const proto = nodeType.prototype;
         const watch = (node) =>
             startPolling(node, {
-                sync: (n) => n.graph && refreshRuns(n.graph, n),
+                sync: (n) => {
+                    if (!n.graph) return;
+                    refreshChain(n.graph, n);
+                    refreshRuns(n.graph, n);
+                },
                 snapshotFn: (n) => (n.graph ? planSnapshot(n.graph, n) : ""),
             });
         chain(proto, "onNodeCreated", watch);
@@ -157,3 +166,24 @@ app.registerExtension({
         });
     },
 });
+
+/** How many images a Plan will make, for running a sweep live (null when unknown). */
+async function plannedTotal(planId) {
+    // Node ids are numbers in saved workflows, but can be text (for example after loading an API-format file).
+    const node = app.graph && (app.graph.getNodeById(Number(planId)) || app.graph.getNodeById(planId));
+    if (!node) return null;
+    const view = chainView(node.graph || app.graph, node);
+    if (view.known && Number.isInteger(view.total)) return view.total;
+    const spec = chainSpec(node.graph || app.graph, node);
+    const info = spec ? await postJson("/sweepkit/preview_chain", spec) : null;
+    return info && info.ok ? info.total : null;
+}
+
+/** Live grid: a sweep started in the browser is queued one image at a time (see
+ * sweepkit_live.js), so Sweep Collect can show the grid as images finish. */
+if (!api.__sweepkitLive) {
+    api.__sweepkitLive = true;
+    const queuePrompt = api.queuePrompt.bind(api);
+    api.queuePrompt = (number, data, options) =>
+        queueLive({ queue: queuePrompt, number, data, options, totalFor: plannedTotal });
+}

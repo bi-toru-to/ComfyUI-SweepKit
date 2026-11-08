@@ -22,6 +22,7 @@ PKG_DIR = os.path.dirname(TESTS_DIR)
 PY_SUITES = ["logic_test.py", "run_integration.py", "test_modular_pipeline.py"]
 JS_SUITES = [
     "js_hidelora_test.mjs",
+    "js_live_test.mjs",
     "js_look_test.mjs",
     "js_pick_test.mjs",
     "js_polling_test.mjs",

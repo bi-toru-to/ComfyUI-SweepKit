@@ -125,8 +125,8 @@ class SweepDimensionZip:
 def merge_passthrough(group_a, group_b, passthrough):
     """Upstream dimensions of both inputs, each kept once.
 
-    Both inputs often branch off one shared chain (artist -> cfg and
-    artist -> steps); matching by uid stops the shared dimension being
+    Both inputs often branch off one shared chain (style -> cfg and
+    style -> steps); matching by uid stops the shared dimension being
     cross-producted with itself."""
     seen = {d["uid"] for d in group_a if d.get("uid")}
     uids_b = {d["uid"] for d in group_b if d.get("uid")}

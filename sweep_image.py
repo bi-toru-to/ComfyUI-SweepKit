@@ -35,10 +35,12 @@ from .sweep_core import (
 from .sweep_draw import (
     check_canvas_size,
     find_font,
+    MIN_TITLE_WIDTH,
     font_size_for_char_width,
     pad_image,
     padded_batch_size,
     wrap_text_to_width,
+    wrap_title,
 )
 
 BACKGROUND = (16, 16, 16)
@@ -179,6 +181,8 @@ class GridLayout:
     y_left_x: int
     title_h: int
     title_gap: int
+    title_lines: list[str]
+    title_line_h: int
     width: int
     height: int
 
@@ -224,11 +228,15 @@ def layout_grid(
     wrapped_y = [wrap_text_to_width(lab, font_y, max(10, label_w - 2 * spacing), scratch) for lab in y_labels]
 
     pad = max(20, round(base_px * 0.6))
-    title_h = line_height(scratch, font_title) + pad
     cols, rows = max(len(x_labels), 1), max(len(y_labels), 1)
-    # The canvas is at least as wide as the title, so a long combined title
-    # on a narrow grid isn't clipped.
-    title_w = scratch.textbbox((0, 0), str(title), font=font_title)[2] + 40
+    content_w = cols * cell_w + label_w + pad
+    # The title wraps (a whole prompt can be long) within the grid's own width,
+    # so it never stretches the image; a very narrow grid gets a minimum.
+    title_max_w = max(content_w, MIN_TITLE_WIDTH) - 40
+    title_lines = wrap_title(title, font_title, title_max_w, scratch)
+    title_line_h = line_height(scratch, font_title) + 4
+    title_h = len(title_lines) * title_line_h + pad
+    title_w = max((scratch.textbbox((0, 0), line, font=font_title)[2] for line in title_lines), default=0) + 40
     return GridLayout(
         cols=cols,
         rows=rows,
@@ -247,19 +255,19 @@ def layout_grid(
         y_left_x=y_left_x,
         title_h=title_h,
         title_gap=spacing,
-        width=max(cols * cell_w + label_w + pad, title_w),
+        title_lines=title_lines,
+        title_line_h=title_line_h,
+        width=max(content_w, title_w),
         height=rows * cell_h + title_h + spacing + label_h + pad,
     )
 
 
-def _draw_grid_labels(draw: ImageDraw.ImageDraw, lay: GridLayout, title: str) -> None:
-    draw.text(
-        (lay.width // 2, max(8, round(lay.base_px * 0.2))),
-        str(title),
-        fill=TITLE_COLOR,
-        font=lay.font_title,
-        anchor="mt",
-    )
+def _draw_grid_labels(draw: ImageDraw.ImageDraw, lay: GridLayout) -> None:
+    top = max(8, round(lay.base_px * 0.2))
+    for n, line in enumerate(lay.title_lines):
+        draw.text(
+            (lay.width // 2, top + n * lay.title_line_h), line, fill=TITLE_COLOR, font=lay.font_title, anchor="mt"
+        )
     for i, lines in enumerate(lay.wrapped_x):
         x = lay.label_w + i * lay.cell_w + lay.cell_w // 2
         for li, line in enumerate(lines):
@@ -297,7 +305,7 @@ def make_grid(
     check_canvas_size(lay.width, lay.height, node_tag)
     grid = Image.new("RGB", (lay.width, lay.height), BACKGROUND)
     draw = ImageDraw.Draw(grid)
-    _draw_grid_labels(draw, lay, title)
+    _draw_grid_labels(draw, lay)
     for idx in range(lay.rows * lay.cols):
         r, c = divmod(idx, lay.cols)
         x, y = lay.label_w + c * lay.cell_w, lay.grid_top + r * lay.cell_h
@@ -367,11 +375,12 @@ def cell_key(dims_sorted: Sequence[Dimension], fixed: dict[int, int], *axes: tup
 
 
 def grid_title(grouping: Sequence[Dimension], shown: Sequence[str], caption: str, fallback: str) -> str:
-    """'label: value | ...' for the grouping axes, plus the X/Y caption."""
+    """'label: value | ...' for the grouping axes, then the X/Y caption on a
+    line of its own (so a long prompt in the first line can't push it out)."""
     bits = [f"{d.get('group_label', d['dim_id'])}: {v}" for d, v in zip(grouping, shown, strict=True)]
     if not bits:
         return caption or fallback
-    return f"{' | '.join(bits)}   •   {caption}" if caption else " | ".join(bits)
+    return f"{' | '.join(bits)}\n{caption}" if caption else " | ".join(bits)
 
 
 @dataclass

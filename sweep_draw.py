@@ -26,9 +26,17 @@ def truncate_text_to_width(text: Any, font: Any, max_width: int, draw: Any) -> s
         return ""
     if draw.textbbox((0, 0), text, font=font)[2] <= max_width:
         return text
-    while text and draw.textbbox((0, 0), text + "…", font=font)[2] > max_width:
-        text = text[:-1]
-    return (text + "…") if text else "…"
+    # Binary search for the longest prefix that fits with the ellipsis: the width
+    # only grows with length, and trimming one character at a time took 15 s on a
+    # 3,000-character word.
+    lo, hi = 0, len(text)
+    while lo < hi:
+        mid = (lo + hi + 1) // 2
+        if draw.textbbox((0, 0), text[:mid] + "…", font=font)[2] <= max_width:
+            lo = mid
+        else:
+            hi = mid - 1
+    return text[:lo] + "…"
 
 
 def wrap_text_to_width(text: Any, font: Any, max_width: int, draw: Any, max_lines: int = 4) -> list[str]:
@@ -50,7 +58,27 @@ def wrap_text_to_width(text: Any, font: Any, max_width: int, draw: Any, max_line
         lines.append(cur)
     if len(lines) > max_lines:
         lines = lines[:max_lines]
-        lines[-1] = truncate_text_to_width(lines[-1], font, max_width, draw)
+        # Always mark the cut, even when the last kept line itself fits.
+        lines[-1] = truncate_text_to_width(lines[-1] + "…", font, max_width, draw)
+    return lines
+
+
+# A grid or matrix title (often a whole prompt) wraps onto at most this many
+# lines, and never makes the image wider than its own content (or this width,
+# for a very narrow grid).
+TITLE_MAX_LINES = 3
+MIN_TITLE_WIDTH = 480
+
+
+def wrap_title(text: Any, font: Any, max_width: int, draw: Any, max_lines: int = TITLE_MAX_LINES) -> list[str]:
+    """Title lines that each fit max_width. The first paragraph (before a
+    newline) gets up to max_lines; later paragraphs, such as the short
+    'X: seed   Y: cfg' caption, get one line each. Overlong lines end in an
+    ellipsis, so a 2,000-character prompt can't stretch the image."""
+    lines: list[str] = []
+    for n, paragraph in enumerate(str(text).split("\n")):
+        for line in wrap_text_to_width(paragraph, font, max_width, draw, max_lines=max_lines if n == 0 else 1):
+            lines.append(truncate_text_to_width(line, font, max_width, draw))
     return lines
 
 

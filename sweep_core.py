@@ -506,6 +506,13 @@ def axis_output_lists(
     return lists + [[] for _ in range(count - len(lists))]
 
 
+def live_slice(lists: Sequence[Sequence[Any]], cursor: int) -> list[list[Any]]:
+    """Only combination number `cursor` of every axis list (empty lists stay
+    empty): what Sweep Plan hands out while the browser runs a live sweep one
+    image at a time."""
+    return [[values[cursor]] if values else [] for values in lists]
+
+
 def extract_values(
     dimensions: Sequence[Dimension], combo_records: Sequence[ComboRecord], dim_id: str, component: str = "value"
 ) -> list[Any]:
@@ -554,7 +561,7 @@ def self_combine(
 ) -> tuple[list[str], list[dict]]:
     """itertools.combinations/permutations of one dimension's OWN values,
     across every size from min_size to max_size inclusive (not just one
-    fixed r) — e.g. 4 artist styles at sizes 1-3 gives every single,
+    fixed r) — e.g. 4 styles at sizes 1-3 gives every single,
     every pair, and every triple, 14 derived values total. Returns
     (joined_values, combo_meta) where combo_meta[i] = {"arity": r,
     "members": [index,...]} — the indices are into the ORIGINAL `values`

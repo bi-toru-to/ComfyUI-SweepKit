@@ -18,7 +18,7 @@ spreadsheet.
 | How strong my **LoRA** should be | LoRA strength 0.2 … 1.0 (model and clip paired) | a row per strength |
 | Which **sampler or checkpoint** suits a prompt | tick them from the list | one image each, same seed |
 | How **prompt wording** changes the result | several prompt versions | one grid per prompt |
-| Which **artist names work together** | every pair and triple of a list | an UpSet-style matrix |
+| Which **styles work together** | every pair and triple of a list | an UpSet-style matrix |
 
 ## How it works
 
@@ -43,7 +43,7 @@ on the Plan.
 |---|---|---|
 | Good for | the fastest start; a standard text-to-image sweep | your existing workflow, any nodes |
 | Nodes to add | Axis nodes + 1 | Axis nodes + 2 (the right-click menu adds them) |
-| Live grid | yes, the grid fills in on the node while it runs | grid appears when the run finishes |
+| Live grid | yes, on the node while it runs | yes, on Sweep Collect as each image finishes (run from the browser) |
 | Extra node packs | none | none |
 | Example | `1_quickstart_all_in_one.json` | `2_sweep_any_setting.json` |
 
@@ -89,7 +89,7 @@ right-click your VAE Decode and choose **Sweep: collect results here**.
 - **Pair settings:** `Sweep Pair Axes` moves two axes together (a LoRA's model strength with its clip
   strength). Example: `3_pair_lora_strengths.json`.
 - **Try subsets of a list:** `Sweep Subsets` makes every single, pair, triple… of a list; `Sweep UpSet
-  Matrix` shows which combinations work. Example: `4_artist_combinations_upset.json`.
+  Matrix` shows which combinations work. Example: `4_style_combinations_upset.json`.
 - **Skip repeats:** `Sweep Skip Repeats` + `Sweep Gather` sample each distinct setting once.
   Example: `5_dedupe_gather.json`.
 - **Pick from a list:** for a choice setting (sampler, LoRA, checkpoint), right-click the axis and choose
@@ -117,7 +117,7 @@ comparison below is based on that node's public documentation.
 | Settings varied | two (X and Y) | any number; extra axes become extra grids |
 | Pairing, subsets, skipping repeats | no | yes |
 | How the run is driven | the browser tab queues each cell | the server does it, so scripts, the API and unattended runs work |
-| Live grid | yes, cell by cell | All-in-One: yes. Plan + Collect: when the run finishes |
+| Live grid | yes, cell by cell | yes, image by image, in the browser; from a script it runs in one go |
 | Files | the grid, optionally each cell | every image named by its values, the grids, and a CSV run list |
 | The sweep in your workflow | inside one node | visible as axis nodes you can read, copy and share |
 

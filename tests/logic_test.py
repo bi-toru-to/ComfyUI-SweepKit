@@ -110,7 +110,7 @@ def test_grid_axes_leftover():
 
 
 def test_safe_component():
-    assert core.safe_component("artist: alpha/beta") == "artist_ alpha_beta"
+    assert core.safe_component("style: alpha/beta") == "style_ alpha_beta"
     assert core.safe_component("") == "_"
     print("OK test_safe_component")
 
@@ -450,7 +450,7 @@ def test_build_filenames_blank_prefix_defaults_and_self_combine_no_folder():
         {
             "index": 1,
             "type": "text",
-            "dim_id": "artist (combinations)",
+            "dim_id": "style (combinations)",
             "values": ["a", "b", "a, b"],
             "combo_meta": [{"arity": 1, "members": [0]}, {"arity": 1, "members": [1]}, {"arity": 2, "members": [0, 1]}],
         },
@@ -659,6 +659,39 @@ def test_run_sweep_api_script():
     print("OK test_run_sweep_api_script (overrides, polling, summary)")
 
 
+def test_title_wrapping_and_truncation():
+    """Long titles wrap to a few lines that fit; truncating a huge word is fast and correct."""
+    import time
+
+    from PIL import Image, ImageDraw
+
+    scratch = ImageDraw.Draw(Image.new("RGB", (1, 1)))
+    font = draw.find_font(24)
+    width = 400
+
+    def fits(line):
+        return scratch.textbbox((0, 0), line, font=font)[2] <= width
+
+    long_prompt = "a lighthouse on a cliff at sunset, dramatic sky, " * 40
+    lines = draw.wrap_title("prompt: " + long_prompt, font, width, scratch)
+    assert len(lines) == draw.TITLE_MAX_LINES and all(fits(line) for line in lines), lines
+    assert lines[-1].endswith("…"), "a cut prompt ends in an ellipsis"
+    # The caption after a newline gets a line of its own, whatever the prompt length.
+    lines = draw.wrap_title("prompt: " + long_prompt + "\nX: seed   Y: cfg", font, width, scratch)
+    assert lines[-1].startswith("X: seed") and lines[-1].endswith("Y: cfg"), lines  # (runs of spaces collapse)
+    assert len(lines) == draw.TITLE_MAX_LINES + 1, lines
+    # Short text is untouched.
+    assert draw.wrap_title("a cat", font, width, scratch) == ["a cat"]
+
+    start = time.monotonic()
+    cut = draw.truncate_text_to_width("x" * 3000, font, width, scratch)
+    assert time.monotonic() - start < 2.0, "truncating a huge word must not be quadratic"
+    assert fits(cut) and cut.endswith("…") and len(cut) > 5
+    assert draw.truncate_text_to_width("short", font, width, scratch) == "short"
+    assert draw.truncate_text_to_width("anything", font, 1, scratch) == "…"
+    print("OK test_title_wrapping_and_truncation")
+
+
 test_parse_text_list()
 test_parse_number_range()
 test_cost_sort_order()
@@ -696,5 +729,6 @@ test_gather_rejects_bool_indices()
 test_next_versioned_path_does_not_swallow_listing_errors()
 test_canvas_and_batch_helpers()
 test_run_sweep_api_script()
+test_title_wrapping_and_truncation()
 
 print("\nALL LOGIC TESTS PASSED")

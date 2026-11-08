@@ -62,12 +62,12 @@ def build_chain(*dim_kwargs_list):
 # ------------------------------------------------------------------
 print("\n--- Scenario A: plain cartesian through Expander -> Extract -> fake-sample -> Filenames -> Grid ---")
 dims = build_chain(
-    dict(dim_type="text", values="artist_a\nartist_b", dim_id="artist"),
+    dict(dim_type="text", values="style_a\nstyle_b", dim_id="style"),
     dict(dim_type="seed", values="1,2,3"),
 )
 combo, combo_count, dim_map, *_ = ExpanderNode.build(dimensions=dims)
 assert combo_count == 6, combo_count
-assert "dim1: 'artist'" in dim_map and "dim2: 'seed'" in dim_map, dim_map
+assert "dim1: 'style'" in dim_map and "dim2: 'seed'" in dim_map, dim_map
 
 (seeds, *_) = ExtractNode.build(combo=combo, dim_id="seed", component="value")
 assert seeds == [1, 2, 3, 1, 2, 3], seeds
@@ -78,7 +78,7 @@ images = [fake_image(tint=0.1 * (i + 1)) for i in range(combo_count)]
 
 (filenames,) = FilenameNode.build(combo=combo, filename_prefix="TestModular", include_combo_index=True)
 assert len(filenames) == len(set(filenames)) == 6, filenames
-assert filenames[0].startswith("TestModular/artist_a/0000_"), filenames[0]
+assert filenames[0].startswith("TestModular/style_a/0000_"), filenames[0]
 
 grids, summary = GridNode.build(
     images=images,
@@ -91,10 +91,10 @@ grids, summary = GridNode.build(
     grid_y_dim="auto",
     grid_title_dim="auto",
 )
-# 2 independent axes (artist x seed) -> X+Y claim both, title gets nothing
-# left -> ONE combined grid, not one per artist.
+# 2 independent axes (style x seed) -> X+Y claim both, title gets nothing
+# left -> ONE combined grid, not one per style.
 assert grids.arr.shape[0] == 1, f"expected one combined X/Y grid for a 2-axis sweep, got {grids.arr.shape[0]}"
-assert "dim1='artist'" in summary and "dim2='seed'" in summary, summary
+assert "dim1='style'" in summary and "dim2='seed'" in summary, summary
 print("PASS scenario A -", summary)
 
 # ------------------------------------------------------------------
@@ -209,14 +209,14 @@ except ValueError as e:
 
 # ------------------------------------------------------------------
 print("\n--- Scenario E: self-combine + UpSet matrix, real images as swatches ---")
-(artist_dim,) = DimNode.build(
+(style_dim,) = DimNode.build(
     dim_type="text",
-    dim_id="artist_style",
+    dim_id="style",
     values="cyberpunk\nnoir\npastel\nvintage",
     lora_name="",
     prev_dimensions=None,
 )
-(combined_dim,) = SelfCombineNode.build(dimensions=artist_dim, mode="combinations", min_size=1, max_size=2, joiner=", ")
+(combined_dim,) = SelfCombineNode.build(dimensions=style_dim, mode="combinations", min_size=1, max_size=2, joiner=", ")
 assert len(combined_dim) == 1
 target = combined_dim[0]
 assert len(target["values"]) == 10, target["values"]  # 4 singles + 6 pairs
@@ -279,15 +279,15 @@ except ValueError as e:
 
 # ------------------------------------------------------------------
 print("\n--- Scenario G2: UpsetConstructor's title_dim actually reorders which axis leads the title ---")
-(artist_dim2,) = DimNode.build(
+(style_dim2,) = DimNode.build(
     dim_type="text",
-    dim_id="artist_style",
+    dim_id="style",
     values="cyberpunk\nnoir\npastel\nvintage",
     lora_name="",
     prev_dimensions=None,
 )
 (combined_dim2,) = SelfCombineNode.build(
-    dimensions=artist_dim2, mode="combinations", min_size=1, max_size=2, joiner=", "
+    dimensions=style_dim2, mode="combinations", min_size=1, max_size=2, joiner=", "
 )
 (with_cfg,) = DimNode.build(dim_type="cfg", dim_id="cfg", values="4.0,7.0", lora_name="", prev_dimensions=combined_dim2)
 combo4, combo_count4, _, *_ = ExpanderNode.build(dimensions=with_cfg)
@@ -634,7 +634,7 @@ def files_under(*parts):
 
 print("\n--- Scenario P: grid and UpSet nodes report progress and stop when interrupted ---")
 dims_p = build_chain(
-    dict(dim_type="text", dim_id="artist", values="a\nb\nc"),
+    dict(dim_type="text", dim_id="style", values="a\nb\nc"),
     dict(dim_type="seed", values="1,2"),
     dict(dim_type="cfg", values="4,7"),
 )
@@ -835,6 +835,111 @@ try:
 except ValueError as exc:
     assert "5 entries" in str(exc) and "12 combo_records" in str(exc) and "axis outputs" in str(exc), exc
 print("PASS scenario U - Collect saves 12 named files + grids, never overwrites, honours switches, explains mismatches")
+
+
+print("\n--- Scenario V: a live sweep, one image per Collect run ---")
+import csv  # noqa: E402,F811
+import glob  # noqa: E402
+
+from sweepkit import sweep_live  # noqa: E402
+
+dims_v = build_chain(
+    dict(dim_type="text", dim_id="subject", values="cat\ndog"),
+    dict(dim_type="cfg", dim_id="cfg", values="4, 7"),
+    dict(dim_type="seed", dim_id="seed", values="1-2"),
+)
+SESSION = "live-test-1"
+
+
+def plan_run(cursor, session=SESSION):
+    return ExpanderNode.build(dimensions=dims_v, live_grid=True, sweep_cursor=cursor, sweep_session=session)
+
+
+# The Plan hands out only the cursor-th combination, and says which one it is.
+combo_all, n_all, _, *lists_all = ExpanderNode.build(dimensions=dims_v)
+assert n_all == 8 and all(len(lst) == 8 for lst in lists_all[:3])
+for cursor in (0, 5, 7):
+    combo_c, n_c, _, *lists_c = plan_run(cursor)
+    assert n_c == 8 and combo_c["live"] == {"cursor": cursor, "session": SESSION}
+    assert [lst[0] for lst in lists_c[:3]] == [lst[cursor] for lst in lists_all[:3]], cursor
+    assert all(len(lst) == 1 for lst in lists_c[:3]) and lists_c[3:] == [[]] * 5
+try:
+    plan_run(8)
+    raise AssertionError("cursor past the end must be refused")
+except ValueError as exc:
+    assert "changed while it was running" in str(exc), exc
+
+# Run the sweep image by image, as the browser does, through Sweep Collect.
+sweep_live._SESSIONS.clear()
+PB_dir = os.path.join(S.OUTPUT_DIR, "_temp")
+results = []
+for cursor in range(8):
+    combo_c, *_ = plan_run(cursor)
+    out = CollectNode.collect(images=[fake_image(0.1 * (cursor + 1))], combo=[combo_c], **collect_kwargs("TestLive"))
+    results.append((CollectNode.last_ui, out))
+ui_mid, _ = results[3]
+assert ui_mid["text"] == ["SweepCollect: 4 of 8 images"], ui_mid
+shown = ui_mid["images"][0]
+assert shown["type"] == "temp" and os.path.isfile(os.path.join(PB_dir, shown["filename"])), shown
+# The grid so far grows: later frames differ from earlier ones, and it never errors.
+frame_files = {r[0]["images"][0]["filename"] for r in results[:7]}
+assert len(frame_files) == 1, "one temp file per sweep, rewritten each time"
+ui_last, out_last = results[7]
+assert "8 image(s) across 3 axis(es)" in ui_last["text"][0] and "Saved 8 image(s)" in ui_last["text"][0], ui_last[
+    "text"
+]
+assert ui_last["images"] and all(i["type"] == "output" for i in ui_last["images"])  # the final grids
+assert sweep_live._SESSIONS == {} or SESSION not in sweep_live._SESSIONS, "session closed after the last image"
+
+root_v = os.path.join(S.OUTPUT_DIR, "TestLive")
+pngs = [f for dirpath, _dirs, fs in os.walk(root_v) if "_grids" not in dirpath for f in fs if f.endswith(".png")]
+assert len(pngs) == 8, len(pngs)  # saved as they finished
+grids_v = [f for _, _, fs in os.walk(os.path.join(root_v, "_grids")) for f in fs]
+assert len(grids_v) == 2, grids_v  # one grid per subject, same as a one-go run
+(manifest_v,) = glob.glob(os.path.join(root_v, "sweep_manifest_*.csv"))
+with open(manifest_v, newline="", encoding="utf-8") as fh:
+    rows_v = list(csv.reader(fh))
+assert len(rows_v) == 9 and all(r[1].endswith(".png") for r in rows_v[1:]), rows_v[:3]
+
+# The same sweep in one go gives the same grids and the same run list.
+CollectNode.collect(
+    images=[fake_image(0.1 * (i + 1)) for i in range(8)], combo=[combo_all], **collect_kwargs("TestLiveAll")
+)
+ref_grids = [f for _, _, fs in os.walk(os.path.join(S.OUTPUT_DIR, "TestLiveAll", "_grids")) for f in fs]
+assert len(ref_grids) == len(grids_v)
+
+# Switches still apply in a live sweep: no files and no grids when both are off.
+sweep_live._SESSIONS.clear()
+for cursor in range(8):
+    combo_c, *_ = plan_run(cursor, "live-test-2")
+    CollectNode.collect(
+        images=[fake_image(0.5)],
+        combo=[combo_c],
+        **collect_kwargs("TestLiveOff", save_individuals=False, create_grids=False),
+    )
+assert not os.path.isdir(os.path.join(S.OUTPUT_DIR, "TestLiveOff")) or not os.listdir(
+    os.path.join(S.OUTPUT_DIR, "TestLiveOff")
+)
+
+# A wrong number of images in a live run is explained.
+combo_c, *_ = plan_run(0, "live-test-3")
+try:
+    CollectNode.collect(images=[fake_image(0.5), fake_image(0.6)], combo=[combo_c], **collect_kwargs("TestLiveBad"))
+    raise AssertionError("two images in a live run must be refused")
+except ValueError as exc:
+    assert "expected 1" in str(exc) and "live_grid" in str(exc), exc
+
+# Only the newest MAX_SESSIONS unfinished sweeps are remembered.
+sweep_live._SESSIONS.clear()
+for n in range(sweep_live.MAX_SESSIONS + 3):
+    combo_c, *_ = plan_run(0, f"abandoned-{n}")
+    CollectNode.collect(
+        images=[fake_image(0.5)], combo=[combo_c], **collect_kwargs("TestLiveEvict", save_individuals=False)
+    )
+assert len(sweep_live._SESSIONS) == sweep_live.MAX_SESSIONS
+print(
+    "PASS scenario V - live sweep: cursor slices, grid so far each image, files as they finish, grids after the last, sessions bounded"
+)
 
 
 print("\nALL MODULAR PIPELINE SCENARIOS PASSED")

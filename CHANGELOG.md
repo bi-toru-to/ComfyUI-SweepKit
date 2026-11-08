@@ -16,8 +16,10 @@ Sweep Plan, and "dimension" is now "axis" in names and text.
 - **Sweep Collect** gathers a workflow's images, saves each named after its
   values, builds the grids, and needs no extra node packs.
 - Right-click on an image node: "Sweep: collect results here".
-- A **live grid** on Sweep All-in-One: the grid so far appears on the node while
-  it samples.
+- A **live grid**. Sweep All-in-One shows the grid so far on the node while it samples. Sweep
+  Plan + Sweep Collect run image by image when started from the browser (Plan's
+  `live_grid` switch, on by default), so Collect shows the grid as images finish and saves each one as
+  it is made; scripts and the API still run everything in one go.
 - A **run list** (`sweep_manifest_NNNNN.csv`) beside the images of Sweep
   All-in-One and Sweep Collect: one row per image with its file and every value.
 - A summary line under each axis ("3 values: 1 . 2 . 3", or what is wrong),
@@ -29,7 +31,15 @@ Sweep Plan, and "dimension" is now "axis" in names and text.
 - Sweep Axis Value (Extract) has a native list output after its PyList one.
 - Flowcharts in the README (`docs/img/`, redrawn by `scripts/make_diagrams.py`).
 
+### Fixed
+- A very long prompt in a grid or matrix title no longer makes the image very wide: titles wrap to at most
+  three lines within the grid's own width, with the axis names on a line of their own, and long labels end in an
+  ellipsis. Cutting a very long word is no longer slow.
+- Sweep Plan names its outputs and shows the image count when its chain passes through Sweep Pair Axes or Sweep
+  Subsets (read by the backend, so it matches what the sweep does).
+
 ### Changed
+- Examples and text say "style" instead of "artist"; example 4 is now `4_style_combinations_upset.json`.
 - Easy nodes stay in **SweepKit**; the rest are under **SweepKit/Advanced**.
   Every node has a description and search aliases (the old names still find
   them).

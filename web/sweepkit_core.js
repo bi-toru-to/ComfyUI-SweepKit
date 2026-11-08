@@ -152,6 +152,11 @@ export function configureApi(fetchApi) {
     apiFetch = fetchApi;
 }
 
+/** POST JSON to a SweepKit route (through ComfyUI's own fetch when configured). */
+export async function postJson(path, body) {
+    return defaultPost(path, body);
+}
+
 async function defaultPost(path, body) {
     const init = { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) };
     const resp = await (apiFetch ? apiFetch(path, init) : fetch(path, init));

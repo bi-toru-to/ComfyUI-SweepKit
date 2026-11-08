@@ -15,7 +15,7 @@
  * object, graph and node factory are passed in by web/sweepkit.js.
  */
 
-import { ensureSummaryWidget, getWidget } from "./sweepkit_core.js";
+import { ensureSummaryWidget, getWidget, postJson } from "./sweepkit_core.js";
 import { optionsToStore } from "./sweepkit_pick.js";
 
 // Must match MAX_AXIS_OUTPUTS in sweep_core.py.
@@ -98,16 +98,123 @@ function axisOutputNumber(output) {
     return output.name.startsWith(OUTPUT_PREFIX) ? parseInt(output.name.slice(OUTPUT_PREFIX.length), 10) : NaN;
 }
 
+export const ZIP_CLASS = "SweepDimensionZip";
+export const SELF_COMBINE_CLASS = "SweepDimensionSelfCombine";
+const MAX_CHAIN_NODES = 100;
+const CHAIN_DEBOUNCE_MS = 250;
+
+/** Describe the chain feeding `node` (`dimensions` input) as {root, nodes} for the
+ * backend to evaluate: axes, Pair Axes and Subsets nodes, each by id so an axis
+ * reached through two branches is one node. Null when it passes through something
+ * else, or is too big. */
+export function chainSpec(graph, node, inputName = "dimensions") {
+    const nodes = {};
+    let ok = true;
+    const val = (n, name) => (getWidget(n, name) || {}).value;
+    const visit = (n) => {
+        if (!n) return null;
+        const id = String(n.id);
+        if (nodes[id]) return id;
+        nodes[id] = {}; // claimed before descending, so a loop can't recurse forever
+        const cls = classOf(n);
+        const up = (name) => visit(upstreamOf(graph, n, name));
+        if (cls === AXIS_CLASS) {
+            const pylist = (n.inputs || []).some((i) => i.name === "values_pylist" && i.link != null);
+            nodes[id] = {
+                kind: "axis",
+                dim_type: val(n, "dim_type"),
+                dim_id: val(n, "dim_id"),
+                values: val(n, "values"),
+                lora_name: val(n, "lora_name"),
+                pylist,
+                prev: up("prev_dimensions"),
+            };
+        } else if (cls === ZIP_CLASS) {
+            nodes[id] = { kind: "zip", mode: val(n, "mode"), a: up("dimensions_a"), b: up("dimensions_b") };
+        } else if (cls === SELF_COMBINE_CLASS) {
+            nodes[id] = {
+                kind: "selfcombine",
+                mode: val(n, "mode"),
+                min_size: val(n, "min_size"),
+                max_size: val(n, "max_size"),
+                joiner: val(n, "joiner"),
+                dims: up("dimensions"),
+            };
+        } else {
+            ok = false;
+        }
+        return id;
+    };
+    const root = visit(upstreamOf(graph, node, inputName));
+    return ok && root && Object.keys(nodes).length <= MAX_CHAIN_NODES ? { root, nodes } : null;
+}
+
+/** What a chain feeding `node` looks like: axis names in axis_N order, the value
+ * count of each independent group of axes, and the total number of images.
+ * Chains of plain axes are read here; chains through Pair Axes or Subsets use the
+ * backend's answer (see refreshChain) once it has arrived. `known` is false while
+ * the chain can't be read yet; `error` carries a problem the backend reported. */
+export function chainView(graph, node) {
+    const { axes, complete } = axisChain(graph, node);
+    if (complete) {
+        const groups = axes.map((a) => (getWidget(a, "sweepkit_summary") || {}).count);
+        const counted = groups.length > 0 && groups.every((c) => typeof c === "number");
+        return {
+            known: true,
+            labels: axes.map((a, i) => axisLabel(a, i + 1)),
+            groups,
+            total: counted ? groups.reduce((x, y) => x * y, 1) : null,
+            error: null,
+        };
+    }
+    const unknown = { known: false, labels: [], groups: [], total: null, error: null };
+    const spec = chainSpec(graph, node);
+    const remote = node.__chainInfo;
+    if (!spec || !remote || !remote.info || remote.key !== JSON.stringify(spec)) return unknown;
+    const info = remote.info;
+    if (!info.ok) return { ...unknown, error: info.unknown ? null : info.error };
+    return { known: true, labels: info.axes.map((a) => a.label), groups: info.groups, total: info.total, error: null };
+}
+
+/** Ask the backend about a chain that passes through Pair Axes or Subsets, after a
+ * short pause so typing doesn't send a request per keystroke. The answer is kept on
+ * the node (node.__chainInfo) for chainView. `post`, `schedule` and `cancel` are
+ * injectable for tests. */
+export function refreshChain(
+    graph,
+    node,
+    { post = postJson, schedule = (fn, ms) => setTimeout(fn, ms), cancel = (id) => clearTimeout(id) } = {},
+) {
+    const spec = axisChain(graph, node).complete ? null : chainSpec(graph, node);
+    if (!spec) {
+        node.__chainInfo = null;
+        return;
+    }
+    const key = JSON.stringify(spec);
+    if (node.__chainInfo && node.__chainInfo.key === key) return; // answered, or already asked
+    node.__chainInfo = { key, info: null };
+    if (node.__chainTimer != null) cancel(node.__chainTimer);
+    node.__chainTimer = schedule(async () => {
+        node.__chainTimer = null;
+        let info = null;
+        try {
+            info = await post("/sweepkit/preview_chain", spec);
+        } catch (_err) {
+            return; // offline: stay unknown, as before
+        }
+        if (!node.__sweepRemoved && node.__chainInfo && node.__chainInfo.key === key) node.__chainInfo = { key, info };
+    }, CHAIN_DEBOUNCE_MS);
+}
+
 /** Show one axis_N output per axis in the chain, labelled with the axis name.
  * Trailing outputs nobody uses are removed (axis_1 always stays); one with a
- * link is always kept. When the chain can't be read (Zip and friends), all
- * outputs stay. A Plan saved before these outputs existed is left alone
- * (opening an old workflow must not change it) unless `upgrade` is set, as
- * it is when the user adds an axis to it. */
+ * link is always kept. When the chain can't be read yet, all outputs stay. A Plan
+ * saved before these outputs existed is left alone (opening an old workflow must
+ * not change it) unless `upgrade` is set, as it is when the user adds an axis. */
 export function syncPlanOutputs(graph, plan, { upgrade = false } = {}) {
     if (!upgrade && !(plan.outputs || []).some((o) => o.name.startsWith(OUTPUT_PREFIX))) return;
-    const { axes, complete } = axisChain(graph, plan);
-    const wanted = complete ? Math.max(1, axes.length) : MAX_AXIS_OUTPUTS;
+    const view = chainView(graph, plan);
+    const wanted = view.known ? Math.min(MAX_AXIS_OUTPUTS, Math.max(1, view.labels.length)) : MAX_AXIS_OUTPUTS;
     const outputs = plan.outputs || [];
     for (let i = outputs.length - 1; i >= 0; i--) {
         const n = axisOutputNumber(outputs[i]);
@@ -122,36 +229,38 @@ export function syncPlanOutputs(graph, plan, { upgrade = false } = {}) {
     }
     for (const out of plan.outputs) {
         const n = axisOutputNumber(out);
-        if (!Number.isNaN(n)) out.label = complete && n <= axes.length ? axisLabel(axes[n - 1], n) : out.name;
+        if (!Number.isNaN(n)) out.label = view.known && n <= view.labels.length ? view.labels[n - 1] : out.name;
     }
 }
 
-/** What polling compares between ticks for a node fed by a chain of axes
- * (a Plan or All-in-One): the chain, each axis's name and its value count. */
+/** What polling compares between ticks for a node fed by a chain of axes (a Plan
+ * or All-in-One): what the chain looks like, plus the chain itself when the
+ * backend has to read it, so an edit to a Pair Axes setting is noticed. */
 export function planSnapshot(graph, plan) {
-    const { axes, complete } = axisChain(graph, plan);
-    const count = (a) => (getWidget(a, "sweepkit_summary") || {}).count;
-    return [complete, ...axes.map((a, i) => `${a.id}:${axisLabel(a, i + 1)}:${count(a)}`)].join("\u0001");
+    const view = chainView(graph, plan);
+    const remote = axisChain(graph, plan).complete ? null : chainSpec(graph, plan);
+    return JSON.stringify([view, remote]);
 }
 
 // ---- how many images will this make? ----
 
-/** {counts, total} from the value counts of the axes feeding `node`, or null
- * when it can't be told yet (an unreadable chain, a connected list, no axes). */
+/** {counts, total} (counts = value count of each independent group of axes) for the
+ * chain feeding `node`; {error} when the backend reported a problem; null when it
+ * can't be told yet (an unreadable chain, a connected list, no axes). */
 export function estimateRuns(graph, node) {
-    const { axes, complete } = axisChain(graph, node);
-    if (!complete || axes.length === 0) return null;
-    const counts = axes.map((a) => (getWidget(a, "sweepkit_summary") || {}).count);
-    if (counts.some((c) => typeof c !== "number")) return null;
-    return { counts, total: counts.reduce((a, b) => a * b, 1) };
+    const view = chainView(graph, node);
+    if (view.error) return { error: view.error };
+    if (!view.known || view.labels.length === 0 || view.total === null) return null;
+    return { counts: view.groups, total: view.total };
 }
 
 /** Text and error flag for the "N images" line. */
 export function describeRuns(est) {
     if (!est) return { text: "", error: false };
-    const parts = est.counts.length > 1 ? `: ${est.counts.join(" × ")}` : "";
+    if (est.error) return { text: `\u26a0 ${est.error}`, error: true };
+    const parts = est.counts.length > 1 ? `: ${est.counts.join(" \u00d7 ")}` : "";
     const n = est.total.toLocaleString("en-US");
-    if (est.total > LARGE_SWEEP) return { text: `⚠ ${n} images${parts} — that is a lot`, error: true };
+    if (est.total > LARGE_SWEEP) return { text: `\u26a0 ${n} images${parts} \u2014 that is a lot`, error: true };
     return { text: `${n} ${est.total === 1 ? "image" : "images"}${parts}`, error: false };
 }
 

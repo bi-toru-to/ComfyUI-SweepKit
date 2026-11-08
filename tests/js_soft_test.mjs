@@ -238,3 +238,94 @@ console.log("PASS test6: Plan outputs follow the chain and never lose a wired ou
     eq(sweepCandidates({ comfyClass: "SweepDimension", widgets: [{ name: "values", type: "customtext" }], inputs: [] }, null), [], "SweepKit's own nodes: none");
     console.log("PASS test9: the menu offers the pointer's setting and text boxes");
 }
+
+// ---- chains through Pair Axes and Subsets: described by the backend ----
+{
+    const { chainSpec, chainView, describeRuns, estimateRuns, refreshChain } = await import("../web/sweepkit_soft.js");
+    const gz = new FakeGraph();
+    const plan = gz.make("SweepCombinationExpander");
+    const base = gz.make("SweepDimension", { dim_type: "text", dim_id: "style", values: "a\nb" });
+    const c = gz.make("SweepDimension", { dim_type: "cfg", dim_id: "cfg", values: "4, 7" });
+    const st = gz.make("SweepDimension", { dim_type: "steps", dim_id: "steps", values: "10, 20" });
+    base.connect(0, c, 0);
+    base.connect(0, st, 0);
+    const zip = gz.make("SweepZip");
+    c.connect(0, zip, 0);
+    st.connect(0, zip, 1);
+    zip.connect(0, plan, 0);
+
+    // The spec lists each node once, even though `style` is reached through both branches.
+    const spec = chainSpec(gz, plan);
+    eq(Object.keys(spec.nodes).length, 4, "four nodes, the shared axis once");
+    eq(spec.nodes[spec.root], { kind: "zip", mode: "shortest", a: String(c.id), b: String(st.id) }, "zip node");
+    eq(spec.nodes[String(c.id)].prev, String(base.id), "cfg reads from style");
+    eq(spec.nodes[String(base.id)].values, "a\nb", "axis values travel with the spec");
+    assert(chainSpec(gz, plan) !== null && chainSpec(gz, gz.make("VAEDecode")) === null, "nothing upstream, no spec");
+
+    // Before the backend has answered, nothing is known (all outputs stay, no count).
+    assert(chainView(gz, plan).known === false && estimateRuns(gz, plan) === null, "unknown until answered");
+
+    // Ask once per distinct chain, after a pause; the answer is used.
+    const timers = [];
+    const calls = [];
+    const deps = {
+        post: async (path, body) => {
+            calls.push([path, body]);
+            return { ok: true, axes: [{ label: "style", count: 2 }, { label: "cfg", count: 2 }, { label: "steps", count: 2 }], groups: [2, 2], total: 4 };
+        },
+        schedule: (fn) => timers.push(fn) - 1,
+        cancel: (id) => (timers[id] = null),
+    };
+    refreshChain(gz, plan, deps);
+    refreshChain(gz, plan, deps); // same chain again: no second request
+    widget(c, "values").value = "4, 7, 9";
+    refreshChain(gz, plan, deps); // an edit: asks again, and the first pending request is cancelled
+    for (const fn of timers) if (fn) await fn();
+    assert(calls.length === 1 && calls[0][0] === "/sweepkit/preview_chain", `one request for the latest chain, got ${calls.length}`);
+    eq(calls[0][1].nodes[String(c.id)].values, "4, 7, 9", "the latest values were sent");
+
+    const view = chainView(gz, plan);
+    eq([view.known, view.labels, view.groups, view.total], [true, ["style", "cfg", "steps"], [2, 2], 4], "the backend's answer");
+    syncPlanOutputs(gz, plan);
+    eq(plan.outputs.map((o) => o.label || o.name).slice(3), ["style", "cfg", "steps"], "outputs are named, one per axis");
+    eq(describeRuns(estimateRuns(gz, plan)), { text: "4 images: 2 \u00d7 2", error: false }, "count uses the pair-aware groups");
+
+    // A problem the backend reports is shown instead of a count.
+    widget(zip, "mode").value = "strict";
+    const failing = { ...deps, post: async () => ({ ok: false, error: "strict mode: 'cfg' has 3 values but 'steps' has 2" }) };
+    const timers2 = [];
+    refreshChain(gz, plan, { ...failing, schedule: (fn) => timers2.push(fn) - 1 });
+    for (const fn of timers2) await fn();
+    assert(estimateRuns(gz, plan).error.includes("strict"), "error reported");
+    assert(describeRuns(estimateRuns(gz, plan)).error === true, "error flagged");
+
+    // "Values from a connected list" can't be read: no error, just no count.
+    const listed = gz.make("SweepDimension", { dim_type: "seed" });
+    listed.inputs.find((i) => i.name === "values_pylist").link = 99;
+    const gp = new FakeGraph();
+    const p2 = gp.make("SweepCombinationExpander");
+    const z2 = gp.make("SweepZip");
+    const l1 = gp.make("SweepDimension", { dim_type: "seed" });
+    l1.inputs.find((i) => i.name === "values_pylist").link = 99;
+    l1.connect(0, z2, 0);
+    z2.connect(0, p2, 0);
+    const timers3 = [];
+    refreshChain(gp, p2, { post: async () => ({ ok: false, unknown: true, error: "an axis gets its values from a connected list" }), schedule: (fn) => timers3.push(fn) - 1, cancel() {} });
+    for (const fn of timers3) await fn();
+    assert(chainView(gp, p2).error === null && estimateRuns(gp, p2) === null, "unknown is quiet");
+
+    // A plain chain never calls the backend.
+    const gq = new FakeGraph();
+    const p3 = gq.make("SweepCombinationExpander");
+    const a1 = gq.make("SweepDimension", { dim_type: "seed", values: "1-3" });
+    a1.connect(0, p3, 0);
+    let asked = 0;
+    refreshChain(gq, p3, { post: async () => (asked++, {}), schedule: (fn) => fn(), cancel() {} });
+    assert(asked === 0 && p3.__chainInfo === null, "plain chains are read locally");
+
+    // The polling snapshot changes when the zip setting or the answer changes.
+    const before = planSnapshot(gz, plan);
+    widget(zip, "mode").value = "longest";
+    assert(planSnapshot(gz, plan) !== before, "snapshot sees a Pair Axes edit");
+    console.log("PASS test10: chains through Pair Axes and Subsets are described by the backend");
+}

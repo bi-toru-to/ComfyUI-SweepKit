@@ -84,6 +84,14 @@ def _get_output_directory():
     return _OUTPUT_DIR
 
 
+_TEMP_DIR = os.path.join(_OUTPUT_DIR, "_temp")  # ComfyUI's temp folder (live previews go here)
+
+
+def _get_temp_directory():
+    os.makedirs(_TEMP_DIR, exist_ok=True)
+    return _TEMP_DIR
+
+
 def _get_filename_list(kind):
     if kind == "loras":
         return list(_FAKE_LORAS)
@@ -97,6 +105,7 @@ def _get_full_path(kind, name):
 
 
 folder_paths_mod.get_output_directory = _get_output_directory
+folder_paths_mod.get_temp_directory = _get_temp_directory
 folder_paths_mod.get_filename_list = _get_filename_list
 folder_paths_mod.get_full_path = _get_full_path
 sys.modules["folder_paths"] = folder_paths_mod

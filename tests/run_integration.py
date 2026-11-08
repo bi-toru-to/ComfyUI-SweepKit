@@ -89,7 +89,7 @@ print("PASS scenario 1")
 # ------------------------------------------------------------------
 print("\n--- Scenario 2: text x seed via two chained SweepDimension nodes ---")
 dims = build_chain(
-    dict(dim_type="text", values="artist_a\nartist_b", dim_id="artist"),
+    dict(dim_type="text", values="style_a\nstyle_b", dim_id="style"),
     dict(dim_type="seed", values="1,2,3"),
 )
 assert len(dims) == 2 and dims[0]["index"] == 1 and dims[1]["index"] == 2
@@ -100,7 +100,7 @@ print(summary)
 assert S.sample_counter["n"] == 6, S.sample_counter["n"]
 # With exactly 2 independent axes (text x seed), X+Y now claim both and
 # title is left with nothing -- ONE combined 2x3 grid, not one grid per
-# artist. (This is the fixed behavior: title used to auto-fill first and
+# style. (This is the fixed behavior: title used to auto-fill first and
 # grab the text axis before X/Y got a turn, splitting a 2-axis sweep into
 # multiple single-row grids by default.)
 assert grids.arr.shape[0] == 1, f"expected one combined X/Y grid for a 2-axis sweep, got {grids.arr.shape[0]}"
@@ -109,7 +109,7 @@ print("PASS scenario 2 - sample() called", S.sample_counter["n"], "times, grids:
 # ------------------------------------------------------------------
 print("\n--- Scenario 3: skipped (empty) dimension in the middle renumbers cleanly ---")
 dims = build_chain(
-    dict(dim_type="text", values="a\nb", dim_id="artist"),
+    dict(dim_type="text", values="a\nb", dim_id="style"),
     dict(dim_type="seed", values=""),  # empty -> skipped, doesn't consume an index
     dict(dim_type="cfg", values="4,7"),
 )
@@ -447,7 +447,7 @@ print("\n--- Scenario 17: grid building with a zipped pair doesn't double-count 
 )
 (cfg3,) = dim_node.build(dim_type="cfg", dim_id="cfg", values="4.5\n1.0", lora_name="", prev_dimensions=None)
 (zip3,) = zip_node.build(dimensions_a=lora3, dimensions_b=cfg3, mode="strict")
-(text3,) = dim_node.build(dim_type="text", dim_id="artist", values="a\nb", lora_name="", prev_dimensions=zip3)
+(text3,) = dim_node.build(dim_type="text", dim_id="style", values="a\nb", lora_name="", prev_dimensions=zip3)
 
 kw = base_kwargs(
     dimensions=text3,
@@ -464,7 +464,7 @@ print(summary)
 # just confirm no crash and a sane grid count: one grid per text value (2), each
 # with 2 columns (the zip pair), no missing/empty cells expected since every
 # combination was actually generated.
-assert grids.arr.shape[0] == 2, f"expected 2 grids (one per artist), got {grids.arr.shape[0]}"
+assert grids.arr.shape[0] == 2, f"expected 2 grids (one per style), got {grids.arr.shape[0]}"
 print(f"PASS scenario 17 - grid built cleanly with a zipped axis as X, {grids.arr.shape[0]} grids, no crash")
 
 print("\nALL ZIP SCENARIOS PASSED")
@@ -656,17 +656,17 @@ print("\n--- Scenario 24: zipping two branches of a shared chain keeps the share
 from sweepkit.sweep_core import build_combo_records  # noqa: E402
 
 zip_node = pkg.NODE_CLASS_MAPPINGS["SweepDimensionZip"]()
-(base,) = dim_node.build(dim_type="text", dim_id="artist", values="a\nb", lora_name="", prev_dimensions=None)
+(base,) = dim_node.build(dim_type="text", dim_id="style", values="a\nb", lora_name="", prev_dimensions=None)
 (branch_a,) = dim_node.build(dim_type="cfg", dim_id="cfg", values="4\n5", lora_name="", prev_dimensions=base)
 (branch_b,) = dim_node.build(dim_type="steps", dim_id="steps", values="10\n20", lora_name="", prev_dimensions=base)
 (zipped,) = zip_node.build(branch_a, branch_b, "strict")
-assert [d["dim_id"] for d in zipped] == ["artist", "cfg", "steps"], [d["dim_id"] for d in zipped]
+assert [d["dim_id"] for d in zipped] == ["style", "cfg", "steps"], [d["dim_id"] for d in zipped]
 records, _, _ = build_combo_records(zipped)
-assert len(records) == 4, len(records)  # 2 artists x 2 zipped (cfg, steps) pairs
+assert len(records) == 4, len(records)  # 2 styles x 2 zipped (cfg, steps) pairs
 # b chained straight on top of a: a's tail must not reappear as pass-through either
 (on_top,) = dim_node.build(dim_type="steps", dim_id="steps", values="10\n20", lora_name="", prev_dimensions=branch_a)
 (zipped2,) = zip_node.build(branch_a, on_top, "strict")
-assert [d["dim_id"] for d in zipped2] == ["artist", "cfg", "steps"], [d["dim_id"] for d in zipped2]
+assert [d["dim_id"] for d in zipped2] == ["style", "cfg", "steps"], [d["dim_id"] for d in zipped2]
 expect_error(lambda: zip_node.build(branch_a, branch_a, "strict"), "[SweepDimensionZip]", "same axis")
 print("PASS scenario 24 - shared upstream dimension kept once (4 combos, not 8); self-zip rejected")
 
@@ -866,6 +866,130 @@ with open(path, newline="", encoding="utf-8") as fh:
     head = next(csv.reader(fh))
 assert head == ["run", "file", "x", "x_2"], head
 print("PASS scenario 31 - run list CSV: one row per run, relative file names, never overwritten, unique headers")
+
+
+print("\n--- Scenario 32: a very long prompt can't stretch a grid or matrix ---")
+from PIL import Image as _PILImage  # noqa: E402
+
+LONG = "a lighthouse on a cliff at sunset, dramatic sky, highly detailed, " * 30  # ~2,000 characters
+NO_SPACES = "x" * 3000  # one huge word
+
+
+def grid_size(prefix, text_value):
+    # Six seed columns make the grid wider than the title's minimum width.
+    dims = build_chain(dict(dim_type="text", dim_id="prompt", values=text_value), dict(dim_type="seed", values="1-6"))
+    # The prompt is the title axis, seed the columns.
+    kw = dict(grid_title_dim="dim1", grid_x_dim="dim2", grid_y_dim="none", save_individuals=False)
+    main_node.generate(**base_kwargs(dimensions=dims, filename_prefix=prefix, **kw))
+    entry = main_node.last_ui["images"][0]
+    with _PILImage.open(os.path.join(S.OUTPUT_DIR, entry["subfolder"], entry["filename"])) as im:
+        return im.size
+
+
+short_w, short_h = grid_size("TestTitleShort", "a cat")
+long_w, long_h = grid_size("TestTitleLong", LONG)
+word_w, word_h = grid_size("TestTitleWord", NO_SPACES)
+# The width follows the grid, not the prompt; the height grows by at most the extra title lines.
+assert long_w == short_w and word_w == short_w, (short_w, long_w, word_w)
+assert short_h < long_h <= short_h + 200 and word_h <= short_h + 200, (short_h, long_h, word_h)
+
+# A single column is narrow, so the title gets a minimum width instead of the grid's.
+dims1 = build_chain(dict(dim_type="text", dim_id="prompt", values=LONG))
+main_node.generate(
+    **base_kwargs(
+        dimensions=dims1,
+        filename_prefix="TestTitleOneCol",
+        grid_title_dim="dim1",
+        grid_x_dim="none",
+        grid_y_dim="none",
+        save_individuals=False,
+    )
+)
+e1 = main_node.last_ui["images"][0]
+with _PILImage.open(os.path.join(S.OUTPUT_DIR, e1["subfolder"], e1["filename"])) as im:
+    assert im.size[0] <= 700, im.size  # not thousands of pixels
+
+# The axis caption stays visible on its own line even when the prompt is long.
+from sweepkit.sweep_image import grid_title  # noqa: E402
+
+t = grid_title([{"dim_id": "prompt"}], [LONG], "X: seed   Y: cfg", "fallback")
+assert t.endswith("\nX: seed   Y: cfg"), t[-40:]
+print(f"PASS scenario 32 - widths {short_w} / {long_w} / {word_w} px for short / 2,000-char / 3,000-char-word prompts")
+
+
+print("\n--- Scenario 33: the backend reads chains that pass through Pair Axes and Subsets ---")
+from sweepkit.sweep_routes import chain_response  # noqa: E402
+
+
+def axis_spec(dim_type, dim_id, values, prev=None, **extra):
+    return {
+        "kind": "axis",
+        "dim_type": dim_type,
+        "dim_id": dim_id,
+        "values": values,
+        "lora_name": "",
+        "prev": prev,
+        **extra,
+    }
+
+
+# A plain chain: names in chain order, counts, product.
+r = chain_response(
+    {"root": "2", "nodes": {"1": axis_spec("seed", "seed", "1-3"), "2": axis_spec("cfg", "cfg", "4, 7", "1")}}
+)
+assert r["ok"] and [a["label"] for a in r["axes"]] == ["seed", "cfg"] and r["groups"] == [3, 2] and r["total"] == 6, r
+
+# Pair Axes: two axes move together, so they count once; cfg crosses the pairs.
+nodes = {
+    "a": axis_spec("float", "lora_model", "0.2, 0.4, 0.6, 0.8, 1.0"),
+    "b": axis_spec("float", "lora_clip", "0.3, 0.5, 0.6, 0.7, 0.9"),
+    "z": {"kind": "zip", "a": "a", "b": "b", "mode": "shortest"},
+    "c": axis_spec("cfg", "cfg", "4, 7, 10", "z"),
+}
+r = chain_response({"root": "c", "nodes": nodes})
+assert r["ok"] and [a["label"] for a in r["axes"]] == ["lora_model", "lora_clip", "cfg"], r
+assert sorted(r["groups"]) == [3, 5] and r["total"] == 15, r  # 5 pairs x 3 cfg, not 45
+
+# Two branches sharing one upstream axis (style -> cfg and style -> steps) keep it once.
+nodes = {
+    "s": axis_spec("text", "style", "a\nb"),
+    "c": axis_spec("cfg", "cfg", "4, 7", "s"),
+    "t": axis_spec("steps", "steps", "10, 20", "s"),
+    "z": {"kind": "zip", "a": "c", "b": "t", "mode": "shortest"},
+}
+r = chain_response({"root": "z", "nodes": nodes})
+assert r["ok"] and [a["label"] for a in r["axes"]] == ["style", "cfg", "steps"] and r["total"] == 4, r
+
+# Subsets: 4 values at sizes 1-3 give 14 combinations; the axis is renamed like the node does.
+nodes = {
+    "s": axis_spec("text", "style", "cyberpunk\nnoir\npastel\nvintage"),
+    "sc": {"kind": "selfcombine", "dims": "s", "mode": "combinations", "min_size": 1, "max_size": 3, "joiner": ", "},
+    "c": axis_spec("cfg", "cfg", "4, 7", "sc"),
+}
+r = chain_response({"root": "c", "nodes": nodes})
+assert (
+    r["ok"] and r["axes"][0]["label"] == "style (combinations)" and r["axes"][0]["count"] == 14 and r["total"] == 28
+), r
+
+# Problems come back as plain messages, not tracebacks.
+nodes = {
+    "a": axis_spec("float", "x", "1, 2, 3"),
+    "b": axis_spec("float", "y", "1, 2"),
+    "z": {"kind": "zip", "a": "a", "b": "b", "mode": "strict"},
+}
+r = chain_response({"root": "z", "nodes": nodes})
+assert r["ok"] is False and "strict" in r["error"] and "[Sweep" not in r["error"], r
+r = chain_response({"root": "a", "nodes": {"a": axis_spec("int", "n", "1, x")}})
+assert r["ok"] is False and "x" in r["error"], r
+r = chain_response({"root": "a", "nodes": {"a": axis_spec("seed", "seed", "", pylist=True)}})
+assert r["ok"] is False and r["unknown"] is True, r  # values from a connected list can't be read here
+r = chain_response({"root": "a", "nodes": {"a": axis_spec("int", "n", "1", "a")}})
+assert r["ok"] is False and "loops" in r["error"], r  # a loop can't hang it
+assert chain_response({"root": "q", "nodes": {}})["ok"] is False
+assert chain_response({"root": "a", "nodes": {"a": {"kind": "nonsense"}}})["ok"] is False
+assert chain_response(None)["ok"] is False
+assert chain_response({"root": "1", "nodes": {str(i): {} for i in range(101)}})["ok"] is False  # too many nodes
+print("PASS scenario 33 - chain_response: names, per-group counts, pair/subset/shared-axis totals, plain errors")
 
 
 print("\nALL EXTRA SCENARIOS PASSED (v4)")

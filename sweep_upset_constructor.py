@@ -8,7 +8,7 @@ line joining them.
 
 Deliberately narrower in scope than SweepGridConstructor: it visualizes
 exactly ONE self-combine dimension's own structure. Any OTHER independent
-dimension in the graph (e.g. sweeping cfg alongside artist combos) is
+dimension in the graph (e.g. sweeping cfg alongside style combos) is
 handled the same way SweepGridConstructor handles leftover axes — as a
 page split, producing one matrix per combination of the other axes,
 never crammed into the same matrix. A large column count on top of that
@@ -39,11 +39,13 @@ from .sweep_core import (
     ui_images,
 )
 from .sweep_draw import (
+    MIN_TITLE_WIDTH,
     check_canvas_size,
     find_font,
     font_size_for_char_width,
     truncate_text_to_width,
     wrap_text_to_width,
+    wrap_title,
 )
 from .sweep_image import (
     BACKGROUND,
@@ -293,11 +295,13 @@ class MatrixLayout:
     row_label_max_w: int
     wrapped: list
     line_h: int
+    title_lines: list
+    title_line_h: int
     width: int
     height: int
 
 
-def layout_matrix(col_images, base_values, col_values, cell_size, cell_mode, font_size):
+def layout_matrix(col_images, base_values, col_values, cell_size, cell_mode, font_size, title=""):
     cell_w, cell_h = cell_dims(col_images, cell_size, cell_mode)
     base_px = font_size_for_char_width(cell_w / 16.0 * font_size)
     small = max(8, round(base_px * 0.3))
@@ -309,17 +313,23 @@ def layout_matrix(col_images, base_values, col_values, cell_size, cell_mode, fon
     dot_r = max(4, round(base_px * 0.35))
     row_half_extent = max(round(row_line_h * 0.6), dot_r + 4)
     dot_gap = max(row_line_h + max(10, round(base_px * 0.3)), round(base_px * 1.6))
-    y_group = line_height(scratch, fonts["title"]) + max(16, round(base_px * 0.5))
-    y_swatch = y_group + line_height(scratch, fonts["group"]) + small
-    y_dots0 = y_swatch + cell_h + max(row_half_extent, round(base_px * 0.3), 10)
-    y_last_dot = y_dots0 + max(0, len(base_values) - 1) * dot_gap
-    y_col_label = y_last_dot + max(row_half_extent, small) + small
-
     # Row labels get the width of the longest one, capped at 1.5 cells so a
     # single huge label can't blow up the layout (it gets an ellipsis).
     row_label_x = max(12, round(base_px * 0.3))
     longest = max((scratch.textbbox((0, 0), str(v), font=fonts["row"])[2] for v in base_values), default=0)
     row_label_w = max(60, row_label_x + min(longest, round(cell_w * 1.5)) + small)
+
+    # The title wraps (a whole prompt can be long) and is cut to a few lines, so it
+    # can't stretch the matrix; the matrix is never narrower than the title's lines.
+    content_w = row_label_w + len(col_images) * (cell_w + max(10, round(base_px * 0.3))) + pad
+    title_lines = wrap_title(title, fonts["title"], max(content_w, MIN_TITLE_WIDTH) - 40, scratch)
+    title_line_h = line_height(scratch, fonts["title"]) + 4
+    title_w = max((scratch.textbbox((0, 0), line, font=fonts["title"])[2] for line in title_lines), default=0) + 40
+    y_group = len(title_lines) * title_line_h + max(16, round(base_px * 0.5))
+    y_swatch = y_group + line_height(scratch, fonts["group"]) + small
+    y_dots0 = y_swatch + cell_h + max(row_half_extent, round(base_px * 0.3), 10)
+    y_last_dot = y_dots0 + max(0, len(base_values) - 1) * dot_gap
+    y_col_label = y_last_dot + max(row_half_extent, small) + small
 
     # Column labels wrap horizontally within their own swatch width.
     wrapped = [wrap_text_to_width(v, fonts["col"], cell_w + 12, scratch) for v in col_values]
@@ -346,7 +356,9 @@ def layout_matrix(col_images, base_values, col_values, cell_size, cell_mode, fon
         row_label_max_w=max(10, row_label_w - row_label_x - small),
         wrapped=wrapped,
         line_h=line_h,
-        width=row_label_w + len(col_images) * col_w + pad,
+        title_lines=title_lines,
+        title_line_h=title_line_h,
+        width=max(row_label_w + len(col_images) * col_w + pad, title_w),
         height=y_col_label + max((len(w) for w in wrapped), default=1) * line_h + pad,
     )
 
@@ -361,14 +373,12 @@ def _arity_runs(col_meta):
     return runs
 
 
-def _draw_headers_and_rows(draw, lay, title, base_values, col_meta):
-    draw.text(
-        (lay.width // 2, max(8, round(lay.base_px * 0.2))),
-        str(title),
-        fill=(255, 255, 255),
-        font=lay.font_title,
-        anchor="mt",
-    )
+def _draw_headers_and_rows(draw, lay, base_values, col_meta):
+    top = max(8, round(lay.base_px * 0.2))
+    for n, line in enumerate(lay.title_lines):
+        draw.text(
+            (lay.width // 2, top + n * lay.title_line_h), line, fill=(255, 255, 255), font=lay.font_title, anchor="mt"
+        )
     for start, end, arity in _arity_runs(col_meta):
         cx = lay.row_label_w + (start + end) / 2 * lay.col_w
         draw.text(
@@ -411,11 +421,11 @@ def draw_matrix(col_images, target, lo, hi, title, cell_size, cell_mode, font_si
     swatch per column, a dot per (row, column) showing which base values
     each combination contains, and labels."""
     base_values, col_values, col_meta = target["base_values"], target["values"][lo:hi], target["combo_meta"][lo:hi]
-    lay = layout_matrix(col_images, base_values, col_values, cell_size, cell_mode, font_size)
+    lay = layout_matrix(col_images, base_values, col_values, cell_size, cell_mode, font_size, title)
     check_canvas_size(lay.width, lay.height, "SweepUpsetConstructor")
     canvas = Image.new("RGB", (lay.width, lay.height), BACKGROUND)
     draw = ImageDraw.Draw(canvas)
-    _draw_headers_and_rows(draw, lay, title, base_values, col_meta)
+    _draw_headers_and_rows(draw, lay, base_values, col_meta)
     for j, img in enumerate(col_images):
         _draw_column(canvas, draw, lay, j, img, set(col_meta[j]["members"]), len(base_values), cell_mode)
     return canvas

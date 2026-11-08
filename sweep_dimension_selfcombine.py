@@ -1,7 +1,7 @@
 """
 SweepDimensionSelfCombine — recombine ONE dimension's own values against
 themselves, at every size from min_size to max_size (not just one fixed
-r) — e.g. 4 artist styles at sizes 1-3 becomes a 14-value derived
+r) — e.g. 4 styles at sizes 1-3 becomes a 14-value derived
 dimension: 4 singles, 6 pairs, 4 triples.
 
 Operates on the LAST dimension in the incoming chain (same convention as
@@ -72,7 +72,7 @@ class SweepDimensionSelfCombine:
     RETURN_NAMES = ("dimensions",)
     FUNCTION = "build"
     CATEGORY = "SweepKit/Advanced"
-    DESCRIPTION = "Turns one list into every subset of it (singles, pairs, triples...), for example to test which artist names work well together. Pair it with Sweep UpSet Matrix."
+    DESCRIPTION = "Turns one list into every subset of it (singles, pairs, triples...), for example to test which styles work well together. Pair it with Sweep UpSet Matrix."
     SEARCH_ALIASES = ["self combine", "subsets", "combinations of a list", "upset"]
 
     def build(self, dimensions, mode, min_size, max_size, joiner):

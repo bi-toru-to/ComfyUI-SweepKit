@@ -19,7 +19,14 @@ axis you actually need instead — one generic mechanism, works for any
 dim_id including future ones.
 """
 
-from .sweep_core import LARGE_SWEEP_WARNING, MAX_AXIS_OUTPUTS, PREVIEW_VALUES, axis_output_lists, build_combo_records
+from .sweep_core import (
+    LARGE_SWEEP_WARNING,
+    MAX_AXIS_OUTPUTS,
+    PREVIEW_VALUES,
+    axis_output_lists,
+    build_combo_records,
+    live_slice,
+)
 
 
 class SweepCombinationExpander:
@@ -34,6 +41,21 @@ class SweepCombinationExpander:
                     },
                 ),
             },
+            "optional": {
+                "live_grid": (
+                    "BOOLEAN",
+                    {
+                        "default": True,
+                        "tooltip": (
+                            "Run in the browser one combination at a time, so the grid fills in on Sweep Collect as "
+                            "images finish. Turn off to run everything in one go. (Running from a script or the API "
+                            "always runs everything in one go.)"
+                        ),
+                    },
+                ),
+            },
+            # Filled in by the browser while it runs a live grid (see web/sweepkit_live.js).
+            "hidden": {"sweep_cursor": ("INT", {"default": -1}), "sweep_session": ("STRING", {"default": ""})},
         }
 
     # Slots 0-2 are the original outputs (saved workflows link to them by
@@ -59,36 +81,54 @@ class SweepCombinationExpander:
     SEARCH_ALIASES = ["sweep expander", "combination expander", "sweep plan"]
     CATEGORY = "SweepKit"
 
-    def build(self, dimensions):
+    def build(self, dimensions, live_grid=True, sweep_cursor=-1, sweep_session=""):
         active_dims = [dict(d) for d in dimensions] if dimensions else []
         combo_records, active_dims_sorted, sorted_groups = build_combo_records(active_dims)
         total = len(combo_records)
+        live = sweep_cursor >= 0  # the browser is running the sweep one image at a time
+        if live and sweep_cursor >= total:
+            raise ValueError(
+                f"[SweepCombinationExpander] live run {sweep_cursor + 1} of a {total}-image sweep: the axes changed "
+                f"while it was running. Queue the sweep again."
+            )
 
-        dim_map_lines = []
-        print("=" * 60)
-        print(
-            f"[SweepCombinationExpander] {len(active_dims_sorted)} active axis(es) "
-            f"in {len(sorted_groups)} group(s), {total} combination(s) total"
-        )
-        for d in active_dims_sorted:
+        dim_map_lines = self.describe(active_dims_sorted)
+        if sweep_cursor <= 0:  # a live sweep builds the plan once per image; say it once
+            self.announce(dim_map_lines, len(active_dims_sorted), len(sorted_groups), total)
+
+        combo = {"dimensions": active_dims_sorted, "combo_records": combo_records}
+        axis_lists = axis_output_lists(active_dims_sorted, combo_records)
+        if live:
+            combo["live"] = {"cursor": sweep_cursor, "session": str(sweep_session)}
+            axis_lists = live_slice(axis_lists, sweep_cursor)
+        dim_map = "\n".join(dim_map_lines) if dim_map_lines else "(no active axes)"
+        return (combo, total, dim_map, *axis_lists)
+
+    @staticmethod
+    def describe(dims_sorted):
+        """One line per axis: its position, name, type and first values."""
+        lines = []
+        for d in dims_sorted:
             preview = d["values"][:PREVIEW_VALUES]
             group_note = f" (zipped with group '{d['group']}')" if d.get("group") else ""
-            line = (
-                f"dim{d['index']}: '{d['dim_id']}' [{d['type']}]{group_note} = {preview}"
-                f"{' ...' if len(d['values']) > PREVIEW_VALUES else ''}"
-            )
+            more = " ..." if len(d["values"]) > PREVIEW_VALUES else ""
+            lines.append(f"dim{d['index']}: '{d['dim_id']}' [{d['type']}]{group_note} = {preview}{more}")
+        return lines
+
+    @staticmethod
+    def announce(lines, n_axes, n_groups, total):
+        print("=" * 60)
+        print(
+            f"[SweepCombinationExpander] {n_axes} active axis(es) in {n_groups} group(s), {total} combination(s) total"
+        )
+        for line in lines:
             print(f"   {line}")
-            dim_map_lines.append(line)
         if total > LARGE_SWEEP_WARNING:
             print(
                 f"[SweepCombinationExpander] WARNING: {total} combinations is a lot — "
                 f"double check this is intended before it reaches your sampler."
             )
         print("=" * 60)
-
-        combo = {"dimensions": active_dims_sorted, "combo_records": combo_records}
-        dim_map = "\n".join(dim_map_lines) if dim_map_lines else "(no active axes)"
-        return (combo, total, dim_map, *axis_output_lists(active_dims_sorted, combo_records))
 
 
 NODE_CLASS_MAPPINGS = {

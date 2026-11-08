@@ -68,7 +68,26 @@ export const TEMPLATES = {
         inputs: [{ name: "images", type: "IMAGE" }, { name: "combo", type: "SWEEP_COMBO" }],
         outputs: [{ name: "grids", type: "IMAGE" }, { name: "summary", type: "STRING" }],
     },
-    SweepZip: { cls: "SweepDimensionZip", inputs: [{ name: "dimensions_a", type: "SWEEP_DIMS" }], outputs: [{ name: "dimensions", type: "SWEEP_DIMS" }] },
+    SweepZip: {
+        cls: "SweepDimensionZip",
+        inputs: [
+            { name: "dimensions_a", type: "SWEEP_DIMS" },
+            { name: "dimensions_b", type: "SWEEP_DIMS" },
+        ],
+        outputs: [{ name: "dimensions", type: "SWEEP_DIMS" }],
+        widgets: [{ name: "mode", type: "combo", value: "shortest" }],
+    },
+    SweepSubsets: {
+        cls: "SweepDimensionSelfCombine",
+        inputs: [{ name: "dimensions", type: "SWEEP_DIMS" }],
+        outputs: [{ name: "dimensions", type: "SWEEP_DIMS" }],
+        widgets: [
+            { name: "mode", type: "combo", value: "combinations" },
+            { name: "min_size", type: "number", value: 1 },
+            { name: "max_size", type: "number", value: 3 },
+            { name: "joiner", type: "text", value: ", " },
+        ],
+    },
     VAEDecode: { cls: "VAEDecode", inputs: [], outputs: [{ name: "IMAGE", type: "IMAGE" }] },
     KSampler: (() => {
         const widgets = [
