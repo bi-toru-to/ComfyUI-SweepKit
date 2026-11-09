@@ -10,7 +10,7 @@ follow the [Quick start](#quick-start) below (about 5 minutes).
 
 <p align="center">
   <img src="docs/img/example_grid.jpg" width="460" alt="A labelled grid: seed across, cfg down, one prompt">
-  <br><sub>One grid out of a sweep: seed across, cfg down. The prompt is on the title line.</sub>
+  <br><sub>One grid out of a sweep: seed across, cfg down. The prompt is on the title line. (SweepKit 1.1, generated 2026-11)</sub>
 </p>
 
 ## What can I do with it?

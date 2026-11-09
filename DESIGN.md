@@ -1,5 +1,22 @@
 # SweepKit — Design Notes (v3: split-node architecture)
 
+For contributors: how SweepKit is built and why, and the bugs that shaped it. To use the nodes, see the [Node Guide](NODE_GUIDE.md).
+
+## Contents
+
+- [Why this changed shape](#why-this-changed-shape)
+- [The new shape](#the-new-shape)
+- [Everything else is unchanged from the v2 write-up](#everything-else-is-unchanged-from-the-v2-write-up)
+- [Pairing dimensions instead of cross-producting them: SweepDimensionZip](#pairing-dimensions-instead-of-cross-producting-them-sweepdimensionzip)
+- [Known limitations of the split-node design](#known-limitations-of-the-split-node-design)
+- [Three fixes from real-world use: delimiters, aspect ratio, grid labels](#three-fixes-from-real-world-use-delimiters-aspect-ratio-grid-labels)
+- [How fixed_seed / fixed_steps / fixed_cfg relate to dimensions](#how-fixed_seed--fixed_steps--fixed_cfg-relate-to-dimensions)
+- [Why text_mode / text_regex live on the main node, not on SweepDimension](#why-text_mode--text_regex-live-on-the-main-node-not-on-sweepdimension)
+- [A real bug found via the "square works, fit/original don't" clue](#a-real-bug-found-via-the-square-works-fitoriginal-dont-clue)
+- [Testing performed](#testing-performed)
+- [A real, pre-existing correctness bug: malformed conditioning shape](#a-real-pre-existing-correctness-bug-malformed-conditioning-shape)
+- [Version 1.1: sweeping any setting, live grid, plain names](#version-11-sweeping-any-setting-live-grid-plain-names)
+
 ## Why this changed shape
 
 The first working version of this node pack was a single mega-node
@@ -655,3 +672,7 @@ the same parser as the sweep (`preview_values` in `sweep_dimension.py`), so the
 two can't disagree and there is no second implementation to keep in step. The
 "12 images: 2 × 3 × 2" line multiplies those counts. Ranges above 10,000 values
 are refused rather than expanded.
+
+---
+
+To use the nodes, see the [Node Guide](NODE_GUIDE.md). For what changed in each version, see the [Changelog](CHANGELOG.md).
