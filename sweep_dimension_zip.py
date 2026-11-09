@@ -131,7 +131,7 @@ def merge_passthrough(group_a, group_b, passthrough):
         raise SweepError(
             "[Sweep Pair Axes] dimensions_a and dimensions_b end in the same axis. "
             "Connect a different Sweep Axis to each of them.",
-            "Pair Axes: both inputs end in the same axis: connect two different axes",
+            "same axis paired twice: use two axes",
         )
     seen |= uids_b
     kept = []
@@ -155,7 +155,7 @@ def zip_length(mode, len_a, len_b, label_a, label_b):
             f"[Sweep Pair Axes] mode is strict, but '{label_a}' has {len_a} values and '{label_b}' has {len_b}. "
             f"Give both the same number of values, or set mode to shortest (drop the extras) or longest "
             f"(repeat the last value).",
-            f"Pair Axes: {len_a} vs {len_b} values: match them, or set mode to shortest or longest",
+            f"{len_a} vs {len_b} paired values: use mode shortest",
         )
     if mode == "longest":
         target = max(len_a, len_b)

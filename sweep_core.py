@@ -192,7 +192,7 @@ def parse_number_list(raw: Any, cast: Callable[[str], Any], dim_id: str, allow_r
                 raise SweepError(
                     f"[Sweep Axis] '{dim_id}': the range '{line}' in values makes {abs(b - a) + 1:,} values, "
                     f"more than the limit of {MAX_DERIVED_VALUES:,}. Use a shorter range or fewer values.",
-                    f"'{line}' makes {abs(b - a) + 1:,} values (limit {MAX_DERIVED_VALUES:,}): use a shorter range",
+                    f"'{line}' is over {MAX_DERIVED_VALUES:,} values: shorten it",
                 )
             step = 1 if b >= a else -1
             out.extend(range(a, b + step, step))
@@ -673,7 +673,7 @@ def self_combine(
         raise SweepError(
             f"[Sweep Subsets] min_size ({min_size}) is larger than max_size ({max_size}{capped}). "
             f"Set min_size to {max_size} or less.",
-            f"Subsets: min_size is above max_size ({max_size}): lower min_size",
+            "min_size above max_size: lower min_size",
         )
     count_fn = math.perm if mode == "permutations" else math.comb
     total = sum(count_fn(n, r) for r in range(min_size, max_size + 1))
@@ -690,7 +690,7 @@ def self_combine(
         raise SweepError(
             f"[Sweep Subsets] {n} values as {mode} of {min_size} to {max_size} items make {total:,} subsets, "
             f"more than the limit of {MAX_DERIVED_VALUES:,}. {hint}",
-            f"Subsets: {total:,} subsets (limit {MAX_DERIVED_VALUES:,}): {hint[0].lower()}{hint[1:].rstrip('.')}",
+            f"{total:,} subsets: " + (f"set max_size to {fitting[-1]}" if fitting else "use fewer values"),
         )
     iterator_fn = itertools.permutations if mode == "permutations" else itertools.combinations
 
