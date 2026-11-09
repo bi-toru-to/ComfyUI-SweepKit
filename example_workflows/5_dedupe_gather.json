@@ -9,11 +9,11 @@
       "type": "MarkdownNote",
       "pos": [
         0,
-        -420
+        -353
       ],
       "size": [
         520,
-        330
+        263
       ],
       "flags": {},
       "order": 0,
@@ -22,7 +22,7 @@
       "outputs": [],
       "properties": {},
       "widgets_values": [
-        "## Skip duplicate samples with Dedupe + Gather\n\n**background (3) × lighting (3)** = 9 combinations, but the prompt template only uses `__background__`, so the 3 lighting values give identical prompts.\n\n- **Only 3 images are generated** (one per background). The queue and the sampler run 3 times, not 9.\n- **The grid is still the full 3 × 3 (9 cells)**, and 9 files are saved. Gather copies each image into the 3 lighting cells of its background, so those cells look the same. That is expected: it shows which combinations shared one image.\n\nAdd `__lighting__` to the template and all 9 become unique (9 images generated). Needs **ComfyUI-List-Utils**.\n\nSee NODE_GUIDE.md, workflow 5."
+        "## Skip repeated images with Sweep Skip Repeats + Sweep Gather\n\n**Shows:** **background (3) × lighting (3)** = 9 combinations, where the prompt template only uses `__background__`, so the 3 lighting values give identical prompts. **Sweep Skip Repeats** makes each different image once, and **Sweep Gather** puts the images back into all 9 places.\n\n**Set first:** pick your checkpoint in **Load Checkpoint**. Then press **Run**.\n\n**Makes:** in ComfyUI's `output` folder under `SweepKit_dedupe`:\n- **only 3 images are generated** (one per background): the sampler runs 3 times, not 9;\n- **9 files** and **one 3 × 3 grid (9 cells)**. Each image fills the 3 lighting cells of its background, so those cells look the same. That is expected: it shows which combinations shared one image.\n\n**Needs:** **ComfyUI-List-Utils** (install it from ComfyUI Manager).\n\nAdd `__lighting__` to the template and all 9 become different (9 images generated).\n\nSee NODE_GUIDE.md, workflow 5."
       ],
       "color": "#432",
       "bgcolor": "#653"
@@ -1546,7 +1546,7 @@
       ],
       "properties": {},
       "widgets_values": [
-        "ComfyUI"
+        "SweepKit_dedupe"
       ]
     }
   ],

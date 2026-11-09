@@ -2,7 +2,8 @@
 
 For every example_workflows/*.json:
   1. the file parses as a workflow;
-  2. it has exactly one Note;
+  2. it has exactly one Note, which states what the example shows, what to set
+     first, what it makes and where, and which node packs it needs;
   3. every node is from SweepKit, a ComfyUI core node, or a ComfyUI-List-Utils
      node (GODMT_*), and when List-Utils nodes are used the Note names the pack;
   4. every filename_prefix starts with "SweepKit_" and is named in the Note.
@@ -13,7 +14,7 @@ For every example_workflows/*.json:
 For every *.md file in the pack: each relative link `](path)` and `src="path"`
 points to a file that exists, and each `#anchor` to a heading that exists.
 
-KNOWN_GAPS lists problems the docs fix plan (Phase 2) still has to fix. They
+KNOWN_GAPS lists problems still to be fixed. They
 are reported but don't fail the run. A gap that has been fixed but is still
 listed does fail it, so the list can only shrink.
 """
@@ -68,23 +69,15 @@ CORE_NODES = {
 NOTE_TYPES = {"MarkdownNote", "Note"}
 LIST_UTILS_PREFIX = "GODMT_"
 LIST_UTILS_PACK = "ComfyUI-List-Utils"
+NOTE_LINES = ("**Shows:**", "**Set first:**", "**Makes:**", "**Needs:**")
 PREFIX_START = "SweepKit_"
 
 # Core nodes with a filename_prefix setting: its position among the node's settings.
 CORE_PREFIX_INDEX = {"SaveImage": 0}
 
-# (example file, check) pairs still open. Phase 2 of the docs fix plan removes them.
-KNOWN_GAPS = {
-    ("4_style_combinations_upset.json", "prefix SweepKit_styles not named in the Note"),
-    ("5_dedupe_gather.json", "prefix SweepKit_dedupe not named in the Note"),
-    ("6_model_list_pylist.json", "List-Utils nodes used but the Note doesn't name ComfyUI-List-Utils"),
-    ("5_dedupe_gather.json", "leftover prefix ComfyUI on a connected input isn't one of the example's prefixes"),
-    (
-        "6_model_list_pylist.json",
-        "leftover prefix SweepKit_lora_zip on a connected input isn't one of the example's prefixes",
-    ),
-    ("6_model_list_pylist.json", "prefix SweepKit_models not named in the Note"),
-}
+# (example file, check) pairs still open. Phase 2 of the docs fix plan cleared the list; add
+# to it only for a known, tracked problem.
+KNOWN_GAPS: set[tuple[str, str]] = set()
 
 _WIDGET_TYPES = {"INT", "FLOAT", "STRING", "BOOLEAN", "COMBO"}
 
@@ -147,6 +140,9 @@ def check_example(path):
     if len(notes) != 1:
         problems.append(f"has {len(notes)} Notes, expected 1")
     note = "\n".join(str(v) for n in notes for v in (n.get("widgets_values") or []))
+    missing = [line for line in NOTE_LINES if line not in note]
+    if missing:
+        problems.append(f"the Note lacks {', '.join(missing)}")
 
     types = {n["type"] for n in nodes}
     unknown = sorted(
@@ -275,7 +271,7 @@ def main():
         for f in failures:
             print(f"  {f}")
         sys.exit(1)
-    print(f"\nALL EXAMPLE AND LINK CHECKS PASSED ({len(gaps_seen)} known gaps left for Phase 2)")
+    print(f"\nALL EXAMPLE AND LINK CHECKS PASSED ({len(gaps_seen)} known gaps)")
 
 
 if __name__ == "__main__":

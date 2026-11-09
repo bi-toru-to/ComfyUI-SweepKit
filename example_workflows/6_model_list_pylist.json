@@ -9,11 +9,11 @@
       "type": "MarkdownNote",
       "pos": [
         0,
-        -380
+        -321
       ],
       "size": [
         520,
-        300
+        241
       ],
       "flags": {},
       "order": 0,
@@ -22,7 +22,7 @@
       "outputs": [],
       "properties": {},
       "widgets_values": [
-        "## Sweep several checkpoints via a PyList\n\nThree checkpoints collected with List-Utils **Create PyList** into one `model`-type Sweep Dimension (via `values_pylist`, so no MODEL sockets are needed), crossed with 2 seeds: 6 images and a grid.\n\nPick your three checkpoints. For models that come as separate files (Flux and similar), use **Load Diffusion Model** nodes instead of Load Checkpoint, plus a Load CLIP and a Load VAE. Prompts use the first checkpoint's CLIP. File names, grid labels and the run list name each model after its file.\n\nSee NODE_GUIDE.md, workflow 6."
+        "## Sweep several checkpoints via a PyList\n\n**Shows:** three checkpoints put into one list with List-Utils' **Create PyList** and used as one `model`-type **Sweep Axis** (through its `values_pylist` input), tried with 2 seeds.\n\n**Set first:** pick a different checkpoint in each of the three **Load Checkpoint** nodes. Then press **Run**. For models that come as separate files (Flux and similar), use **Load Diffusion Model** nodes instead, plus a Load CLIP and a Load VAE.\n\n**Makes:** 6 images (3 models × 2 seeds) and one grid, in ComfyUI's `output` folder under `SweepKit_models`. File names and grid labels name each model after its file.\n\n**Needs:** **ComfyUI-List-Utils** (install it from ComfyUI Manager).\n\nThe prompts use the first checkpoint's text encoder (CLIP).\n\nSee NODE_GUIDE.md, workflow 6."
       ],
       "color": "#432",
       "bgcolor": "#653"
@@ -1120,7 +1120,7 @@
       ],
       "properties": {},
       "widgets_values": [
-        "SweepKit_lora_zip"
+        "SweepKit_models"
       ]
     },
     {

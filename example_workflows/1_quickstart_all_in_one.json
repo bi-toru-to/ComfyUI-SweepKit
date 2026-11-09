@@ -9,11 +9,11 @@
       "type": "MarkdownNote",
       "pos": [
         0,
-        -300
+        -257
       ],
       "size": [
         460,
-        260
+        217
       ],
       "flags": {},
       "order": 0,
@@ -22,7 +22,7 @@
       "outputs": [],
       "properties": {},
       "widgets_values": [
-        "## SweepKit quick start\n\nSweeps **seed (1, 2, 3) × cfg (4, 7, 10)**: 9 images plus one 3×3 grid, saved under `output/SweepKit_quickstart/`.\n\n1. Pick your checkpoint in **Load Checkpoint**.\n2. Edit the prompts on **Sweep All-in-One**. Add `{}` placeholders and `text`-type Sweep Dimensions to sweep prompt text too.\n3. Queue.\n\nSee NODE_GUIDE.md, workflow 1."
+        "## SweepKit quick start\n\n**Shows:** a sweep of **seed (1, 2, 3) × cfg (4, 7, 10)** in one node, Sweep All-in-One.\n\n**Set first:** pick your checkpoint in **Load Checkpoint**. Then press **Run**.\n\n**Makes:** 9 images, one 3 × 3 grid and a run list (`.csv`), in ComfyUI's `output` folder under `SweepKit_quickstart`. The grid fills in on the node as it runs.\n\n**Needs:** no extra node packs.\n\nTo change what is swept, edit the values on the two **Sweep Axis** nodes. To sweep prompt text too, put `{}` in the prompt on Sweep All-in-One and connect a Sweep Axis of type `text`.\n\nSee NODE_GUIDE.md, workflow 1."
       ],
       "color": "#432",
       "bgcolor": "#653"

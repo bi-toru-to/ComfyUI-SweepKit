@@ -1051,11 +1051,11 @@
       "type": "MarkdownNote",
       "pos": [
         40,
-        -900
+        -855
       ],
       "size": [
         900,
-        250
+        205
       ],
       "flags": {},
       "order": 4,
@@ -1064,7 +1064,7 @@
       "outputs": [],
       "properties": {},
       "widgets_values": [
-        "## Pair two LoRA strengths, sweep cfg too\n\nThe LoRA's **model strength** and **clip strength** are swept *together*: the two lists are paired value for value (0.2 with 0.3, 0.4 with 0.5, ...) by **Pair the two strengths** (Sweep Pair Axes), instead of trying every combination. cfg (4, 7, 10) is crossed with the pairs: 5 pairs x 3 cfg = 15 images, in one grid in `output/SweepKit_pair_lora/`.\n\n1. Pick your checkpoint and a LoRA file.\n2. Queue.\n\nThe Sweep Plan's `axis_1`, `axis_2`, `axis_3` outputs go to the LoRA's two strengths and the KSampler's cfg. No extra node packs needed."
+        "## Pair two LoRA strengths, sweep cfg too\n\n**Shows:** a LoRA's **model strength** and **clip strength** changed *together*, value by value (0.2 with 0.3, 0.4 with 0.5, …) by **Sweep Pair Axes**, instead of trying every mix. cfg (4, 7, 10) is tried with each pair.\n\n**Set first:** pick your checkpoint in **Load Checkpoint** and your LoRA in **Load LoRA**. Then press **Run**.\n\n**Makes:** 15 images (5 pairs × 3 cfg), one grid and a run list (`.csv`), in ComfyUI's `output` folder under `SweepKit_pair_lora`.\n\n**Needs:** no extra node packs.\n\nSweep Plan's `axis_1`, `axis_2` and `axis_3` outputs go to the LoRA's two strengths and the KSampler's cfg.\n\nSee NODE_GUIDE.md, workflow 3."
       ],
       "color": "#432",
       "bgcolor": "#653"

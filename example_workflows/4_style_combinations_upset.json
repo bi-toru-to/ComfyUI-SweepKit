@@ -9,11 +9,11 @@
       "type": "MarkdownNote",
       "pos": [
         0,
-        -340
+        -321
       ],
       "size": [
         460,
-        260
+        241
       ],
       "flags": {},
       "order": 0,
@@ -22,7 +22,7 @@
       "outputs": [],
       "properties": {},
       "widgets_values": [
-        "## Style combinations + UpSet matrix\n\nEvery single style, pair and triple of 4 styles (**14 combinations**), each rendered once and shown as an UpSet matrix: one column per combination, dots marking which styles it uses.\n\nEdit the style list and the prompt template (`__style__` is replaced). Needs **ComfyUI-List-Utils**.\n\nSee NODE_GUIDE.md, workflow 4."
+        "## Style combinations + UpSet matrix\n\n**Shows:** every single style, pair and triple of 4 styles (**14 subsets**, made by **Sweep Subsets of a List**), each rendered once and shown in an UpSet matrix: one column per subset, with dots marking the styles it uses.\n\n**Set first:** pick your checkpoint in **Load Checkpoint**. Then press **Run**.\n\n**Makes:** 14 images, shown in one UpSet matrix image, in ComfyUI's `output` folder under `SweepKit_styles` (in `_upset`).\n\n**Needs:** **ComfyUI-List-Utils** (install it from ComfyUI Manager).\n\nTo try other styles, edit the list on the **Sweep Axis** named `style`, and the prompt template (`__style__` is replaced by each subset).\n\nSee NODE_GUIDE.md, workflow 4."
       ],
       "color": "#432",
       "bgcolor": "#653"

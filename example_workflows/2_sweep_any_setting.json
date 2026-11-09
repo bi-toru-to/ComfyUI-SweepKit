@@ -867,11 +867,11 @@
       "type": "MarkdownNote",
       "pos": [
         40,
-        -620
+        -577
       ],
       "size": [
         900,
-        260
+        217
       ],
       "flags": {},
       "order": 3,
@@ -880,7 +880,7 @@
       "outputs": [],
       "properties": {},
       "widgets_values": [
-        "## Sweep any setting\n\nThis is an ordinary text-to-image workflow. Three of its settings are swept at once, with no special sampler: **seed (1-2) x cfg (4, 7, 10) x prompt (2 variants)** = 12 images, saved with the values in their file names, plus one labelled grid per prompt in `output/SweepKit_any_setting/` (and a `sweep_manifest_*.csv` run list).\n\n1. Pick your checkpoint in **Load Checkpoint**.\n2. Queue.\n\n**To sweep another setting:** right-click it on any node and choose **Sweep \"...\"**. SweepKit adds a blue **Sweep Axis** for it and wires it in; edit the values there. The blue **Sweep Plan** turns the axes into one list per setting, and the green **Sweep Collect** gathers your final image into named files and grids."
+        "## Sweep any setting\n\n**Shows:** an ordinary text-to-image workflow with three of its settings swept at once: **seed (1, 2) × cfg (4, 7, 10) × prompt (2 versions)**.\n\n**Set first:** pick your checkpoint in **Load Checkpoint**. Then press **Run**.\n\n**Makes:** 12 images named by their values, one grid per prompt (2 grids) and a run list (`.csv`), in ComfyUI's `output` folder under `SweepKit_any_setting`. The grid fills in on **Sweep Collect** as images finish.\n\n**Needs:** no extra node packs.\n\n**To sweep another setting:** right-click it on any node and choose **Sweep \"…\"**. SweepKit adds a **Sweep Axis** for it and connects it; edit the values there. **Sweep Plan** turns the axes into one list per setting, and **Sweep Collect** saves the images and builds the grids.\n\nSee NODE_GUIDE.md, workflow 2."
       ],
       "color": "#432",
       "bgcolor": "#653"
