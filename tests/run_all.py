@@ -19,7 +19,7 @@ import time
 TESTS_DIR = os.path.dirname(os.path.abspath(__file__))
 PKG_DIR = os.path.dirname(TESTS_DIR)
 
-PY_SUITES = ["logic_test.py", "run_integration.py", "test_modular_pipeline.py"]
+PY_SUITES = ["logic_test.py", "run_integration.py", "test_modular_pipeline.py", "examples_test.py"]
 JS_SUITES = [
     "js_hidelora_test.mjs",
     "js_live_test.mjs",
