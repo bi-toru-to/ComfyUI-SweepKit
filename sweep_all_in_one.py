@@ -260,8 +260,8 @@ class SweepAllInOne:
             return re.compile(text_regex)
         except re.error as e:
             raise ValueError(
-                f"[Sweep All-in-One] text_regex {text_regex!r} is not a valid regular expression: {e}. "
-                f"Use text_mode='curly' for plain {{}} placeholders."
+                f"[Sweep All-in-One] text_regex {text_regex!r} is not a valid search pattern ({e}). "
+                f"Fix the pattern, or set text_mode to curly and mark each place with {{}} in the prompt."
             ) from e
 
     def apply_text_replacements(self, prompt, replacements, mode, regex_pat):
@@ -320,7 +320,10 @@ class SweepAllInOne:
         path = folder_paths.get_full_path("loras", lora_name)
         if path is None:
             available = ", ".join(folder_paths.get_filename_list("loras")) or "(none found)"
-            raise ValueError(f"[Sweep All-in-One] LoRA '{lora_name}' was not found. Available LoRAs: {available}")
+            raise ValueError(
+                f"[Sweep All-in-One] the LoRA '{lora_name}' (lora_name on a Sweep Axis) is not in ComfyUI's loras "
+                f"folder. Pick one from that Sweep Axis's list. Available: {available}"
+            )
         sd = load_torch_file(path, safe_load=True)
         lora_cache[lora_name] = sd
         return sd

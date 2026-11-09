@@ -78,22 +78,26 @@ class SweepDimensionSelfCombine:
     def build(self, dimensions, mode, min_size, max_size, joiner):
         dims = [dict(d) for d in dimensions] if dimensions else []
         if not dims:
-            raise ValueError("[Sweep Subsets] no axes connected — chain at least one SweepDimension first.")
+            raise ValueError(
+                "[Sweep Subsets] nothing with values is connected to dimensions. "
+                "Connect a Sweep Axis holding the list to make subsets of."
+            )
 
         target = dims[-1]
         if target.get("group"):
             raise ValueError(
-                f"[Sweep Subsets] '{target['dim_id']}' is already zipped (group "
-                f"'{target['group']}') — self-combine before zipping, not after; which values "
-                f"a zipped pair's shared index should recombine against is ambiguous."
+                f"[Sweep Subsets] '{target['dim_id']}' is already paired with another axis (Sweep Pair Axes). "
+                f"Make the subsets first, then pair: connect the Sweep Axis to Sweep Subsets, and Sweep Subsets "
+                f"to Sweep Pair Axes."
             )
 
         base_values = list(target["values"])
         combo_values, combo_meta = self_combine(base_values, mode, min_size, max_size, joiner)
         if not combo_values:
             raise ValueError(
-                f"[Sweep Subsets] '{target['dim_id']}': min_size/max_size produced "
-                f"zero combinations from {len(base_values)} base value(s)."
+                f"[Sweep Subsets] '{target['dim_id']}' makes no subsets: min_size and max_size allow none "
+                f"of its {len(base_values)} values. Type values in that Sweep Axis, or set min_size to 1 and "
+                f"max_size to 0 (all sizes)."
             )
 
         new_dim = dict(target)

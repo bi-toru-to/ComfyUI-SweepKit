@@ -10,10 +10,13 @@ from __future__ import annotations
 
 import csv
 import itertools
+import logging
 import math
 import os
 import re
 from typing import Any, Callable, Iterable, Sequence, TypedDict
+
+log = logging.getLogger("SweepKit")
 
 
 class Dimension(TypedDict, total=False):
@@ -173,8 +176,8 @@ def parse_number_list(raw: Any, cast: Callable[[str], Any], dim_id: str, allow_r
             a, b = int(range_match[1]), int(range_match[2])
             if abs(b - a) + 1 > MAX_DERIVED_VALUES:
                 raise ValueError(
-                    f"[Sweep Axis] '{dim_id}': range '{line}' has {abs(b - a) + 1:,} values, "
-                    f"over the limit of {MAX_DERIVED_VALUES:,}."
+                    f"[Sweep Axis] '{dim_id}': the range '{line}' in values makes {abs(b - a) + 1:,} values, "
+                    f"more than the limit of {MAX_DERIVED_VALUES:,}. Use a shorter range or fewer values."
                 )
             step = 1 if b >= a else -1
             out.extend(range(a, b + step, step))
@@ -182,7 +185,13 @@ def parse_number_list(raw: Any, cast: Callable[[str], Any], dim_id: str, allow_r
         try:
             out.append(cast(line))
         except ValueError:
-            raise ValueError(f"[Sweep Axis] '{dim_id}': could not parse value '{line}' as {cast.__name__}.") from None
+            kind, example = ("whole number", "1, 2, 3 or a range like 1-5") if cast is int else ("number", "4, 7.5, 10")
+            if cast is int and not allow_range:
+                example = "1, 2, 3"
+            raise ValueError(
+                f"[Sweep Axis] '{dim_id}': '{line}' in values is not a {kind}. "
+                f"Type {kind}s separated by commas, like {example}."
+            ) from None
     return out
 
 
@@ -205,7 +214,8 @@ def parse_lora_strength_list(raw: Any, dim_id: str) -> list[tuple[float, float]]
                 out.append((v, v))
         except ValueError:
             raise ValueError(
-                f"[Sweep Axis] '{dim_id}': could not parse lora strength '{line}' (expected a number, or 'model:clip')."
+                f"[Sweep Axis] '{dim_id}': '{line}' in values is not a LoRA strength. "
+                f"Type a number like 0.8, or model:clip strengths like 0.8:0.6."
             ) from None
     return out or [(1.0, 1.0)]
 
@@ -416,6 +426,16 @@ def one_per_group(dims: Iterable[Dimension]) -> list[Dimension]:
     return out
 
 
+_PYLIST_KINDS = {
+    "seed": "whole number",
+    "steps": "whole number",
+    "int": "whole number",
+    "cfg": "number",
+    "float": "number",
+    "lora_strength": "LoRA strength",
+}
+
+
 def cast_pylist_values(raw_list: Sequence[Any], dim_type: str, dim_id: str) -> list[Any]:
     """Cast/validate a raw Python list (from a connected PYLIST socket) to
     match dim_type — the same job the string-widget parsers above do for
@@ -448,8 +468,11 @@ def cast_pylist_values(raw_list: Sequence[Any], dim_type: str, dim_id: str) -> l
             else:
                 out.append(raw)
         except (ValueError, TypeError) as e:
+            log.info("values_pylist item %d %r -> %s: %s", i, raw, dim_type, e)
+            kind = _PYLIST_KINDS.get(dim_type, dim_type)
             raise ValueError(
-                f"[Sweep Axis] '{dim_id}': values_pylist element {i} ({raw!r}) can't be cast to {dim_type} — {e}"
+                f"[Sweep Axis] '{dim_id}': item {i + 1} of the list connected to values_pylist ({raw!r}) "
+                f"is not a {kind}. Connect a list of {kind}s, or disconnect values_pylist and type the values."
             ) from e
     return out
 
@@ -498,9 +521,15 @@ def find_dim_by_id(dimensions: Sequence[Dimension], dim_id: str) -> Dimension:
     candidates = [d for d in dimensions if d["dim_id"] == dim_id]
     if not candidates:
         available = ", ".join(sorted({d["dim_id"] for d in dimensions})) or "(none)"
-        raise ValueError(f"no axis with dim_id '{dim_id}' — available dim_ids: {available}")
+        raise ValueError(
+            f"dim_id is '{dim_id}', but no axis has that name. Axis names in this sweep: {available}. "
+            f"Set dim_id to one of them, or change the Sweep Axis's dim_id to match."
+        )
     if len(candidates) > 1:
-        raise ValueError(f"'{dim_id}' matches {len(candidates)} axes — dim_ids must be unique to look up by dim_id.")
+        raise ValueError(
+            f"dim_id is '{dim_id}', but {len(candidates)} axes have that name. "
+            f"Give each Sweep Axis its own dim_id, then set this one."
+        )
     return candidates[0]
 
 
@@ -582,18 +611,18 @@ def extract_values(
 
     if component != "value" and d["type"] != "lora_strength":
         raise ValueError(
-            f"[Sweep Axis Value] component='{component}' only applies to a "
-            f"lora_strength-type axis — '{dim_id}' is '{d['type']}'."
+            f"[Sweep Axis Value] component is '{component}', but '{dim_id}' is a {d['type']} axis: "
+            f"model_strength and clip_strength only apply to a lora_strength axis. Set component to value."
         )
 
     out = []
     for rec in combo_records:
         vi = rec["idx_by_dim"].get(d["index"])
         if vi is None:
-            raise KeyError(
-                f"[Sweep Axis Value] combo_index {rec['combo_index']} has no resolved "
-                f"index for axis '{dim_id}' — combo_records looks malformed/from a "
-                f"mismatched SweepCombinationExpander run."
+            log.info("combo_index %s has no index for axis %r (index %s)", rec["combo_index"], dim_id, d["index"])
+            raise ValueError(
+                f"[Sweep Axis Value] the combinations connected to combo don't include the axis '{dim_id}'. "
+                f"Connect combo to the Sweep Plan that this axis feeds, then queue again."
             )
         val = d["model_objs"][vi] if d.get("models_from_list") else d["values"][vi]
         if component == "model_strength":
@@ -622,8 +651,10 @@ def self_combine(
     max_size = n if max_size in (0, None) else min(max_size, n)
     min_size = max(1, min_size)
     if min_size > max_size:
+        capped = f"; the list has only {n} values" if max_size == n else ""
         raise ValueError(
-            f"[Sweep Subsets] min_size ({min_size}) > effective max_size ({max_size}) for {n} base value(s)."
+            f"[Sweep Subsets] min_size ({min_size}) is larger than max_size ({max_size}{capped}). "
+            f"Set min_size to {max_size} or less."
         )
     count_fn = math.perm if mode == "permutations" else math.comb
     total = sum(count_fn(n, r) for r in range(min_size, max_size + 1))
@@ -636,10 +667,10 @@ def self_combine(
             for r in range(min_size, max_size + 1)
             if sum(count_fn(n, k) for k in range(min_size, r + 1)) <= MAX_DERIVED_VALUES
         ]
-        hint = f" max_size={fitting[-1]} fits." if fitting else " Use fewer base values."
+        hint = f"Set max_size to {fitting[-1]} or less." if fitting else "Use fewer values in the list."
         raise ValueError(
-            f"[Sweep Subsets] {n} base value(s) as {mode} of sizes {min_size}-{max_size} would "
-            f"produce {total:,} derived values, over the limit of {MAX_DERIVED_VALUES:,}.{hint}"
+            f"[Sweep Subsets] {n} values as {mode} of {min_size} to {max_size} items make {total:,} subsets, "
+            f"more than the limit of {MAX_DERIVED_VALUES:,}. {hint}"
         )
     iterator_fn = itertools.permutations if mode == "permutations" else itertools.combinations
 
@@ -694,25 +725,29 @@ def build_dedupe_keys(axis_value_lists: Sequence[Sequence[Any]], float_precision
     companion dimension instead.
     """
     if not axis_value_lists:
-        raise ValueError("[Sweep Skip Repeats] no axes connected — nothing to dedupe on.")
+        raise ValueError(
+            "[Sweep Skip Repeats] axis_values is empty. Connect a Create PyList that holds the lists "
+            "deciding each image (for example the prompt texts, from Sweep Axis Value)."
+        )
     n = len(axis_value_lists[0])
     for ai, axis in enumerate(axis_value_lists):
         if len(axis) != n:
             raise ValueError(
-                f"[Sweep Skip Repeats] axis {ai} has length {len(axis)}, expected {n} "
-                f"(every connected axis must be the same length as combo_records)."
+                f"[Sweep Skip Repeats] the lists in axis_values have different lengths: list {ai + 1} has "
+                f"{len(axis)} item{'' if len(axis) == 1 else 's'}, list 1 has {n}. Connect lists with one item per combination "
+                f"(straight from Sweep Axis Value), not lists that were already shortened."
             )
     keys = []
     for i in range(n):
         parts = []
-        for axis in axis_value_lists:
+        for ai, axis in enumerate(axis_value_lists):
             v = axis[i]
             if not isinstance(v, _DEDUPE_KEY_TYPES):
+                log.info("axis_values list %d item %d is a %s, not str/int/float/bool", ai + 1, i, type(v).__name__)
                 raise ValueError(
-                    f"[Sweep Skip Repeats] value at index {i} ({v!r}, type {type(v).__name__}) "
-                    f"isn't a plain str/int/float/bool — dedup can't hash arbitrary objects "
-                    f"like MODEL/CLIP reliably. Zip a string-key companion axis (e.g. "
-                    f"'model_key') alongside it and connect that instead."
+                    f"[Sweep Skip Repeats] list {ai + 1} in axis_values holds models or other objects, which "
+                    f"can't be compared directly. Pair a text axis holding the file names with that axis "
+                    f"(Sweep Pair Axes), and connect the text axis's values instead."
                 )
             if isinstance(v, float):
                 v = round(v, float_precision)
@@ -731,9 +766,16 @@ def gather(source: Sequence[Any], indices: Sequence[Any]) -> list[Any]:
     out = []
     for i in indices:
         # bool is a subclass of int (True == 1), so check it explicitly.
-        if isinstance(i, bool) or not isinstance(i, int) or i < 0 or i >= n:
+        if isinstance(i, bool) or not isinstance(i, int):
             raise ValueError(
-                f"[Sweep Gather] index {i!r} out of range for source of length {n} (valid range 0..{n - 1})."
+                f"[Sweep Gather] indices must hold positions (whole numbers), but it holds {i!r}. "
+                f"Connect Sweep Skip Repeats' unique_index_map or expand_indices to indices."
+            )
+        if i < 0 or i >= n:
+            have = f"only {n} items (positions 0 to {n - 1})" if n else "no items"
+            raise ValueError(
+                f"[Sweep Gather] indices asks for position {i}, but source has {have}. Connect indices "
+                f"from the Sweep Skip Repeats that worked on this same list."
             )
         out.append(source[i])
     return out

@@ -82,7 +82,12 @@ def wrap_title(text: Any, font: Any, max_width: int, draw: Any, max_lines: int =
     return lines
 
 
-def check_canvas_size(width: int, height: int, node_tag: str) -> None:
+def check_canvas_size(
+    width: int,
+    height: int,
+    node_tag: str,
+    split: str = "pick another axis in grid_title_dim to split it into smaller grids",
+) -> None:
     """Refuse to allocate a grid/matrix canvas above MAX_CANVAS_PIXELS.
     Called before Image.new so an oversized grid fails with advice instead
     of exhausting RAM (the canvas is held as RGB, then again as a float32
@@ -90,9 +95,8 @@ def check_canvas_size(width: int, height: int, node_tag: str) -> None:
     pixels = width * height
     if pixels > MAX_CANVAS_PIXELS:
         raise ValueError(
-            f"[{node_tag}] grid image would be {width}x{height} ({pixels / 1e6:.0f} MP), over the "
-            f"{MAX_CANVAS_PIXELS / 1e6:.0f} MP limit. Use cell_mode='fit' with a smaller cell_size, "
-            f"or set another dimension as grid_title_dim so it splits into more, smaller grids."
+            f"[{node_tag}] the grid would be {width} x {height} pixels ({pixels / 1e6:.0f} megapixels), over the "
+            f"{MAX_CANVAS_PIXELS / 1e6:.0f}-megapixel limit. Set cell_mode to fit and lower cell_size, or {split}."
         )
 
 

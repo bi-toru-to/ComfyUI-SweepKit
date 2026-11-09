@@ -320,6 +320,12 @@ def make_grid(
 # ------------------------------------------------------------ grid sets
 
 
+UNPACK_HINT = (
+    "If you use Sweep Skip Repeats, connect the images through the second Sweep Gather (with expand_indices), "
+    "so every combination gets its image back."
+)
+
+
 def unpack_combo(
     images: Sequence[Any], combo: dict, node_tag: str, hint: str = ""
 ) -> tuple[list[Dimension], list[Any], list[dict]]:
@@ -328,10 +334,11 @@ def unpack_combo(
     dims_sorted = sorted([dict(d) for d in combo["dimensions"]], key=lambda d: d["index"])
     images, combo_records = list(images), list(combo["combo_records"])
     if len(images) != len(combo_records):
+        fewer = "fewer" if len(images) < len(combo_records) else "more"
         raise ValueError(
-            f"[{node_tag}] images has {len(images)} entries but combo has {len(combo_records)} combo_records — "
-            f"they must be the same length and in the same order (did dedup/gather get wired up correctly?)."
-            + (f" {hint}" if hint else "")
+            f"[{node_tag}] got {len(images)} images for {len(combo_records)} combinations from Sweep Plan: "
+            f"{fewer} images than combinations. Each combination must make exactly one image, in order. "
+            + (hint or UNPACK_HINT)
         )
     return dims_sorted, images, combo_records
 

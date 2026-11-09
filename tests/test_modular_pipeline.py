@@ -139,7 +139,7 @@ try:
     print("FAIL: should have raised on length mismatch")
     sys.exit(1)
 except ValueError as e:
-    assert "must be the same length" in str(e)
+    assert "fewer images than combinations" in str(e) and "Sweep Gather" in str(e), str(e)
     print("PASS scenario B -", e)
 
 # ------------------------------------------------------------------
@@ -204,7 +204,7 @@ try:
     print("FAIL: should have raised")
     sys.exit(1)
 except ValueError as e:
-    assert "model_key" in str(e)
+    assert "can't be compared directly" in str(e) and "text axis" in str(e)
     print("PASS scenario D -", e)
 
 # ------------------------------------------------------------------
@@ -833,7 +833,7 @@ try:
     CollectNode.collect(images=images_u[:5], combo=[combo_t], **collect_kwargs("TestCollectE"))
     raise AssertionError("5 images for 12 runs must be refused")
 except ValueError as exc:
-    assert "5 entries" in str(exc) and "12 combo_records" in str(exc) and "axis outputs" in str(exc), exc
+    assert "got 5 images for 12 combinations" in str(exc) and "axis outputs" in str(exc), exc
 print("PASS scenario U - Collect saves 12 named files + grids, never overwrites, honours switches, explains mismatches")
 
 

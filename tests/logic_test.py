@@ -299,7 +299,7 @@ def test_extract_values():
         core.extract_values(dup, records, "style")
         assert False
     except ValueError as e:
-        assert "matches 2 axes" in str(e)
+        assert "2 axes have that name" in str(e) and "own dim_id" in str(e)
     print("OK test_extract_values")
 
 
@@ -314,7 +314,7 @@ def test_extract_values_lora_component():
         core.extract_values(bad_dims, bad_records, "cfg", "model_strength")
         assert False
     except ValueError as e:
-        assert "only applies to" in str(e)
+        assert "only apply to a lora_strength axis" in str(e) and "Set component to value" in str(e)
     print("OK test_extract_values_lora_component")
 
 
@@ -368,7 +368,7 @@ def test_gather():
         core.gather(src, [5])
         assert False
     except ValueError as e:
-        assert "out of range" in str(e)
+        assert "but source has" in str(e) and "Connect indices" in str(e)
     try:
         core.gather(src, [-1])
         assert False
@@ -403,7 +403,7 @@ def test_build_dedupe_keys():
         core.build_dedupe_keys([[1, 2], [Opaque(), 3]])
         assert False
     except ValueError as e:
-        assert "model_key" in str(e)
+        assert "can't be compared directly" in str(e) and "text axis" in str(e)
 
     try:
         core.build_dedupe_keys([])
@@ -513,7 +513,7 @@ def test_self_combine_cap():
         "1,302,061,344",
         f"{core.MAX_DERIVED_VALUES:,}",
     )
-    assert "max_size=" in msg, msg  # tells the user which max_size would fit
+    assert "Set max_size to" in msg, msg  # tells the user which max_size would fit
     # At/below the cap still works, and the cap applies to the requested sizes only.
     vals, _ = core.self_combine(list(range(12)), "permutations", 1, 3, ", ")
     assert len(vals) == 12 + 132 + 1320

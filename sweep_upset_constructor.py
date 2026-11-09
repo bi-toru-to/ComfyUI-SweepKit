@@ -230,8 +230,8 @@ class SweepUpsetConstructor:
             raise ValueError(f"[Sweep UpSet Matrix] {e}") from e
         if "combo_meta" not in target:
             raise ValueError(
-                f"[Sweep UpSet Matrix] '{dim_id}' has no combo_meta — it wasn't produced "
-                f"by SweepDimensionSelfCombine. Route that axis through SweepDimensionSelfCombine first."
+                f"[Sweep UpSet Matrix] dim_id is '{dim_id}', but that axis doesn't go through Sweep Subsets of a "
+                f"List. Set dim_id to the axis that does, or connect '{dim_id}' through Sweep Subsets of a List."
             )
         return target
 
@@ -429,7 +429,7 @@ def draw_matrix(col_images, target, lo, hi, title, cell_size, cell_mode, font_si
     each combination contains, and labels."""
     base_values, col_values, col_meta = target["base_values"], target["values"][lo:hi], target["combo_meta"][lo:hi]
     lay = layout_matrix(col_images, base_values, col_values, cell_size, cell_mode, font_size, title)
-    check_canvas_size(lay.width, lay.height, "Sweep UpSet Matrix")
+    check_canvas_size(lay.width, lay.height, "Sweep UpSet Matrix", "lower max_columns_per_page")
     canvas = Image.new("RGB", (lay.width, lay.height), BACKGROUND)
     draw = ImageDraw.Draw(canvas)
     _draw_headers_and_rows(draw, lay, base_values, col_meta)
