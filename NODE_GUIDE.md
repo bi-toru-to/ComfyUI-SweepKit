@@ -175,6 +175,16 @@ pass it along.
 One axis of a sweep. Chain several of these together to build up a
 sweep with multiple axes.
 
+#### Typing values
+
+| To enter | Type | Works for |
+|---|---|---|
+| A list | `4, 7, 10`, or one value per line | every number type |
+| A range | `1-5` (1 to 5), `10-1` (counting down), `-3-2` (negative start) | seed, steps, int |
+| Text | one value per line; commas stay part of the text | text, static, model labels |
+| A LoRA strength | `0.8` (model and clip the same), or `0.8:0.6` (model:clip) | lora_strength |
+| The limit | at most 10,000 values from one range | seed, steps, int |
+
 **Inputs**
 
 | Socket | Type | Meaning |
@@ -992,3 +1002,9 @@ two outputs you used. `values_pylist` wants the `PYLIST` output, not the
 `STRING` (List) one — connecting the `List` output would make ComfyUI try
 to re-run `SweepDimension` once per line instead of treating the whole
 list as one dimension's values.
+
+---
+
+This guide covers SweepKit 1.1.0, last checked 2026-11-10.
+
+Problems or questions? Open an issue: ISSUES_URL <!-- RELEASE: issues URL -->

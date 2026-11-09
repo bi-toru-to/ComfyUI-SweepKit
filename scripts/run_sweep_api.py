@@ -2,7 +2,7 @@
 """Run a SweepKit workflow on a ComfyUI server without opening the browser.
 
 One request produces every image and grid of the sweep, because SweepKit does
-its looping on the server. Export your workflow with "Save (API Format)" in
+its looping on the server. Export your workflow with File > Export (API) in
 ComfyUI, then:
 
     python scripts/run_sweep_api.py workflow_api.json
@@ -90,7 +90,7 @@ def summarize(entry: dict) -> list[str]:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    parser.add_argument("workflow", help="workflow exported with 'Save (API Format)'")
+    parser.add_argument("workflow", help="workflow exported with File > Export (API) in ComfyUI")
     parser.add_argument("--server", default="http://127.0.0.1:8188", help="ComfyUI address (default: %(default)s)")
     parser.add_argument(
         "--set", action="append", default=[], metavar="NODE_ID.INPUT=VALUE", help="change an input first"

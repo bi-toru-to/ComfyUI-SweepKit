@@ -122,7 +122,7 @@ def any_setting() -> Svg:
     s.arrow([(745, 240), (790, 240)])
     s.arrow([(640, 148), (640, 175), (295, 175), (295, 210)], "prompt list", (470, 169))
     s.arrow([(700, 148), (700, 188), (495, 188), (495, 210)], "seed + cfg lists", (600, 202))
-    s.arrow([(780, 113), (900, 113), (900, 200)], "combo", (860, 107))
+    s.arrow([(780, 113), (900, 113), (900, 200)], "which values made each image", (905, 100))
     s.box(630, 350, 190, 54, "result", ["named images", "seed1_cfg4_….png"], size=14)
     s.box(840, 350, 170, 54, "result", ["labelled grids", "one per prompt"], size=14)
     s.box(420, 350, 190, 54, "result", ["run list (CSV)", "values for every image"], size=14)
@@ -165,8 +165,9 @@ def cross_vs_pair() -> Svg:
 
 
 def which_path() -> Svg:
-    s = Svg(1000, 470, "Which SweepKit path fits")
-    s.text(24, 34, "Which path fits?", 18, INK, "start", "600")
+    takeaway = "All-in-One for the fastest start; Plan + Collect for your own workflow"
+    s = Svg(1000, 470, takeaway)
+    s.text(24, 34, takeaway, 18, INK, "start", "600")
     s.box(380, 60, 240, 50, "user", ["I want to compare settings"], size=15)
     s.box(60, 160, 340, 74, "user", ["Fastest start,", "the built-in sampler is fine"], size=15)
     s.box(600, 160, 340, 74, "user", ["My own workflow", "(any sampler, ControlNet, LoRA stack…)"], size=15)
