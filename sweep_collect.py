@@ -113,8 +113,7 @@ class SweepCollect:
                     {
                         "default": "SweepKit",
                         "tooltip": (
-                            "Output folder for this node's files (one folder name; blank = 'SweepKit'). Files never "
-                            "overwrite earlier runs: a _00001, _00002... counter is added. Grids go in <prefix>/_grids/."
+                            "Folder (inside ComfyUI's output folder) for this node's images, grids and run list. Leave blank for SweepKit. Files never replace earlier ones: a number like _00001 is added; grids go in _grids."
                         ),
                     },
                 ),
@@ -160,7 +159,9 @@ class SweepCollect:
                     GRID_AXIS_OPTIONS,
                     {
                         "default": "auto",
-                        "tooltip": "Axis for the columns. auto prefers a seed, then any non-text axis; none = one column. The list shows the connected axes by name (their dim_id); older workflows' dim1, dim2... (chain position) still work.",
+                        "tooltip": (
+                            "Axis for the grid's columns. auto prefers a seed, then any number axis; none makes one column. The list shows your axes by their names (dim_id)."
+                        ),
                     },
                 ),
                 "grid_y_dim": (

@@ -31,20 +31,24 @@ class SweepGridConstructor:
                     "PYLIST",
                     {
                         "forceInput": True,
-                        "tooltip": "One image tensor per combo, same order as combo.combo_records — connect via List-Utils' 'List To PyList', fed from VAEDecode's IMAGE List output.",
+                        "tooltip": (
+                            "Every image of the sweep, in order. Turn your image output into one list with List-Utils' List To PyList, then connect it here."
+                        ),
                     },
                 ),
                 "combo": (
                     "SWEEP_COMBO",
                     {
-                        "tooltip": "Connect SweepCombinationExpander's 'combo' output.",
+                        "tooltip": ("Connect Sweep Plan's combo output."),
                     },
                 ),
                 "filename_prefix": (
                     "STRING",
                     {
                         "default": "SweepKit",
-                        "tooltip": "Top-level output folder for this node's files (sanitized to one folder name; blank = 'SweepKit'). Files never overwrite earlier runs: a _00001, _00002... counter is added. Grids go in <prefix>/_grids/.",
+                        "tooltip": (
+                            "Folder (inside ComfyUI's output folder) for the grids. Leave blank for SweepKit. Files never replace earlier ones: a number like _00001 is added; grids go in _grids."
+                        ),
                     },
                 ),
                 "cell_size": (
@@ -72,12 +76,7 @@ class SweepGridConstructor:
                         "max": 1.0,
                         "step": 0.05,
                         "tooltip": (
-                            "Text size as a fraction of the ACTUAL rendered cell width (not the "
-                            "cell_size widget) — 1.0 means one character is about 1/16 of a cell's "
-                            "width. Sized off the real cell width specifically so cell_mode='original' "
-                            "(whose actual size can differ a lot from cell_size) doesn't end up with "
-                            "text that's disproportionately tiny or huge next to the images. Title "
-                            "text stays proportionally larger than axis labels at every setting."
+                            "Label size compared with the cell width: 1.0 fits about 16 characters across a cell. Titles stay larger than labels."
                         ),
                     },
                 ),
@@ -85,7 +84,9 @@ class SweepGridConstructor:
                     GRID_AXIS_OPTIONS,
                     {
                         "default": "auto",
-                        "tooltip": "Axis for the columns. auto prefers a seed, then any non-text axis; none = one column. The list shows the connected axes by name (their dim_id); older workflows' dim1, dim2... (chain position) still work.",
+                        "tooltip": (
+                            "Axis for the grid's columns. auto prefers a seed, then any number axis; none makes one column. The list shows your axes by their names (dim_id)."
+                        ),
                     },
                 ),
                 "grid_y_dim": (
@@ -143,7 +144,7 @@ class SweepGridConstructor:
 
         dim_map = "; ".join(f"dim{d['index']}='{d['dim_id']}'" for d in dims_sorted) or "(no active axes)"
         summary = (
-            f"SweepGridConstructor: {len(grid_paths)} grid(s) built from {len(images)} image(s) "
+            f"Sweep Grid: {len(grid_paths)} grid(s) built from {len(images)} image(s) "
             f"under {os.path.join(output_dir, prefix_folder, '_grids')} | {dim_map}"
         )
         print(f"[Sweep Grid] {summary}")

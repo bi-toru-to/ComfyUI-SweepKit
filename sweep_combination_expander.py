@@ -37,7 +37,9 @@ class SweepCombinationExpander:
                 "dimensions": (
                     "SWEEP_DIMS",
                     {
-                        "tooltip": "Connect the end of a chain of SweepDimension (and optionally SweepDimensionZip / SweepDimensionSelfCombine) nodes.",
+                        "tooltip": (
+                            "Connect the last node of your chain: a Sweep Axis, or Sweep Pair Axes or Sweep Subsets of a List if you use them."
+                        ),
                     },
                 ),
             },
@@ -77,10 +79,7 @@ class SweepCombinationExpander:
         for i in range(1, MAX_AXIS_OUTPUTS + 1)
     )
     FUNCTION = "build"
-    DESCRIPTION = (
-        "Plans the sweep: turns the chained axes into every combination. Each axis comes out as a list you can "
-        "connect to any setting (seed, cfg, prompt text, model or LoRA name...), so that node runs once per image."
-    )
+    DESCRIPTION = "Plans the sweep: turns the connected axes into every combination. Each axis comes out as a list you can connect to any setting (seed, cfg, prompt text, model or LoRA name...), so that node runs once per image."
     SEARCH_ALIASES = ["sweep expander", "combination expander", "sweep plan"]
     CATEGORY = "SweepKit"
 

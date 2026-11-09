@@ -77,13 +77,7 @@ class SweepAllInOne:
                     "multiline": True,
                     "default": "masterpiece, best quality, {}, 1girl, {}, looking at viewer",
                     "tooltip": (
-                        "POSITIVE prompt (this is the first of the two text boxes; "
-                        "negative_prompt is the box right below it — ComfyUI doesn't "
-                        "label multiline boxes, same as CLIPTextEncode). "
-                        "Each {} is filled in, left to right, by your 'text'-type "
-                        "SweepDimension nodes in chain order — the first one fills "
-                        "the 1st {}, the next fills the 2nd {}, and so on. "
-                        "Non-text axes in between are skipped when counting."
+                        "Positive prompt (the upper text box; the lower one is the negative prompt). Each {} is replaced by the value of a text axis: the first text axis in the chain fills the first {}, the next fills the second, and so on."
                     ),
                 },
             ),
@@ -99,14 +93,18 @@ class SweepAllInOne:
             "text_mode": (
                 ["curly", "regex"],
                 {
-                    "tooltip": "curly: text axes fill {} placeholders, left to right. regex: they fill matches of text_regex instead, also left to right."
+                    "tooltip": (
+                        "curly: each {} in the prompt is replaced by the next text axis's value. regex: advanced; replaces the matches of the search pattern in text_regex instead (see NODE_GUIDE)."
+                    )
                 },
             ),
             "text_regex": (
                 "STRING",
                 {
                     "default": r"\{\}",
-                    "tooltip": "Pattern marking the placeholders when text_mode is regex (ignored for curly). An invalid pattern stops the run before sampling.",
+                    "tooltip": (
+                        "Only for text_mode regex: the search pattern that marks the places to fill. A pattern that isn't valid stops the run before any image is made."
+                    ),
                 },
             ),
             "fixed_seed": (
@@ -115,7 +113,7 @@ class SweepAllInOne:
                     "default": 1,
                     "min": 0,
                     "max": 0xFFFFFFFFFFFFFFFF,
-                    "tooltip": "Used when no SweepDimension of type 'seed' is chained in — pins every image in the sweep to this one seed instead of always defaulting to 1.",
+                    "tooltip": ("Seed used for every image when no Sweep Axis of type seed is connected."),
                 },
             ),
             "fixed_steps": (
@@ -124,7 +122,7 @@ class SweepAllInOne:
                     "default": 35,
                     "min": 1,
                     "max": 10000,
-                    "tooltip": "Used when no SweepDimension of type 'steps' is chained in.",
+                    "tooltip": ("Steps used for every image when no Sweep Axis of type steps is connected."),
                 },
             ),
             "fixed_cfg": (
@@ -134,7 +132,7 @@ class SweepAllInOne:
                     "min": 0.0,
                     "max": 100.0,
                     "step": 0.05,
-                    "tooltip": "Used when no SweepDimension of type 'cfg' is chained in.",
+                    "tooltip": ("cfg used when no Sweep Axis of type cfg is connected."),
                 },
             ),
             "sampler_name": (
@@ -162,7 +160,9 @@ class SweepAllInOne:
                 "STRING",
                 {
                     "default": "SweepKit",
-                    "tooltip": "Top-level output folder for this node's files (sanitized to one folder name; blank = 'SweepKit'). Files never overwrite earlier runs: a _00001, _00002... counter is added.",
+                    "tooltip": (
+                        "Folder (inside ComfyUI's output folder) for this node's images, grids and run list. Leave blank for SweepKit. Files never replace earlier ones: a number like _00001 is added."
+                    ),
                 },
             ),
             "save_individuals": (
@@ -173,7 +173,9 @@ class SweepAllInOne:
                 "BOOLEAN",
                 {
                     "default": True,
-                    "tooltip": "Build labelled X/Y grids. Keeps every image in RAM until the end (~12.6 MB per 1024x1024 image); turn off for very large sweeps.",
+                    "tooltip": (
+                        "Build labelled grids. Every image stays in memory until the end (about 13 MB per 1024 x 1024 image); turn off for very large sweeps."
+                    ),
                 },
             ),
             "cell_size": (
@@ -183,7 +185,9 @@ class SweepAllInOne:
                     "min": 64,
                     "max": 4096,
                     "step": 64,
-                    "tooltip": "Meaning depends on cell_mode: the fixed width/height for 'square', the larger dimension's target size for 'fit'. Ignored by 'original'.",
+                    "tooltip": (
+                        "Size of each grid cell in pixels: the longer side for fit, both sides for square. Ignored by original."
+                    ),
                 },
             ),
             "cell_mode": (
@@ -191,12 +195,7 @@ class SweepAllInOne:
                 {
                     "default": "fit",
                     "tooltip": (
-                        "How each image is placed into its grid cell. 'fit' scales to cell_size "
-                        "preserving aspect ratio (recommended — no distortion, bounded grid size). "
-                        "'square' stretches to a cell_size×cell_size square (may distort non-square "
-                        "images — this was the only behavior before). 'original' uses each image's "
-                        "native resolution with no resizing at all (sharpest, but the grid image can "
-                        "get very large)."
+                        "fit: scale each image to cell_size, keeping its shape (recommended). square: stretch it to a square of cell_size. original: keep each image's own size (the grid can get very large)."
                     ),
                 },
             ),
@@ -204,21 +203,27 @@ class SweepAllInOne:
                 GRID_AXIS_OPTIONS,
                 {
                     "default": "auto",
-                    "tooltip": "Which axis is the grid's X axis. 'auto' prefers a seed-type axis; 'none' = single column. The list shows the connected axes by name (their dim_id); older workflows' dim1, dim2... (chain position) still work.",
+                    "tooltip": (
+                        "Axis for the grid's columns. auto prefers a seed axis; none makes one column. The list shows your axes by their names (dim_id)."
+                    ),
                 },
             ),
             "grid_y_dim": (
                 GRID_AXIS_OPTIONS,
                 {
                     "default": "auto",
-                    "tooltip": "Which axis is the grid's Y axis. 'auto' picks whatever's left after X/Title; 'none' = single row.",
+                    "tooltip": (
+                        "Axis for the grid's rows. auto takes an axis not used for the columns or title; none makes one row."
+                    ),
                 },
             ),
             "grid_title_dim": (
                 GRID_AXIS_OPTIONS,
                 {
                     "default": "auto",
-                    "tooltip": "Which axis's value becomes the grid's title + top output folder. 'auto' prefers the first text/static axis. Any axis not used for X/Y/Title still produces its own set of extra grids — chain more than the picker lists and they'll still work, just as automatic grouping axes.",
+                    "tooltip": (
+                        "Axis named in each grid's title: every value gets its own grid and folder. auto prefers a text axis; none = no title axis. Axes not used for columns, rows or title make extra grids."
+                    ),
                 },
             ),
         }
@@ -227,7 +232,9 @@ class SweepAllInOne:
             "dimensions": (
                 "SWEEP_DIMS",
                 {
-                    "tooltip": "Connect the end of a chain of SweepDimension nodes here. Leave unconnected for a single fixed-parameter generation with no sweep.",
+                    "tooltip": (
+                        "Connect the last Sweep Axis of your chain. Leave unconnected to make one image with the fixed settings."
+                    ),
                 },
             ),
         }

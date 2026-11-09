@@ -27,7 +27,9 @@ class SweepDimensionSelfCombine:
                 "dimensions": (
                     "SWEEP_DIMS",
                     {
-                        "tooltip": "A chain of SweepDimension nodes — the LAST axis in this chain is the one that gets recombined against itself.",
+                        "tooltip": (
+                            "Connect the Sweep Axis holding the list to make subsets of (the last axis of the chain is used)."
+                        )
                     },
                 ),
                 "mode": (
@@ -35,11 +37,7 @@ class SweepDimensionSelfCombine:
                     {
                         "default": "combinations",
                         "tooltip": (
-                            "combinations: order doesn't matter, no repeats within a combo "
-                            "('cyberpunk, noir' only, not also 'noir, cyberpunk'). "
-                            "permutations: order matters too — use this if word order actually "
-                            "changes your output (it often does for prompts), at the cost of a "
-                            "much faster-growing result count."
+                            "combinations: order doesn't matter (cyberpunk, noir but not also noir, cyberpunk). permutations: every order too; use it if word order changes your images. Permutations grow much faster."
                         ),
                     },
                 ),
@@ -49,7 +47,7 @@ class SweepDimensionSelfCombine:
                         "default": 1,
                         "min": 1,
                         "max": 20,
-                        "tooltip": "Smallest combo size to include (1 = also emit every base value on its own).",
+                        "tooltip": ("Fewest items in a subset. 1 also includes every item on its own."),
                     },
                 ),
                 "max_size": (
@@ -58,12 +56,17 @@ class SweepDimensionSelfCombine:
                         "default": 0,
                         "min": 0,
                         "max": 20,
-                        "tooltip": "Largest combo size to include. 0 = use every base value (the full-size combo). Settings producing more than 10,000 derived values are refused with a hint.",
+                        "tooltip": (
+                            "Most items in a subset. 0 = all of them. More than 10,000 subsets in total is refused, with a suggestion."
+                        ),
                     },
                 ),
                 "joiner": (
                     "STRING",
-                    {"default": ", ", "tooltip": "String used to join a combo's member values into one derived value."},
+                    {
+                        "default": ", ",
+                        "tooltip": ("Text placed between the items of a subset, such as a comma and a space."),
+                    },
                 ),
             },
         }

@@ -19,14 +19,16 @@ class SweepGather:
                     "PYLIST",
                     {
                         "forceInput": True,
-                        "tooltip": "The list to read from.",
+                        "tooltip": ("The list to take items from (images or values)."),
                     },
                 ),
                 "indices": (
                     "PYLIST",
                     {
                         "forceInput": True,
-                        "tooltip": "Integer indices into source — result[i] = source[indices[i]]. Out-of-range indices raise immediately.",
+                        "tooltip": (
+                            "Which items of source to take, by position (0 = first). Connect Sweep Skip Repeats' unique_index_map or expand_indices."
+                        ),
                     },
                 ),
             },

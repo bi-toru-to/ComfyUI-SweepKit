@@ -43,25 +43,7 @@ class SweepDimension:
                     {
                         "default": "text",
                         "tooltip": (
-                            "'int'/'float' are generic numeric axes with no special behavior "
-                            "beyond casting — use these for anything that isn't literally the "
-                            "sampler's own seed/steps/cfg (e.g. a LoRA strength you'll feed into "
-                            "a stock LoraLoader). 'seed'/'steps'/'cfg' cast the same way as "
-                            "'int'/'int'/'float' respectively, but are ALSO recognized by "
-                            "SweepAllInOne's fixed_seed/fixed_steps/fixed_cfg fallback and by "
-                            "grid_x_dim=auto's seed-preference — use these specifically when this "
-                            "axis IS that sampler parameter; SweepAllInOne accepts at most one "
-                            "seed, steps, cfg and model axis each. 'text' fills the next "
-                            "available {} in SweepAllInOne's positive_prompt, counting only "
-                            "text-type axes in chain order (closest to the start of the "
-                            "chain = 1st {}). 'lora_strength' sweeps the selected LoRA's strength; "
-                            "several lora_strength axes stack, applied in chain order. "
-                            "'model' turns 'values' into a label list and spawns one MODEL "
-                            "input socket per label (up to 24) instead of a value list. 'static' is a "
-                            "fixed, non-swept single value (only the first line of 'values' is "
-                            "kept) that still participates in grid titles/filenames/folders — "
-                            "for tagging a whole sweep with something constant without wiring it "
-                            "into the prompt at all."
+                            "What this axis changes. seed, steps, cfg: the sampler's own settings (Sweep All-in-One uses at most one of each). int, float: any other whole or decimal number. text: words for the prompt. lora_strength: a LoRA's strength. model: which model. static: one fixed label for the file names, not swept. See NODE_GUIDE for details."
                         ),
                     },
                 ),
@@ -70,14 +52,7 @@ class SweepDimension:
                     {
                         "default": "",
                         "tooltip": (
-                            "Identifies this axis — grid titles/filenames use it for display, and "
-                            "the modular pipeline (SweepDimensionExtract, SweepUpsetConstructor) "
-                            "looks axes up by matching this EXACTLY, so give it a real value "
-                            "if you're using those. Defaults to dim_type if left blank, which is "
-                            "fine for the all-in-one SweepAllInOne node but will collide with "
-                            "any other same-typed axis's default in the modular pipeline "
-                            "(two blank-dim_id 'cfg' axes can't both default to 'cfg' and "
-                            "still be told apart)."
+                            "The axis name: shown in grid titles and file names, and used to pick this axis on other nodes. Give each axis its own name. Blank uses the type (seed, cfg...)."
                         ),
                     },
                 ),
@@ -87,13 +62,7 @@ class SweepDimension:
                         "multiline": True,
                         "default": "",
                         "tooltip": (
-                            "Values, one per line. Numeric types (seed/steps/cfg/int/float/"
-                            "lora_strength) also split on commas; text/static/model values "
-                            "split on newlines only, so a comma-separated tag list stays one "
-                            "value. For seed/steps/int you can also write a range like '1-5' "
-                            "or '-3-2'. For dim_type='model' "
-                            "this is a list of socket labels instead — editing it "
-                            "adds/removes MODEL input sockets below."
+                            "The values to try. Numbers: separate with commas, like 4, 7, 10; seed, steps and int also take ranges like 1-5 or 10-1 (at most 10,000 values). LoRA strength: 0.8, or model:clip like 0.8:0.6. Text and model labels: one per line (commas stay in the text)."
                         ),
                     },
                 ),
@@ -102,13 +71,7 @@ class SweepDimension:
                     {
                         "default": "",
                         "tooltip": (
-                            "Only used when dim_type = 'lora_strength' — which LoRA file's "
-                            "strength 'values' sweeps. Only consumed by SweepAllInOne's own "
-                            "internal LoRA application; the modular pipeline ignores this field "
-                            "entirely (pick the LoRA file on the stock LoraLoader node's own "
-                            "lora_name widget instead — this axis just supplies the numeric "
-                            "strengths via SweepDimensionExtract's model_strength/clip_strength "
-                            "component)."
+                            "Only for lora_strength with Sweep All-in-One: the LoRA whose strength is swept. With Sweep Plan, pick the LoRA on your own Load LoRA node instead."
                         ),
                     },
                 ),
@@ -117,19 +80,16 @@ class SweepDimension:
                 "prev_dimensions": (
                     "SWEEP_DIMS",
                     {
-                        "tooltip": "Chain from another SweepDimension node to add more axes. Leave unconnected if this is the first axis in the chain.",
+                        "tooltip": (
+                            "Connect the previous Sweep Axis to add this axis to the sweep. Leave unconnected on the first axis."
+                        ),
                     },
                 ),
                 "values_pylist": (
                     "PYLIST",
                     {
                         "tooltip": (
-                            "Connect a PyList (e.g. from List-Utils' Create PyList / Split String / "
-                            "Create Linspace) to OVERRIDE the 'values' widget above. Elements are cast "
-                            "to match dim_type, raising a clear error if they can't be. For dim_type="
-                            "'model', elements are passed through untouched (e.g. MODEL objects "
-                            "assembled via Create PyList from several checkpoint loaders) — this "
-                            "replaces the dynamic MODEL-socket mechanism below entirely when connected."
+                            "Optional: connect a list from List-Utils (Create PyList, Split String...) to use instead of the values box. For a model axis, connect the models themselves (for example from several Load Checkpoint nodes)."
                         ),
                     },
                 ),
@@ -140,7 +100,7 @@ class SweepDimension:
     RETURN_NAMES = ("dimensions",)
     FUNCTION = "build"
     CATEGORY = "SweepKit"
-    DESCRIPTION = "One thing to vary in a sweep: seed, steps, cfg, prompt text, LoRA strength, a model, or any number or text list. Chain several Axis nodes (connect one's output to the next one's prev_dimensions) and SweepKit makes every combination."
+    DESCRIPTION = "One thing to vary in a sweep: seed, steps, cfg, prompt text, LoRA strength, a model, or any number or text list. Connect several Sweep Axis nodes one after another and SweepKit makes every combination."
     SEARCH_ALIASES = ["sweep dimension", "sweep axis", "x/y plot", "xy plot", "grid search", "parameter sweep"]
 
     def build(self, dim_type, dim_id, values, lora_name, prev_dimensions=None, values_pylist=None, **kwargs):
@@ -236,7 +196,7 @@ def model_slots(values, disp_id, sockets):
         if sock is None:
             print(
                 f"[Sweep Axis] '{disp_id}' value '{label}' (slot {j}) has no MODEL connected "
-                f"— SweepAllInOne will fall back to its base model input for this slot."
+                f"— Sweep All-in-One will use its own model input for this slot."
             )
         model_objs.append(sock)
     return labels, model_objs

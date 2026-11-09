@@ -74,27 +74,31 @@ class SweepUpsetConstructor:
                     "PYLIST",
                     {
                         "forceInput": True,
-                        "tooltip": "One image tensor per combo, same order as combo.combo_records — connect via List-Utils' 'List To PyList'.",
+                        "tooltip": (
+                            "Every image of the sweep, in order. Turn your image output into one list with List-Utils' List To PyList, then connect it here."
+                        ),
                     },
                 ),
                 "combo": (
                     "SWEEP_COMBO",
                     {
-                        "tooltip": "Connect SweepCombinationExpander's 'combo' output.",
+                        "tooltip": ("Connect Sweep Plan's combo output."),
                     },
                 ),
                 "dim_id": (
                     "STRING",
                     {
                         "default": "",
-                        "tooltip": "dim_id of the SweepDimensionSelfCombine-produced axis to visualize.",
+                        "tooltip": ("The name (dim_id) of the axis that goes through Sweep Subsets of a List."),
                     },
                 ),
                 "filename_prefix": (
                     "STRING",
                     {
                         "default": "SweepKit",
-                        "tooltip": "Top-level output folder for this node's files (sanitized to one folder name; blank = 'SweepKit'). Files never overwrite earlier runs: a _00001, _00002... counter is added. Matrices go in <prefix>/_upset/.",
+                        "tooltip": (
+                            "Folder (inside ComfyUI's output folder) for the matrices. Leave blank for SweepKit. Files never replace earlier ones: a number like _00001 is added; matrices go in _upset."
+                        ),
                     },
                 ),
                 "cell_size": (
@@ -104,7 +108,7 @@ class SweepUpsetConstructor:
                         "min": 32,
                         "max": 1024,
                         "step": 8,
-                        "tooltip": "Target swatch size per column — exact meaning depends on cell_mode.",
+                        "tooltip": ("Size of each image in the matrix, in pixels (see cell_mode)."),
                     },
                 ),
                 "cell_mode": (
@@ -122,13 +126,7 @@ class SweepUpsetConstructor:
                         "max": 1.0,
                         "step": 0.05,
                         "tooltip": (
-                            "Text size as a fraction of the ACTUAL rendered swatch width (not the "
-                            "cell_size widget) — 1.0 means one character is about 1/16 of a swatch's "
-                            "width. Sized off the real swatch width specifically so cell_mode='original' "
-                            "(whose actual size can differ a lot from cell_size) doesn't end up with "
-                            "text that's disproportionately tiny or huge next to the images. Title, "
-                            "row-label, and column-label sizes stay proportionally distinct at every "
-                            "setting."
+                            "Label size compared with the image width: 1.0 fits about 16 characters across an image. Titles stay larger than labels."
                         ),
                     },
                 ),
@@ -136,7 +134,9 @@ class SweepUpsetConstructor:
                     GRID_AXIS_OPTIONS,
                     {
                         "default": "none",
-                        "tooltip": "Which OTHER (non-target) axis's value leads the matrix title (and top output folder). 'auto' leads with the first text/static axis; 'none' keeps chain order. Every other non-target axis still page-splits normally regardless of this setting — it only reorders which one reads first. The list shows the connected axes by name (their dim_id); older workflows' dim1, dim2... (chain position) still work.",
+                        "tooltip": (
+                            "Another axis to name first in each matrix's title and folder. auto prefers a text axis; none keeps the chain's order. The list shows your axes by their names (dim_id)."
+                        ),
                     },
                 ),
                 "max_columns_per_page": (
@@ -145,7 +145,7 @@ class SweepUpsetConstructor:
                         "default": 60,
                         "min": 5,
                         "max": 500,
-                        "tooltip": "Safety valve for very large combo counts — splits into multiple numbered matrix files past this many columns.",
+                        "tooltip": ("Most columns in one matrix image; more columns continue in numbered files."),
                     },
                 ),
             },
@@ -160,7 +160,7 @@ class SweepUpsetConstructor:
     RETURN_NAMES = ("matrices", "summary")
     FUNCTION = "build"
     CATEGORY = "SweepKit/Advanced"
-    DESCRIPTION = "Draws an UpSet-style matrix of subset combinations with their result images."
+    DESCRIPTION = "Draws an UpSet matrix: one column per subset made by Sweep Subsets of a List, with dots showing which items it uses and its image above."
     SEARCH_ALIASES = ["upset constructor", "upset plot", "subset matrix"]
     OUTPUT_NODE = True
 
@@ -211,7 +211,7 @@ class SweepUpsetConstructor:
 
         dim_map = "; ".join(f"dim{d['index']}='{d['dim_id']}'" for d in dims_sorted) or "(no active axes)"
         summary = (
-            f"SweepUpsetConstructor: {len(paths)} matrix image(s) for '{dim_id}' "
+            f"Sweep UpSet Matrix: {len(paths)} matrix image(s) for '{dim_id}' "
             f"({n_cols} combo(s) of {len(target['base_values'])} base value(s)) "
             f"under {os.path.join(output_dir, prefix_folder, '_upset')} | {dim_map}"
         )

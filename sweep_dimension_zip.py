@@ -40,14 +40,14 @@ class SweepDimensionZip:
             "required": {
                 "dimensions_a": (
                     "SWEEP_DIMS",
-                    {
-                        "tooltip": "A chain of SweepDimension nodes — the LAST axis in this chain is the one that gets paired.",
-                    },
+                    {"tooltip": ("Connect the first axis to pair (the last axis of this chain is used).")},
                 ),
                 "dimensions_b": (
                     "SWEEP_DIMS",
                     {
-                        "tooltip": "A second chain — its LAST axis is paired index-for-index with dimensions_a's last axis.",
+                        "tooltip": (
+                            "Connect the second axis to pair; its values are matched one by one with the first axis's values."
+                        )
                     },
                 ),
                 "mode": (
@@ -55,11 +55,7 @@ class SweepDimensionZip:
                     {
                         "default": "shortest",
                         "tooltip": (
-                            "shortest: stop at the shorter list, like zip() (extra values on "
-                            "the longer side are dropped, with a warning). "
-                            "longest: like itertools.zip_longest() — the shorter list is padded "
-                            "by repeating its own last value. "
-                            "strict: raise an error if the two lists don't have the same length."
+                            "shortest: stop at the shorter list (extra values are dropped, with a warning). longest: repeat the shorter list's last value. strict: stop with an error if the lists differ in length."
                         ),
                     },
                 ),

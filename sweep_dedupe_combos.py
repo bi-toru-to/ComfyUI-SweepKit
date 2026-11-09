@@ -30,7 +30,9 @@ class SweepDedupeCombos:
                     "PYLIST",
                     {
                         "forceInput": True,
-                        "tooltip": "A PyList of PyLists — one entry per axis to dedupe on, each itself a length-N list of str/int/float/bool values. Bundle with List-Utils' 'Create PyList' node.",
+                        "tooltip": (
+                            "The values that decide what each image looks like, one list per axis (for example the prompt texts from Sweep Axis Value). Put the lists together with List-Utils' Create PyList."
+                        ),
                     },
                 ),
                 "float_precision": (
@@ -39,7 +41,9 @@ class SweepDedupeCombos:
                         "default": 4,
                         "min": 0,
                         "max": 15,
-                        "tooltip": "Floats are rounded to this many decimal places before comparing, so e.g. 7.5 and 7.5000000001 count as the same setting.",
+                        "tooltip": (
+                            "Decimal places compared for numbers: 7.5 and 7.5000001 count as the same at the default."
+                        ),
                     },
                 ),
             },

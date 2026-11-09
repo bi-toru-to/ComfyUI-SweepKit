@@ -25,21 +25,23 @@ class SweepFilenameSequencer:
                 "combo": (
                     "SWEEP_COMBO",
                     {
-                        "tooltip": "Connect SweepCombinationExpander's 'combo' output.",
+                        "tooltip": ("Connect Sweep Plan's combo output."),
                     },
                 ),
                 "filename_prefix": (
                     "STRING",
                     {
                         "default": "SweepKit",
-                        "tooltip": "Top folder of every generated path (sanitized; blank = SweepKit). Feed the output through PyList To List into SaveImage's filename_prefix.",
+                        "tooltip": (
+                            "Top folder for the file names (blank = SweepKit). Connect the output through List-Utils' PyList To List to Save Image's filename_prefix."
+                        ),
                     },
                 ),
                 "include_combo_index": (
                     "BOOLEAN",
                     {
                         "default": True,
-                        "tooltip": "Prefix a zero-padded running number — guarantees every filename is unique regardless of which axes are active.",
+                        "tooltip": ("Start each file name with a running number, so every name is different."),
                     },
                 ),
             },

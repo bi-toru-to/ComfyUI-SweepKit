@@ -22,21 +22,23 @@ class SweepDimensionExtract:
                 "combo": (
                     "SWEEP_COMBO",
                     {
-                        "tooltip": "Connect SweepCombinationExpander's 'combo' output.",
+                        "tooltip": ("Connect Sweep Plan's combo output."),
                     },
                 ),
                 "dim_id": (
                     "STRING",
                     {
                         "default": "",
-                        "tooltip": "Exact dim_id of the axis to extract (the 'dim_id' field you gave its SweepDimension node, or its dim_type if left blank there).",
+                        "tooltip": ("The name (dim_id) of the axis whose values you want."),
                     },
                 ),
                 "component": (
                     ["value", "model_strength", "clip_strength"],
                     {
                         "default": "value",
-                        "tooltip": "Only meaningful for a lora_strength-type axis, whose values are (model_strength, clip_strength) tuples — pick which half to pull out as a scalar.",
+                        "tooltip": (
+                            "Only for a lora_strength axis: model_strength or clip_strength gives that strength alone, for a Load LoRA node's two strength settings. Otherwise leave it on value."
+                        ),
                     },
                 ),
             },
@@ -48,7 +50,7 @@ class SweepDimensionExtract:
     RETURN_NAMES = ("values", "list")
     OUTPUT_IS_LIST = (False, True)
     OUTPUT_TOOLTIPS = (
-        "The values as a PyList, for List-Utils nodes.",
+        "The values as a PyList (one item holding the whole list), for List-Utils nodes.",
         "The values as a list: connect it to any setting and that node runs once per value.",
     )
     FUNCTION = "build"
