@@ -19,9 +19,8 @@ that runs the sweep, so the two can't disagree.
 import contextlib
 import io
 import math
-import re
 
-from .sweep_core import partition_into_groups, sort_groups
+from .sweep_core import partition_into_groups, short_message, sort_groups
 from .sweep_dimension import SweepDimension, preview_values
 from .sweep_dimension_selfcombine import SweepDimensionSelfCombine
 from .sweep_dimension_zip import SweepDimensionZip
@@ -100,7 +99,7 @@ def chain_response(payload):
     except UnknownChain as exc:
         return {"ok": False, "unknown": True, "error": str(exc)}
     except (ValueError, KeyError, TypeError) as exc:
-        return {"ok": False, "error": re.sub(r"^\[[^\]]+\]\s*", "", str(exc)) or "could not read this chain"}
+        return {"ok": False, "error": short_message(exc) or "could not read this chain"}
     dims = sorted(dims, key=lambda d: d["index"])
     groups = [len(g[0]["values"]) for g in sort_groups(partition_into_groups(dims))]
     return {

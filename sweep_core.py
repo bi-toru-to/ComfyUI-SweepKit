@@ -19,6 +19,20 @@ from typing import Any, Callable, Iterable, Sequence, TypedDict
 log = logging.getLogger("SweepKit")
 
 
+class SweepError(ValueError):
+    """A ValueError that also carries a one-line 'problem: fix' form, for the
+    summary lines under a node, which can't show a whole message."""
+
+    def __init__(self, message: str, short: str | None = None) -> None:
+        super().__init__(message)
+        self.short = short
+
+
+def short_message(exc: Exception) -> str:
+    """The one-line form of an error: its short form, or the message without its [node] tag."""
+    return getattr(exc, "short", None) or re.sub(r"^\[[^\]]+\]\s*('[^']*':\s*)?", "", str(exc))
+
+
 class Dimension(TypedDict, total=False):
     """One sweep axis as it travels down a SWEEP_DIMS chain.
 
@@ -175,9 +189,10 @@ def parse_number_list(raw: Any, cast: Callable[[str], Any], dim_id: str, allow_r
         if range_match:
             a, b = int(range_match[1]), int(range_match[2])
             if abs(b - a) + 1 > MAX_DERIVED_VALUES:
-                raise ValueError(
+                raise SweepError(
                     f"[Sweep Axis] '{dim_id}': the range '{line}' in values makes {abs(b - a) + 1:,} values, "
-                    f"more than the limit of {MAX_DERIVED_VALUES:,}. Use a shorter range or fewer values."
+                    f"more than the limit of {MAX_DERIVED_VALUES:,}. Use a shorter range or fewer values.",
+                    f"'{line}' makes {abs(b - a) + 1:,} values (limit {MAX_DERIVED_VALUES:,}): use a shorter range",
                 )
             step = 1 if b >= a else -1
             out.extend(range(a, b + step, step))
@@ -188,9 +203,11 @@ def parse_number_list(raw: Any, cast: Callable[[str], Any], dim_id: str, allow_r
             kind, example = ("whole number", "1, 2, 3 or a range like 1-5") if cast is int else ("number", "4, 7.5, 10")
             if cast is int and not allow_range:
                 example = "1, 2, 3"
-            raise ValueError(
+            short_example = "1, 2, 3 or 1-5" if cast is int and allow_range else example
+            raise SweepError(
                 f"[Sweep Axis] '{dim_id}': '{line}' in values is not a {kind}. "
-                f"Type {kind}s separated by commas, like {example}."
+                f"Type {kind}s separated by commas, like {example}.",
+                f"'{line}' is not a {kind}: type e.g. {short_example}",
             ) from None
     return out
 
@@ -213,9 +230,10 @@ def parse_lora_strength_list(raw: Any, dim_id: str) -> list[tuple[float, float]]
                 v = float(line)
                 out.append((v, v))
         except ValueError:
-            raise ValueError(
+            raise SweepError(
                 f"[Sweep Axis] '{dim_id}': '{line}' in values is not a LoRA strength. "
-                f"Type a number like 0.8, or model:clip strengths like 0.8:0.6."
+                f"Type a number like 0.8, or model:clip strengths like 0.8:0.6.",
+                f"'{line}' is not a LoRA strength: type e.g. 0.8 or 0.8:0.6",
             ) from None
     return out or [(1.0, 1.0)]
 
@@ -652,9 +670,10 @@ def self_combine(
     min_size = max(1, min_size)
     if min_size > max_size:
         capped = f"; the list has only {n} values" if max_size == n else ""
-        raise ValueError(
+        raise SweepError(
             f"[Sweep Subsets] min_size ({min_size}) is larger than max_size ({max_size}{capped}). "
-            f"Set min_size to {max_size} or less."
+            f"Set min_size to {max_size} or less.",
+            f"Subsets: min_size is above max_size ({max_size}): lower min_size",
         )
     count_fn = math.perm if mode == "permutations" else math.comb
     total = sum(count_fn(n, r) for r in range(min_size, max_size + 1))
@@ -668,9 +687,10 @@ def self_combine(
             if sum(count_fn(n, k) for k in range(min_size, r + 1)) <= MAX_DERIVED_VALUES
         ]
         hint = f"Set max_size to {fitting[-1]} or less." if fitting else "Use fewer values in the list."
-        raise ValueError(
+        raise SweepError(
             f"[Sweep Subsets] {n} values as {mode} of {min_size} to {max_size} items make {total:,} subsets, "
-            f"more than the limit of {MAX_DERIVED_VALUES:,}. {hint}"
+            f"more than the limit of {MAX_DERIVED_VALUES:,}. {hint}",
+            f"Subsets: {total:,} subsets (limit {MAX_DERIVED_VALUES:,}): {hint[0].lower()}{hint[1:].rstrip('.')}",
         )
     iterator_fn = itertools.permutations if mode == "permutations" else itertools.combinations
 

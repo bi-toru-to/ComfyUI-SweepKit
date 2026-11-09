@@ -816,9 +816,13 @@ assert r["count"] == 100 and len(r["labels"]) == 6, r  # only the first few labe
 r = preview_values("model", "a\nb")
 assert r == {"ok": True, "count": 2, "labels": ["a", "b"]}, r
 r = preview_values("int", "1, two")
-assert r["ok"] is False and "two" in r["error"] and "[Sweep" not in r["error"], r  # plain language, no log tag
+assert r == {"ok": False, "error": "'two' is not a whole number: type e.g. 1, 2, 3 or 1-5"}, r  # short: problem and fix
 r = preview_values("seed", "1-99999999999")
-assert r["ok"] is False and "limit" in r["error"], r  # a huge range is refused, not expanded
+assert r["ok"] is False and "limit" in r["error"] and "use a shorter range" in r["error"], r  # refused, not expanded
+r = preview_values("cfg", "4, x")
+assert r == {"ok": False, "error": "'x' is not a number: type e.g. 4, 7.5, 10"}, r
+r = preview_values("lora_strength", "0.8;0.5")
+assert r == {"ok": False, "error": "'0.8;0.5' is not a LoRA strength: type e.g. 0.8 or 0.8:0.6"}, r
 r = preview_values("text", "")
 assert r == {"ok": True, "count": 0, "labels": []}, r
 assert preview_response([1, 2])["ok"] is False
@@ -978,7 +982,7 @@ nodes = {
     "z": {"kind": "zip", "a": "a", "b": "b", "mode": "strict"},
 }
 r = chain_response({"root": "z", "nodes": nodes})
-assert r["ok"] is False and "strict" in r["error"] and "[Sweep" not in r["error"], r
+assert r["ok"] is False and "set mode to shortest or longest" in r["error"] and "[Sweep" not in r["error"], r
 r = chain_response({"root": "a", "nodes": {"a": axis_spec("int", "n", "1, x")}})
 assert r["ok"] is False and "x" in r["error"], r
 r = chain_response({"root": "a", "nodes": {"a": axis_spec("seed", "seed", "", pylist=True)}})

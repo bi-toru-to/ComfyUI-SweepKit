@@ -51,6 +51,7 @@ assert(describeValues({ ok: true, count: 20, labels: ["1", "2"] }).text.endsWith
 let d = describeValues({ ok: false, error: "could not parse value 'x' as int." });
 assert(d.error && d.text.includes("could not parse"), "error text");
 assert(describeValues({ ok: true, count: 0, labels: [] }).error === true, "empty is flagged");
+assert(describeValues({ ok: true, count: 0, labels: [] }).text === "no values: type values above, or this axis is skipped", "empty says what to do");
 assert(describeValues(null).text === "", "no answer, no text");
 console.log("PASS test1: describeValues");
 

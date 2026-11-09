@@ -30,7 +30,7 @@ to show one representative for the whole pair.
 
 import uuid
 
-from .sweep_core import resize_dimension_values
+from .sweep_core import SweepError, resize_dimension_values
 
 
 class SweepDimensionZip:
@@ -128,9 +128,10 @@ def merge_passthrough(group_a, group_b, passthrough):
     seen = {d["uid"] for d in group_a if d.get("uid")}
     uids_b = {d["uid"] for d in group_b if d.get("uid")}
     if seen & uids_b:
-        raise ValueError(
+        raise SweepError(
             "[Sweep Pair Axes] dimensions_a and dimensions_b end in the same axis. "
-            "Connect a different Sweep Axis to each of them."
+            "Connect a different Sweep Axis to each of them.",
+            "Pair Axes: both inputs end in the same axis: connect two different axes",
         )
     seen |= uids_b
     kept = []
@@ -150,10 +151,11 @@ def zip_length(mode, len_a, len_b, label_a, label_b):
     if len_a == len_b:
         return len_a
     if mode == "strict":
-        raise ValueError(
+        raise SweepError(
             f"[Sweep Pair Axes] mode is strict, but '{label_a}' has {len_a} values and '{label_b}' has {len_b}. "
             f"Give both the same number of values, or set mode to shortest (drop the extras) or longest "
-            f"(repeat the last value)."
+            f"(repeat the last value).",
+            f"Pair Axes: {len_a} vs {len_b} values: match them, or set mode to shortest or longest",
         )
     if mode == "longest":
         target = max(len_a, len_b)

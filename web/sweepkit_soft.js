@@ -312,7 +312,9 @@ export function describeRuns(est) {
     if (est.error) return { text: `\u26a0 ${est.error}`, error: true };
     const parts = est.counts.length > 1 ? `: ${est.counts.join(" \u00d7 ")}` : "";
     const n = est.total.toLocaleString("en-US");
-    if (est.total > LARGE_SWEEP) return { text: `\u26a0 ${n} images${parts} \u2014 that is a lot`, error: true };
+    if (est.total > LARGE_SWEEP) {
+        return { text: `\u26a0 ${n} images${parts}: that is a lot; use fewer values to make it quicker`, error: true };
+    }
     return { text: `${n} ${est.total === 1 ? "image" : "images"}${parts}`, error: false };
 }
 

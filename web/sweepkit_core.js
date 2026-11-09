@@ -113,15 +113,16 @@ export function pylistConnected(node) {
 
 export const SUMMARY_WIDGET = "sweepkit_summary";
 export const SUMMARY_DEBOUNCE_MS = 250;
-const SUMMARY_COLOR = "#9aa5b1";
-const SUMMARY_ERROR_COLOR = "#f0a050";
+// At least 4.5:1 against every SweepKit node colour (tests/js_look_test.mjs checks it).
+export const SUMMARY_COLOR = "#c8d0d8";
+export const SUMMARY_ERROR_COLOR = "#ffc070";
 
 /** Text and error flag for the summary line, from the backend's answer
  * ({ok, count, labels} or {ok: false, error}). */
 export function describeValues(res) {
     if (!res) return { text: "", error: false };
     if (!res.ok) return { text: `⚠ ${res.error}`, error: true };
-    if (res.count === 0) return { text: "no values: this axis is skipped", error: true };
+    if (res.count === 0) return { text: "no values: type values above, or this axis is skipped", error: true };
     const more = res.count > res.labels.length ? " …" : "";
     const noun = res.count === 1 ? "value" : "values";
     return { text: `${res.count} ${noun}: ${res.labels.join(" · ")}${more}`, error: false };

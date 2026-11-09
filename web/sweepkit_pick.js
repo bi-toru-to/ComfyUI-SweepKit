@@ -66,7 +66,7 @@ export function openPicker({ title, options, selected, onApply }, doc = globalTh
         const shown = filterOptions(options, search.value);
         list.replaceChildren();
         for (const option of shown.slice(0, MAX_SHOWN)) {
-            const row = el("label", "display:flex;gap:8px;align-items:center;padding:2px 4px;cursor:pointer;");
+            const row = el("label", "display:flex;gap:8px;align-items:center;padding:5px 6px;min-height:24px;cursor:pointer;");
             const box = el("input");
             box.type = "checkbox";
             box.checked = chosen.has(option);

@@ -14,7 +14,6 @@ dynamic UI left is the MODEL sockets of a 'model'-type dimension
 (web/sweepkit.js).
 """
 
-import re
 import uuid
 
 import folder_paths
@@ -28,6 +27,7 @@ from .sweep_core import (
     parse_number_list,
     parse_lora_strength_list,
     cast_pylist_values,
+    short_message,
     model_labels,
 )
 
@@ -172,7 +172,7 @@ def preview_values(dim_type, values):
     try:
         vals = parse_text_list(values) if dim_type == "model" else parse_widget_values(dim_type, values, "axis")
     except ValueError as exc:
-        return {"ok": False, "error": re.sub(r"^\[[^\]]+\]\s*'[^']*':\s*", "", str(exc))}
+        return {"ok": False, "error": short_message(exc)}
     dim = {"type": dim_type, "values": vals}
     shown = [format_dim_value(dim, i) for i in range(min(len(vals), PREVIEW_VALUES))]
     return {"ok": True, "count": len(vals), "labels": shown}
