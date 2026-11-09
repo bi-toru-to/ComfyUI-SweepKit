@@ -509,7 +509,7 @@ def test_self_combine_cap():
     # materialized with no guard. Now counted first and rejected.
     msg = expect_value_error(
         lambda: core.self_combine(list(range(12)), "permutations", 1, 0, ", "),
-        "[SweepDimensionSelfCombine]",
+        "[Sweep Subsets]",
         "1,302,061,344",
         f"{core.MAX_DERIVED_VALUES:,}",
     )
@@ -524,8 +524,8 @@ def test_self_combine_cap():
 
 def test_gather_rejects_bool_indices():
     # bool is an int subclass: [True] used to silently read source[1].
-    expect_value_error(lambda: core.gather(["a", "b"], [True]), "[SweepGather]")
-    expect_value_error(lambda: core.gather(["a", "b"], [False]), "[SweepGather]")
+    expect_value_error(lambda: core.gather(["a", "b"], [True]), "[Sweep Gather]")
+    expect_value_error(lambda: core.gather(["a", "b"], [False]), "[Sweep Gather]")
     assert core.gather(["a", "b"], [1, 0]) == ["b", "a"]
     print("OK test_gather_rejects_bool_indices")
 
@@ -556,9 +556,7 @@ def test_next_versioned_path_does_not_swallow_listing_errors():
 
 def test_canvas_and_batch_helpers():
     draw.check_canvas_size(10_000, 10_000, "X")  # exactly 100 MP: allowed
-    expect_value_error(
-        lambda: draw.check_canvas_size(10_001, 10_000, "SweepGridConstructor"), "[SweepGridConstructor]", "cell_mode"
-    )
+    expect_value_error(lambda: draw.check_canvas_size(10_001, 10_000, "Sweep Grid"), "[Sweep Grid]", "cell_mode")
     assert draw.padded_batch_size([(10, 20), (30, 5)]) == (30, 20)
     from PIL import Image
 

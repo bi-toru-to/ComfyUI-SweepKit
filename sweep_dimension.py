@@ -150,7 +150,7 @@ class SweepDimension:
         if dim_type == "lora_strength":
             if not lora_name:
                 print(
-                    f"[SweepDimension] '{disp_id}' is type 'lora_strength' but no LoRA file is selected "
+                    f"[Sweep Axis] '{disp_id}' is type 'lora_strength' but no LoRA file is selected "
                     f"— this axis will be skipped."
                 )
                 return (prev,)
@@ -171,7 +171,7 @@ class SweepDimension:
             vals = parse_widget_values(dim_type, values, disp_id)
 
         if not vals:
-            print(f"[SweepDimension] '{disp_id}' ({dim_type}) has no values — this axis will be skipped.")
+            print(f"[Sweep Axis] '{disp_id}' ({dim_type}) has no values — this axis will be skipped.")
             return (prev,)
         dim["index"] = len(prev) + 1
         dim["values"] = vals
@@ -212,7 +212,7 @@ def preview_values(dim_type, values):
     try:
         vals = parse_text_list(values) if dim_type == "model" else parse_widget_values(dim_type, values, "axis")
     except ValueError as exc:
-        return {"ok": False, "error": re.sub(r"^\[\w+\]\s*'[^']*':\s*", "", str(exc))}
+        return {"ok": False, "error": re.sub(r"^\[[^\]]+\]\s*'[^']*':\s*", "", str(exc))}
     dim = {"type": dim_type, "values": vals}
     shown = [format_dim_value(dim, i) for i in range(min(len(vals), PREVIEW_VALUES))]
     return {"ok": True, "count": len(vals), "labels": shown}
@@ -226,7 +226,7 @@ def model_slots(values, disp_id, sockets):
         # web/sweepkit.js never creates more sockets than this, so extra
         # labels could only ever fall back to the base model.
         print(
-            f"[SweepDimension] '{disp_id}' has {len(labels)} model labels; only the first "
+            f"[Sweep Axis] '{disp_id}' has {len(labels)} model labels; only the first "
             f"{MAX_MODEL_SOCKETS} get MODEL sockets, so the rest are ignored."
         )
         labels = labels[:MAX_MODEL_SOCKETS]
@@ -235,7 +235,7 @@ def model_slots(values, disp_id, sockets):
         sock = sockets.get(f"model_{j}")
         if sock is None:
             print(
-                f"[SweepDimension] '{disp_id}' value '{label}' (slot {j}) has no MODEL connected "
+                f"[Sweep Axis] '{disp_id}' value '{label}' (slot {j}) has no MODEL connected "
                 f"— SweepAllInOne will fall back to its base model input for this slot."
             )
         model_objs.append(sock)

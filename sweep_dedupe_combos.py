@@ -58,11 +58,11 @@ class SweepDedupeCombos:
         n, m = len(keys), len(unique_index_map)
         if m < n:
             print(
-                f"[SweepDedupeCombos] {n} combo(s) -> {m} unique setting(s) "
+                f"[Sweep Skip Repeats] {n} combo(s) -> {m} unique setting(s) "
                 f"({n - m} duplicate(s) will be reused instead of resampled)."
             )
         else:
-            print(f"[SweepDedupeCombos] {n} combo(s), no duplicates found.")
+            print(f"[Sweep Skip Repeats] {n} combo(s), no duplicates found.")
         return (unique_index_map, expand_indices, m)
 
 

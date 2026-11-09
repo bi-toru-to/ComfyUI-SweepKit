@@ -38,7 +38,7 @@ from .sweep_image import (
 )
 from .sweep_live import LiveSession, finish_session, get_session, kept_sweep, session_key
 
-TAG = "SweepCollect"
+TAG = "Sweep Collect"
 
 
 def flatten_images(images):

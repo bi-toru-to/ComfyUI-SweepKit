@@ -173,7 +173,7 @@ def parse_number_list(raw: Any, cast: Callable[[str], Any], dim_id: str, allow_r
             a, b = int(range_match[1]), int(range_match[2])
             if abs(b - a) + 1 > MAX_DERIVED_VALUES:
                 raise ValueError(
-                    f"[SweepDimension] '{dim_id}': range '{line}' has {abs(b - a) + 1:,} values, "
+                    f"[Sweep Axis] '{dim_id}': range '{line}' has {abs(b - a) + 1:,} values, "
                     f"over the limit of {MAX_DERIVED_VALUES:,}."
                 )
             step = 1 if b >= a else -1
@@ -182,9 +182,7 @@ def parse_number_list(raw: Any, cast: Callable[[str], Any], dim_id: str, allow_r
         try:
             out.append(cast(line))
         except ValueError:
-            raise ValueError(
-                f"[SweepDimension] '{dim_id}': could not parse value '{line}' as {cast.__name__}."
-            ) from None
+            raise ValueError(f"[Sweep Axis] '{dim_id}': could not parse value '{line}' as {cast.__name__}.") from None
     return out
 
 
@@ -207,8 +205,7 @@ def parse_lora_strength_list(raw: Any, dim_id: str) -> list[tuple[float, float]]
                 out.append((v, v))
         except ValueError:
             raise ValueError(
-                f"[SweepDimension] '{dim_id}': could not parse "
-                f"lora strength '{line}' (expected a number, or 'model:clip')."
+                f"[Sweep Axis] '{dim_id}': could not parse lora strength '{line}' (expected a number, or 'model:clip')."
             ) from None
     return out or [(1.0, 1.0)]
 
@@ -321,7 +318,7 @@ def resolve_grid_axes(
     grid_x_dim: str,
     grid_y_dim: str,
     grid_title_dim: str,
-    node_tag: str = "SweepAllInOne",
+    node_tag: str = "Sweep All-in-One",
 ) -> tuple[Dimension | None, Dimension | None, Dimension | None, list[Dimension]]:
     """Turn the grid_x_dim / grid_y_dim / grid_title_dim picks ('auto',
     'none' or 'dimN') into dimensions. Returns (x, y, title, others); every
@@ -452,7 +449,7 @@ def cast_pylist_values(raw_list: Sequence[Any], dim_type: str, dim_id: str) -> l
                 out.append(raw)
         except (ValueError, TypeError) as e:
             raise ValueError(
-                f"[SweepDimension] '{dim_id}': values_pylist element {i} ({raw!r}) can't be cast to {dim_type} — {e}"
+                f"[Sweep Axis] '{dim_id}': values_pylist element {i} ({raw!r}) can't be cast to {dim_type} — {e}"
             ) from e
     return out
 
@@ -581,11 +578,11 @@ def extract_values(
     try:
         d = find_dim_by_id(dimensions, dim_id)
     except ValueError as e:
-        raise ValueError(f"[SweepDimensionExtract] {e}") from None
+        raise ValueError(f"[Sweep Axis Value] {e}") from None
 
     if component != "value" and d["type"] != "lora_strength":
         raise ValueError(
-            f"[SweepDimensionExtract] component='{component}' only applies to a "
+            f"[Sweep Axis Value] component='{component}' only applies to a "
             f"lora_strength-type axis — '{dim_id}' is '{d['type']}'."
         )
 
@@ -594,7 +591,7 @@ def extract_values(
         vi = rec["idx_by_dim"].get(d["index"])
         if vi is None:
             raise KeyError(
-                f"[SweepDimensionExtract] combo_index {rec['combo_index']} has no resolved "
+                f"[Sweep Axis Value] combo_index {rec['combo_index']} has no resolved "
                 f"index for axis '{dim_id}' — combo_records looks malformed/from a "
                 f"mismatched SweepCombinationExpander run."
             )
@@ -626,8 +623,7 @@ def self_combine(
     min_size = max(1, min_size)
     if min_size > max_size:
         raise ValueError(
-            f"[SweepDimensionSelfCombine] min_size ({min_size}) > effective max_size "
-            f"({max_size}) for {n} base value(s)."
+            f"[Sweep Subsets] min_size ({min_size}) > effective max_size ({max_size}) for {n} base value(s)."
         )
     count_fn = math.perm if mode == "permutations" else math.comb
     total = sum(count_fn(n, r) for r in range(min_size, max_size + 1))
@@ -642,7 +638,7 @@ def self_combine(
         ]
         hint = f" max_size={fitting[-1]} fits." if fitting else " Use fewer base values."
         raise ValueError(
-            f"[SweepDimensionSelfCombine] {n} base value(s) as {mode} of sizes {min_size}-{max_size} would "
+            f"[Sweep Subsets] {n} base value(s) as {mode} of sizes {min_size}-{max_size} would "
             f"produce {total:,} derived values, over the limit of {MAX_DERIVED_VALUES:,}.{hint}"
         )
     iterator_fn = itertools.permutations if mode == "permutations" else itertools.combinations
@@ -698,12 +694,12 @@ def build_dedupe_keys(axis_value_lists: Sequence[Sequence[Any]], float_precision
     companion dimension instead.
     """
     if not axis_value_lists:
-        raise ValueError("[SweepDedupeCombos] no axes connected — nothing to dedupe on.")
+        raise ValueError("[Sweep Skip Repeats] no axes connected — nothing to dedupe on.")
     n = len(axis_value_lists[0])
     for ai, axis in enumerate(axis_value_lists):
         if len(axis) != n:
             raise ValueError(
-                f"[SweepDedupeCombos] axis {ai} has length {len(axis)}, expected {n} "
+                f"[Sweep Skip Repeats] axis {ai} has length {len(axis)}, expected {n} "
                 f"(every connected axis must be the same length as combo_records)."
             )
     keys = []
@@ -713,7 +709,7 @@ def build_dedupe_keys(axis_value_lists: Sequence[Sequence[Any]], float_precision
             v = axis[i]
             if not isinstance(v, _DEDUPE_KEY_TYPES):
                 raise ValueError(
-                    f"[SweepDedupeCombos] value at index {i} ({v!r}, type {type(v).__name__}) "
+                    f"[Sweep Skip Repeats] value at index {i} ({v!r}, type {type(v).__name__}) "
                     f"isn't a plain str/int/float/bool — dedup can't hash arbitrary objects "
                     f"like MODEL/CLIP reliably. Zip a string-key companion axis (e.g. "
                     f"'model_key') alongside it and connect that instead."
@@ -737,7 +733,7 @@ def gather(source: Sequence[Any], indices: Sequence[Any]) -> list[Any]:
         # bool is a subclass of int (True == 1), so check it explicitly.
         if isinstance(i, bool) or not isinstance(i, int) or i < 0 or i >= n:
             raise ValueError(
-                f"[SweepGather] index {i!r} out of range for source of length {n} (valid range 0..{n - 1})."
+                f"[Sweep Gather] index {i!r} out of range for source of length {n} (valid range 0..{n - 1})."
             )
         out.append(source[i])
     return out

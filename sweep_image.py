@@ -296,7 +296,7 @@ def make_grid(
     cell_mode: str = "fit",
     font_size: float = 0.4,
     base_px: int | None = None,
-    node_tag: str = "SweepGridConstructor",
+    node_tag: str = "Sweep Grid",
     pending: bool = False,
 ) -> Image.Image:
     """Render one labelled X/Y grid. `images` is row-major (len rows*cols);

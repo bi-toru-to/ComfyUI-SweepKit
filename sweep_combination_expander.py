@@ -91,7 +91,7 @@ class SweepCombinationExpander:
         live = sweep_cursor >= 0  # the browser is running the sweep one image at a time
         if live and sweep_cursor >= total:
             raise ValueError(
-                f"[SweepCombinationExpander] live run {sweep_cursor + 1} of a {total}-image sweep: the axes changed "
+                f"[Sweep Plan] live run {sweep_cursor + 1} of a {total}-image sweep: the axes changed "
                 f"while it was running. Queue the sweep again."
             )
 
@@ -123,14 +123,12 @@ class SweepCombinationExpander:
     @staticmethod
     def announce(lines, n_axes, n_groups, total):
         print("=" * 60)
-        print(
-            f"[SweepCombinationExpander] {n_axes} active axis(es) in {n_groups} group(s), {total} combination(s) total"
-        )
+        print(f"[Sweep Plan] {n_axes} active axis(es) in {n_groups} group(s), {total} combination(s) total")
         for line in lines:
             print(f"   {line}")
         if total > LARGE_SWEEP_WARNING:
             print(
-                f"[SweepCombinationExpander] WARNING: {total} combinations is a lot — "
+                f"[Sweep Plan] WARNING: {total} combinations is a lot — "
                 f"double check this is intended before it reaches your sampler."
             )
         print("=" * 60)

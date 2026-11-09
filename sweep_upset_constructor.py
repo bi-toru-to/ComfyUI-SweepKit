@@ -167,7 +167,7 @@ class SweepUpsetConstructor:
     def build(
         self, images, combo, dim_id, filename_prefix, cell_size, cell_mode, font_size, title_dim, max_columns_per_page
     ):
-        dims_sorted, images, combo_records = unpack_combo(images, combo, "SweepUpsetConstructor")
+        dims_sorted, images, combo_records = unpack_combo(images, combo, "Sweep UpSet Matrix")
         target = self.find_target(dims_sorted, dim_id)
         output_dir = folder_paths.get_output_directory()
         # Saves files itself (not via SaveImage), so the prefix is always one
@@ -215,7 +215,7 @@ class SweepUpsetConstructor:
             f"({n_cols} combo(s) of {len(target['base_values'])} base value(s)) "
             f"under {os.path.join(output_dir, prefix_folder, '_upset')} | {dim_map}"
         )
-        print(f"[SweepUpsetConstructor] {summary}")
+        print(f"[Sweep UpSet Matrix] {summary}")
         return {
             "ui": {"images": ui_images(paths, output_dir), "text": [summary]},
             "result": (stack_padded(matrices), summary),
@@ -227,10 +227,10 @@ class SweepUpsetConstructor:
         try:
             target = find_dim_by_id(dims_sorted, dim_id)
         except ValueError as e:
-            raise ValueError(f"[SweepUpsetConstructor] {e}") from e
+            raise ValueError(f"[Sweep UpSet Matrix] {e}") from e
         if "combo_meta" not in target:
             raise ValueError(
-                f"[SweepUpsetConstructor] '{dim_id}' has no combo_meta — it wasn't produced "
+                f"[Sweep UpSet Matrix] '{dim_id}' has no combo_meta — it wasn't produced "
                 f"by SweepDimensionSelfCombine. Route that axis through SweepDimensionSelfCombine first."
             )
         return target
@@ -248,7 +248,7 @@ class SweepUpsetConstructor:
             picked = resolve_axis_token(dims_sorted, title_dim)
             if picked is None or picked["index"] == target["index"]:
                 why = "doesn't match any active axis" if picked is None else "is the self-combine target itself"
-                print(f"[SweepUpsetConstructor] title_dim '{title_dim}' {why} — ignoring.")
+                print(f"[Sweep UpSet Matrix] title_dim '{title_dim}' {why} — ignoring.")
                 return other_dims
             lead = next(
                 (
@@ -429,7 +429,7 @@ def draw_matrix(col_images, target, lo, hi, title, cell_size, cell_mode, font_si
     each combination contains, and labels."""
     base_values, col_values, col_meta = target["base_values"], target["values"][lo:hi], target["combo_meta"][lo:hi]
     lay = layout_matrix(col_images, base_values, col_values, cell_size, cell_mode, font_size, title)
-    check_canvas_size(lay.width, lay.height, "SweepUpsetConstructor")
+    check_canvas_size(lay.width, lay.height, "Sweep UpSet Matrix")
     canvas = Image.new("RGB", (lay.width, lay.height), BACKGROUND)
     draw = ImageDraw.Draw(canvas)
     _draw_headers_and_rows(draw, lay, base_values, col_meta)

@@ -627,7 +627,7 @@ for dup_type, vals in [("cfg", ("3\n4", "7\n8")), ("seed", ("1", "2")), ("steps"
     S.sample_counter["n"] = 0
     expect_error(
         lambda: main_node.generate(**base_kwargs(dimensions=dims, save_individuals=False)),
-        "[SweepAllInOne]",
+        "[Sweep All-in-One]",
         f"'{dup_type}'-type",
         f"'{dup_type}A'",
         f"'{dup_type}B'",
@@ -644,7 +644,7 @@ dims = build_chain(dict(dim_type="text", dim_id="t", values="cat"))
 S.sample_counter["n"] = 0
 expect_error(
     lambda: main_node.generate(**base_kwargs(dimensions=dims, text_mode="regex", text_regex="(")),
-    "[SweepAllInOne]",
+    "[Sweep All-in-One]",
     "text_regex",
 )
 assert S.sample_counter["n"] == 0
@@ -667,7 +667,7 @@ assert len(records) == 4, len(records)  # 2 styles x 2 zipped (cfg, steps) pairs
 (on_top,) = dim_node.build(dim_type="steps", dim_id="steps", values="10\n20", lora_name="", prev_dimensions=branch_a)
 (zipped2,) = zip_node.build(branch_a, on_top, "strict")
 assert [d["dim_id"] for d in zipped2] == ["style", "cfg", "steps"], [d["dim_id"] for d in zipped2]
-expect_error(lambda: zip_node.build(branch_a, branch_a, "strict"), "[SweepDimensionZip]", "same axis")
+expect_error(lambda: zip_node.build(branch_a, branch_a, "strict"), "[Sweep Pair Axes]", "same axis")
 print("PASS scenario 24 - shared upstream dimension kept once (4 combos, not 8); self-zip rejected")
 
 print("\n--- Scenario 25: model labels beyond the frontend's 24-socket cap are dropped visibly ---")

@@ -260,7 +260,7 @@ class SweepAllInOne:
             return re.compile(text_regex)
         except re.error as e:
             raise ValueError(
-                f"[SweepAllInOne] text_regex {text_regex!r} is not a valid regular expression: {e}. "
+                f"[Sweep All-in-One] text_regex {text_regex!r} is not a valid regular expression: {e}. "
                 f"Use text_mode='curly' for plain {{}} placeholders."
             ) from e
 
@@ -292,7 +292,7 @@ class SweepAllInOne:
             if len(same) > 1:
                 ids = ", ".join(f"'{d['dim_id']}'" for d in same)
                 raise ValueError(
-                    f"[SweepAllInOne] {len(same)} '{dim_type}'-type axes are chained ({ids}), but each "
+                    f"[Sweep All-in-One] {len(same)} '{dim_type}'-type axes are chained ({ids}), but each "
                     f"image can only use one {dim_type}. Remove the extra one, merge their values into a single "
                     f"axis, or use a generic 'int'/'float' axis for anything that isn't this node's "
                     f"own {dim_type}."
@@ -320,7 +320,7 @@ class SweepAllInOne:
         path = folder_paths.get_full_path("loras", lora_name)
         if path is None:
             available = ", ".join(folder_paths.get_filename_list("loras")) or "(none found)"
-            raise ValueError(f"[SweepAllInOne] LoRA '{lora_name}' was not found. Available LoRAs: {available}")
+            raise ValueError(f"[Sweep All-in-One] LoRA '{lora_name}' was not found. Available LoRAs: {available}")
         sd = load_torch_file(path, safe_load=True)
         lora_cache[lora_name] = sd
         return sd
@@ -420,14 +420,16 @@ class SweepAllInOne:
     @staticmethod
     def announce(dims_sorted, groups, total):
         print("=" * 60)
-        print(f"[SweepAllInOne] {len(dims_sorted)} active axis(es) in {len(groups)} group(s), {total} image(s) total")
+        print(
+            f"[Sweep All-in-One] {len(dims_sorted)} active axis(es) in {len(groups)} group(s), {total} image(s) total"
+        )
         for d in dims_sorted:
             group_note = f" (zipped with group '{d['group']}')" if d.get("group") else ""
             more = " ..." if len(d["values"]) > PREVIEW_VALUES else ""
             print(f"   dim{d['index']} [{d['type']}] '{d['dim_id']}'{group_note}: {d['values'][:PREVIEW_VALUES]}{more}")
         if total > LARGE_SWEEP_WARNING:
             print(
-                f"[SweepAllInOne] WARNING: {total} images is a lot — double check this is intended before walking away."
+                f"[Sweep All-in-One] WARNING: {total} images is a lot — double check this is intended before walking away."
             )
         print("=" * 60)
 
@@ -494,7 +496,7 @@ class SweepAllInOne:
             files = saved_paths or [None] * len(records)
             manifest = write_manifest(os.path.join(output_dir, safe_prefix), dims_sorted, records, files)
         summary = self.summarize(len(records), dims_sorted, saved_paths, grid_paths, output_dir, safe_prefix, manifest)
-        print(f"[SweepAllInOne] Done. {summary}")
+        print(f"[Sweep All-in-One] Done. {summary}")
         return {
             "ui": {"images": ui_images(grid_paths, output_dir), "text": [summary]},
             "result": (stack_padded(grids), summary),
@@ -512,7 +514,7 @@ class SweepAllInOne:
             cell_mode=cell_mode,
             prefix_folder=safe_prefix,
             output_dir=output_dir,
-            node_tag="SweepAllInOne",
+            node_tag="Sweep All-in-One",
             base_px=GRID_LABEL_PX,
         )
 
@@ -587,7 +589,7 @@ class _SweepSampler:
             live.add(idx, image)
             frame = live.render() if live.due(done == total) else None
         except Exception as exc:  # the preview is a nicety; never fail a sweep over it
-            print(f"[SweepAllInOne] Live preview turned off: {exc}")
+            print(f"[Sweep All-in-One] Live preview turned off: {exc}")
             pbar.update_absolute(done, total)
             return None
         pbar.update_absolute(done, total, ("JPEG", frame, PREVIEW_MAX_SIDE) if frame is not None else None)

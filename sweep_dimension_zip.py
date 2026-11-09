@@ -94,7 +94,7 @@ class SweepDimensionZip:
         for name, chain in (("dimensions_a", dimensions_a), ("dimensions_b", dimensions_b)):
             if not chain:
                 raise ValueError(
-                    f"[SweepDimensionZip] {name} has no axes — connect a chain with at least one SweepDimension in it."
+                    f"[Sweep Pair Axes] {name} has no axes — connect a chain with at least one SweepDimension in it."
                 )
         group_a, passthrough_a = self._group_members(list(dimensions_a))
         group_b, passthrough_b = self._group_members(list(dimensions_b))
@@ -132,7 +132,7 @@ def merge_passthrough(group_a, group_b, passthrough):
     uids_b = {d["uid"] for d in group_b if d.get("uid")}
     if seen & uids_b:
         raise ValueError(
-            "[SweepDimensionZip] dimensions_a and dimensions_b end in the same axis — "
+            "[Sweep Pair Axes] dimensions_a and dimensions_b end in the same axis — "
             "connect two different SweepDimension chains to pair them."
         )
     seen |= uids_b
@@ -154,7 +154,7 @@ def zip_length(mode, len_a, len_b, label_a, label_b):
         return len_a
     if mode == "strict":
         raise ValueError(
-            f"[SweepDimensionZip] strict mode: '{label_a}' has {len_a} value(s) but "
+            f"[Sweep Pair Axes] strict mode: '{label_a}' has {len_a} value(s) but "
             f"'{label_b}' has {len_b} — lengths must match exactly in strict mode. "
             f"Use 'shortest' or 'longest' if that's expected."
         )
@@ -164,7 +164,7 @@ def zip_length(mode, len_a, len_b, label_a, label_b):
     else:
         target = min(len_a, len_b)
         action = f"truncating both to {target} (shortest mode)"
-    print(f"[SweepDimensionZip] '{label_a}' ({len_a}) and '{label_b}' ({len_b}) differ in length — {action}.")
+    print(f"[Sweep Pair Axes] '{label_a}' ({len_a}) and '{label_b}' ({len_b}) differ in length — {action}.")
     return target
 
 

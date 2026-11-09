@@ -880,7 +880,7 @@ for cursor in range(8):
     )
     results.append((CollectNode.last_ui, out))
 ui_mid, out_mid = results[3]
-assert ui_mid["text"] == ["SweepCollect: 4 of 8 images"], ui_mid
+assert ui_mid["text"] == ["Sweep Collect: 4 of 8 images"], ui_mid
 # The grids output carries the grid so far too (for a Preview Image wired to it), not a placeholder.
 frame_mid = np.asarray(Image.open(os.path.join(S.OUTPUT_DIR, "_temp", ui_mid["images"][0]["filename"])))
 mid_arr = out_mid[0].arr

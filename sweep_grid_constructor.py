@@ -123,7 +123,7 @@ class SweepGridConstructor:
     def build(
         self, images, combo, filename_prefix, cell_size, cell_mode, font_size, grid_x_dim, grid_y_dim, grid_title_dim
     ):
-        dims_sorted, images, combo_records = unpack_combo(images, combo, "SweepGridConstructor")
+        dims_sorted, images, combo_records = unpack_combo(images, combo, "Sweep Grid")
         output_dir = folder_paths.get_output_directory()
         # This node saves files itself (not via SaveImage), so the prefix is
         # always one sanitized folder name; '/' can't create stray subfolders.
@@ -136,7 +136,7 @@ class SweepGridConstructor:
             cell_mode=cell_mode,
             prefix_folder=prefix_folder,
             output_dir=output_dir,
-            node_tag="SweepGridConstructor",
+            node_tag="Sweep Grid",
             font_size=font_size,
         )
         grids, grid_paths = build_grids(images_by_combo(combo_records, images, dims_sorted), dims_sorted, spec)
@@ -146,7 +146,7 @@ class SweepGridConstructor:
             f"SweepGridConstructor: {len(grid_paths)} grid(s) built from {len(images)} image(s) "
             f"under {os.path.join(output_dir, prefix_folder, '_grids')} | {dim_map}"
         )
-        print(f"[SweepGridConstructor] {summary}")
+        print(f"[Sweep Grid] {summary}")
         return {
             "ui": {"images": ui_images(grid_paths, output_dir), "text": [summary]},
             "result": (stack_padded(grids), summary),

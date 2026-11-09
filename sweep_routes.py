@@ -100,7 +100,7 @@ def chain_response(payload):
     except UnknownChain as exc:
         return {"ok": False, "unknown": True, "error": str(exc)}
     except (ValueError, KeyError, TypeError) as exc:
-        return {"ok": False, "error": re.sub(r"^\[\w+\]\s*", "", str(exc)) or "could not read this chain"}
+        return {"ok": False, "error": re.sub(r"^\[[^\]]+\]\s*", "", str(exc)) or "could not read this chain"}
     dims = sorted(dims, key=lambda d: d["index"])
     groups = [len(g[0]["values"]) for g in sort_groups(partition_into_groups(dims))]
     return {
