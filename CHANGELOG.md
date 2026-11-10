@@ -6,8 +6,9 @@
 
 ### Changed
 - The README starts with installing and the quick start; "How it works" and the examples follow. It
-  also says how paired settings are counted, where the output folder is in other installs, and what
-  to do when ComfyUI Manager is missing.
+  also says how paired settings are counted and where the output folder is in other installs.
+- Install from the GitHub page (Download ZIP, or `git clone`): SweepKit isn't in ComfyUI Manager's
+  list yet. ComfyUI-List-Utils, needed by examples 4–6, still installs from ComfyUI Manager.
 - Clearer messages: a Sweep Pair Axes length mismatch says to set Sweep Pair Axes' `mode` to
   `shortest`, and an image-count mismatch after Sweep Skip Repeats says which output goes to which
   input of the second Sweep Gather.

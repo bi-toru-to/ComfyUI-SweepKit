@@ -20,28 +20,32 @@ follow the [Quick start](#quick-start) below (about 5 minutes).
 - ComfyUI (tested with 0.31.0, frontend 1.48.7). Nothing else to install: SweepKit only uses what
   ComfyUI already includes.
 - Only examples 4–6 (styles that work together, skipping repeats, a list of models) need the
-  [ComfyUI-List-Utils](https://github.com/godmt/ComfyUI-List-Utils) node pack. Install it the same
-  way as SweepKit.
+  [ComfyUI-List-Utils](https://github.com/godmt/ComfyUI-List-Utils) node pack. Install it from
+  ComfyUI Manager: open **Manager → Custom Nodes Manager**, search for *ComfyUI-List-Utils*, and
+  click **Install**. If your ComfyUI has no **Manager** menu, install
+  [ComfyUI Manager](https://github.com/Comfy-Org/ComfyUI-Manager) first.
 - A checkpoint for the examples. Example 3 also needs a LoRA, and example 6 needs three
   checkpoints.
 
 ### Steps
 
-1. In ComfyUI, open **Manager → Custom Nodes Manager**, search for *SweepKit*, and click **Install**.
-2. Restart ComfyUI, then reload the browser page.
+SweepKit isn't in ComfyUI Manager's list yet, so you install it from this page.
 
-If your ComfyUI has no **Manager** menu, install
-[ComfyUI Manager](https://github.com/Comfy-Org/ComfyUI-Manager) first, or use the terminal route
-below.
+1. At the top of this page, click **Code**, then **Download ZIP**.
+2. Unzip it into ComfyUI's `custom_nodes` folder. In the Windows portable build, that folder is
+   `ComfyUI_windows_portable\ComfyUI\custom_nodes`.
+3. Rename the unzipped folder from `ComfyUI-SweepKit-main` to `ComfyUI-SweepKit`.
+4. Restart ComfyUI, then reload the browser page.
 
-**If you use a terminal (optional):** go to ComfyUI's `custom_nodes` folder (in the Windows portable
-build: `ComfyUI_windows_portable\ComfyUI\custom_nodes`) and run:
+To update later, delete that folder and repeat these steps.
+
+**If you use a terminal (optional):** go to ComfyUI's `custom_nodes` folder and run:
 
 ```bash
 git clone https://github.com/bi-toru-to/ComfyUI-SweepKit ComfyUI-SweepKit
 ```
 
-Then restart ComfyUI and reload the browser page.
+Then restart ComfyUI and reload the browser page. To update later, run `git pull` in that folder.
 
 ## Quick start
 

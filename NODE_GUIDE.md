@@ -909,6 +909,10 @@ pass it on.
 
 ## Troubleshooting
 
+**SweepKit's examples aren't under Extensions, or are listed as ComfyUI-SweepKit-main** — The
+folder in `custom_nodes` must be named `ComfyUI-SweepKit`. A downloaded ZIP unzips as
+`ComfyUI-SweepKit-main`: rename it, restart ComfyUI, and reload the page.
+
 **Red or missing nodes when I open example 4, 5 or 6** — Those examples use the ComfyUI-List-Utils
 node pack, which isn't installed. In ComfyUI, open **Manager → Custom Nodes Manager**, search for
 *ComfyUI-List-Utils*, install it, restart ComfyUI, and reload the page.
