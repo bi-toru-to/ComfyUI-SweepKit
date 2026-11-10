@@ -75,8 +75,10 @@ Then restart ComfyUI and reload the browser page. To update later, run `git pull
      them, and connect them to Sweep All-in-One's `model`, `clip` and `vae`.
 4. Press **Run**. The grid fills in on the Sweep All-in-One node.
 5. Open ComfyUI's `output` folder, then `SweepKit_quickstart`. In the Windows portable build it is
-   `ComfyUI_windows_portable\ComfyUI\output`; in other installs, the `output` folder inside the ComfyUI
-   folder, or the folder given to ComfyUI's `--output-directory` option. It holds 9 images named by
+   `ComfyUI_windows_portable\ComfyUI\output`; in the ComfyUI Desktop app, open the menu (☰), choose
+   **Desktop Settings**, then **Storage**, and click the output folder shown there; in other installs,
+   the `output` folder inside the ComfyUI folder, or the folder given to ComfyUI's `--output-directory`
+   option. It holds 9 images named by
    their values, a 3 × 3 grid in `_grids`, and a run list (`sweep_manifest_00001.csv`) you can open
    in a spreadsheet.
 
