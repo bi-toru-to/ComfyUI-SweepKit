@@ -39,8 +39,8 @@ SweepKit isn't in ComfyUI Manager's list yet, so you install it from this page.
    - **Manual install** (you start ComfyUI with `python main.py`): it is `custom_nodes` inside your
      `ComfyUI` folder.
    - **ComfyUI Desktop app:** on your install's card, click **⋮**, choose **Manage**, open
-     **About**, and click the path under **Location & storage** to open your install folder; the
-     `custom_nodes` folder is inside it.
+     **About**, and click the folder location shown under **Location & storage**. Your install
+     folder opens; the `custom_nodes` folder is inside it.
    - Anything else: see ComfyUI's guide
      [Install custom nodes](https://docs.comfy.org/installation/install_custom_node).
 3. Unzip into that folder. On Windows, right-click the ZIP, choose **Extract All…**, click
