@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- Sweep All-in-One's live grid always shows its first preview. On a computer or container that had
+  only just started, the first preview could be skipped.
+
 ## 1.1.0 — 2026-11-10
 
 **To upgrade:** nothing to do. Saved workflows keep loading: node IDs, inputs, outputs and their order

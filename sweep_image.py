@@ -524,7 +524,7 @@ class LiveGrid:
         self.dims_sorted, self.spec, self.axes = dims_sorted, spec, axes
         self.pages: dict[tuple, dict[tuple[int, int], Any]] = {}
         self.latest: tuple | None = None
-        self._last_sent = 0.0
+        self._last_sent: float | None = None  # None until the first frame goes out
 
     def add(self, idx_by_dim: dict[int, int], image: Any) -> None:
         """Record a finished image under its page and cell."""
@@ -537,9 +537,11 @@ class LiveGrid:
         self.latest = page
 
     def due(self, final: bool) -> bool:
-        """True when a frame should be sent now (rate-limited unless final)."""
+        """True when a frame should be sent now: the first and the final frame always,
+        the rest at most once per PREVIEW_MIN_INTERVAL. The first frame can't be judged
+        by the clock, because time.monotonic() may start near zero (Linux counts from boot)."""
         now = time.monotonic()
-        if final or now - self._last_sent >= PREVIEW_MIN_INTERVAL:
+        if final or self._last_sent is None or now - self._last_sent >= PREVIEW_MIN_INTERVAL:
             self._last_sent = now
             return True
         return False

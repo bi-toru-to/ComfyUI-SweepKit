@@ -768,8 +768,15 @@ try:
     assert frames[0].tobytes() != frames[-1].tobytes()
 
     # Rate limit: with a long interval only the first and the final frame go out.
+    # The clock is pinned near zero, as on a machine that booted moments ago
+    # (time.monotonic() counts from boot on Linux): the first frame must still go out.
     sweep_image_mod.PREVIEW_MIN_INTERVAL = 3600.0
-    frames = live_frames(dims, create_grids=False, save_individuals=False)
+    real_monotonic = sweep_image_mod.time.monotonic
+    sweep_image_mod.time.monotonic = lambda: 5.0
+    try:
+        frames = live_frames(dims, create_grids=False, save_individuals=False)
+    finally:
+        sweep_image_mod.time.monotonic = real_monotonic
     assert len(frames) == 2, f"rate limit should leave first + final frames, got {len(frames)}"
     sweep_image_mod.PREVIEW_MIN_INTERVAL = 0.0
 
