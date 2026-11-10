@@ -223,6 +223,6 @@ The tests run without ComfyUI or torch: `tests/stubs/build_stubs.py` provides li
 
 ---
 
-This guide covers SweepKit 1.1.0, last checked 2026-11-10.
+This guide covers SweepKit 1.2.0, last checked 2026-11-10.
 
 Problems or questions? Open an issue on [GitHub](https://github.com/bi-toru-to/ComfyUI-SweepKit/issues).

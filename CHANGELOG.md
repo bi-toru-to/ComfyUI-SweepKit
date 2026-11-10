@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.2.0 — 2026-11-10
 
 **To upgrade:** nothing to do. Saved workflows keep loading.
 

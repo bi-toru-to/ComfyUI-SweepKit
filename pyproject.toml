@@ -1,23 +1,22 @@
 [project]
 name = "comfyui-sweepkit"
-version = "1.1.0"
+version = "1.2.0"
 description = "Parameter sweeps for ComfyUI: sweep any setting of your own workflow or use the all-in-one generator; pair axes, try subsets, skip repeats; named images, labelled grids and a run list."
 readme = "README.md"
 requires-python = ">=3.10"
 # No pip dependencies: torch, numpy and Pillow are provided by ComfyUI.
 # The modular pipeline additionally needs the godmt/ComfyUI-List-Utils node pack.
 dependencies = []
-license = "MIT"
-license-files = ["LICENSE"]
+license = { file = "LICENSE" }
+classifiers = ["Operating System :: OS Independent"]
 
 [project.urls]
 Repository = "https://github.com/bi-toru-to/ComfyUI-SweepKit"
 Issues = "https://github.com/bi-toru-to/ComfyUI-SweepKit/issues"
 
 [tool.comfy]
-PublisherId = ""  # fill in your Comfy Registry publisher ID before publishing
+PublisherId = "bi-toru-to"
 DisplayName = "SweepKit"
-Icon = ""
 
 [tool.ruff]
 line-length = 120

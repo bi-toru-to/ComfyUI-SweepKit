@@ -1,0 +1,3 @@
+# Left out of the Comfy Registry package (gitignore syntax): needed for development only.
+tests/
+.github/
