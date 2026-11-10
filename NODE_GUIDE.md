@@ -1005,4 +1005,4 @@ output makes ComfyUI run the Sweep Axis once per line, instead of giving it the 
 
 This guide covers SweepKit 1.1.0, last checked 2026-11-10.
 
-Problems or questions? Open an issue: ISSUES_URL <!-- RELEASE: issues URL -->
+Problems or questions? Open an issue on [GitHub](https://github.com/bi-toru-to/ComfyUI-SweepKit/issues).

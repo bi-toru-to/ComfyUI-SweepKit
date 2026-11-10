@@ -93,12 +93,10 @@ without making new images.
 build: `ComfyUI_windows_portable\ComfyUI\custom_nodes`) and run:
 
 ```bash
-git clone REPOSITORY_URL ComfyUI-SweepKit
+git clone https://github.com/bi-toru-to/ComfyUI-SweepKit ComfyUI-SweepKit
 ```
 
-<!-- RELEASE: repository URL -->
-`REPOSITORY_URL` is the address of this repository on GitHub. Then restart ComfyUI and reload the
-browser page.
+Then restart ComfyUI and reload the browser page.
 
 ## Quick start
 
@@ -193,4 +191,4 @@ The tests run without ComfyUI or torch: `tests/stubs/build_stubs.py` provides li
 
 This guide covers SweepKit 1.1.0, last checked 2026-11-10.
 
-Problems or questions? Open an issue: ISSUES_URL <!-- RELEASE: issues URL -->
+Problems or questions? Open an issue on [GitHub](https://github.com/bi-toru-to/ComfyUI-SweepKit/issues).

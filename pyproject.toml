@@ -10,6 +10,10 @@ dependencies = []
 license = "MIT"
 license-files = ["LICENSE"]
 
+[project.urls]
+Repository = "https://github.com/bi-toru-to/ComfyUI-SweepKit"
+Issues = "https://github.com/bi-toru-to/ComfyUI-SweepKit/issues"
+
 [tool.comfy]
 PublisherId = ""  # fill in your Comfy Registry publisher ID before publishing
 DisplayName = "SweepKit"
