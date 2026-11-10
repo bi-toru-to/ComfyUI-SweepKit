@@ -33,14 +33,25 @@ SweepKit isn't in ComfyUI Manager's list yet, so you install it from this page.
 
 1. At the top of this page, click the green **Code** button above the file list, then
    **Download ZIP**. Your browser saves `ComfyUI-SweepKit-main.zip`, usually in your Downloads folder.
-2. Unzip it into ComfyUI's `custom_nodes` folder. On Windows, right-click the ZIP, choose
-   **Extract All…**, and pick that folder; on macOS, double-click the ZIP and move the folder there.
-   - In the Windows portable build, the folder is `ComfyUI_windows_portable\ComfyUI\custom_nodes`.
-   - In a manual install, it is `custom_nodes` inside your `ComfyUI` folder.
-   - For other installs, such as the ComfyUI Desktop app, see ComfyUI's guide
+2. Find ComfyUI's `custom_nodes` folder:
+   - **Windows portable build** (you start ComfyUI with `run_nvidia_gpu.bat` or `run_cpu.bat`, in a
+     folder named `ComfyUI_windows_portable`): it is `ComfyUI_windows_portable\ComfyUI\custom_nodes`.
+   - **Manual install** (you start ComfyUI with `python main.py`): it is `custom_nodes` inside your
+     `ComfyUI` folder.
+   - **ComfyUI Desktop app:** on your install's card, click **⋮**, choose **Manage**, open
+     **About**, and click the path under **Location & storage** to open your install folder; the
+     `custom_nodes` folder is inside it.
+   - Anything else: see ComfyUI's guide
      [Install custom nodes](https://docs.comfy.org/installation/install_custom_node).
-3. Rename the unzipped folder from `ComfyUI-SweepKit-main` to `ComfyUI-SweepKit`.
-4. Restart ComfyUI, then reload the browser page.
+3. Unzip into that folder. On Windows, right-click the ZIP, choose **Extract All…**, click
+   **Browse…**, select the `custom_nodes` folder, check that the path shown ends in `custom_nodes`,
+   and click **Extract**. On macOS, double-click the ZIP and move the `ComfyUI-SweepKit-main` folder
+   into `custom_nodes`. Either way, `custom_nodes` now holds a folder named `ComfyUI-SweepKit-main`.
+4. Rename that folder from `ComfyUI-SweepKit-main` to `ComfyUI-SweepKit`.
+5. Restart ComfyUI. If you use ComfyUI in a web browser, reload the page too.
+6. Check that it worked: open the main menu (the ComfyUI logo, top left), choose **Browse
+   Templates**, and look under **Extensions** for **ComfyUI-SweepKit**. If it isn't there, see
+   [Troubleshooting](NODE_GUIDE.md#troubleshooting).
 
 To update later, delete that folder and repeat these steps.
 
