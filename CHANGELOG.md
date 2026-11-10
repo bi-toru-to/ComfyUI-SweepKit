@@ -11,9 +11,9 @@
 - The README starts with installing and the quick start; "How it works" and the examples follow. It
   also says how paired settings are counted and where the output folder is in other installs.
 - Install from the GitHub page (Download ZIP, or `git clone`): SweepKit isn't in ComfyUI Manager's
-  list yet. ComfyUI-List-Utils, needed by examples 4–6, still installs from ComfyUI Manager.
-- Clearer messages: a Sweep Pair Axes length mismatch says to set Sweep Pair Axes' `mode` to
-  `shortest`, and an image-count mismatch after Sweep Skip Repeats says which output goes to which
+  list yet. The steps say where the Code button is, how to unzip, and where `custom_nodes` is. ComfyUI-List-Utils, needed by examples 4–6, still installs from ComfyUI Manager.
+- Clearer messages: a Sweep Pair Axes length mismatch in strict mode says "set Pair Axes to
+  shortest", and an image-count mismatch after Sweep Skip Repeats says which output goes to which
   input of the second Sweep Gather.
 - The Node Guide gives a rough time for each task, and example 1 names the folder the example file
   saves to (`SweepKit_quickstart`).

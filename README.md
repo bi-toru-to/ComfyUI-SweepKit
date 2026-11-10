@@ -31,9 +31,14 @@ follow the [Quick start](#quick-start) below (about 5 minutes).
 
 SweepKit isn't in ComfyUI Manager's list yet, so you install it from this page.
 
-1. At the top of this page, click **Code**, then **Download ZIP**.
-2. Unzip it into ComfyUI's `custom_nodes` folder. In the Windows portable build, that folder is
-   `ComfyUI_windows_portable\ComfyUI\custom_nodes`.
+1. At the top of this page, click the green **Code** button above the file list, then
+   **Download ZIP**. Your browser saves `ComfyUI-SweepKit-main.zip`, usually in your Downloads folder.
+2. Unzip it into ComfyUI's `custom_nodes` folder. On Windows, right-click the ZIP, choose
+   **Extract All…**, and pick that folder; on macOS, double-click the ZIP and move the folder there.
+   - In the Windows portable build, the folder is `ComfyUI_windows_portable\ComfyUI\custom_nodes`.
+   - In a manual install, it is `custom_nodes` inside your `ComfyUI` folder.
+   - For other installs, such as the ComfyUI Desktop app, see ComfyUI's guide
+     [Install custom nodes](https://docs.comfy.org/installation/install_custom_node).
 3. Rename the unzipped folder from `ComfyUI-SweepKit-main` to `ComfyUI-SweepKit`.
 4. Restart ComfyUI, then reload the browser page.
 
