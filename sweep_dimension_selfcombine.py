@@ -16,7 +16,7 @@ both to build the membership dot-matrix; nothing else needs them and
 they're otherwise inert extra dict keys.
 """
 
-from .sweep_core import self_combine
+from .sweep_core import counted, self_combine
 
 
 class SweepDimensionSelfCombine:
@@ -111,7 +111,7 @@ class SweepDimensionSelfCombine:
 
         dims[-1] = new_dim
         print(
-            f"[Sweep Subsets] '{target['dim_id']}': {len(base_values)} base value(s) "
+            f"[Sweep Subsets] '{target['dim_id']}': {counted(len(base_values), 'item')} "
             f"-> {len(combo_values)} {mode} (sizes {min_size}-{max_size or len(base_values)})"
         )
         return (dims,)

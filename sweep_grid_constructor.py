@@ -18,7 +18,7 @@ import os
 
 import folder_paths
 
-from .sweep_core import GRID_AXIS_OPTIONS, safe_component, ui_images, validate_axis_picks
+from .sweep_core import GRID_AXIS_OPTIONS, counted, safe_component, ui_images, validate_axis_picks
 from .sweep_image import GridSpec, build_grids, images_by_combo, stack_padded, unpack_combo
 
 
@@ -144,7 +144,7 @@ class SweepGridConstructor:
 
         dim_map = "; ".join(f"dim{d['index']}='{d['dim_id']}'" for d in dims_sorted) or "(no active axes)"
         summary = (
-            f"Sweep Grid: {len(grid_paths)} grid(s) built from {len(images)} image(s) "
+            f"Sweep Grid: {counted(len(grid_paths), 'grid')} built from {counted(len(images), 'image')} "
             f"under {os.path.join(output_dir, prefix_folder, '_grids')} | {dim_map}"
         )
         print(f"[Sweep Grid] {summary}")

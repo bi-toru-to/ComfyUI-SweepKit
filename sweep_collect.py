@@ -21,6 +21,7 @@ import folder_paths
 from .sweep_core import (
     GRID_AXIS_OPTIONS,
     build_filenames,
+    counted,
     next_versioned_path,
     safe_component,
     ui_images,
@@ -332,11 +333,11 @@ class SweepCollect:
 
     @staticmethod
     def summary(count, dims_sorted, saved, grid_paths, output_dir, folder, manifest=None):
-        lines = [f"{TAG}: {count} image(s) across {len(dims_sorted)} axis(es)."]
+        lines = [f"{TAG}: {counted(count, 'image')} across {counted(len(dims_sorted), 'axis', 'axes')}."]
         if saved:
-            lines.append(f"Saved {len(saved)} image(s) under {os.path.join(output_dir, folder)}")
+            lines.append(f"Saved {counted(len(saved), 'image')} under {os.path.join(output_dir, folder)}")
         if grid_paths:
-            lines.append(f"Saved {len(grid_paths)} grid(s) under {os.path.join(output_dir, folder, '_grids')}")
+            lines.append(f"Saved {counted(len(grid_paths), 'grid')} under {os.path.join(output_dir, folder, '_grids')}")
         if manifest:
             lines.append(f"Run list (CSV): {manifest}")
         lines.append("; ".join(f"dim{d['index']}='{d['dim_id']}'" for d in dims_sorted) or "(no axes)")

@@ -37,6 +37,7 @@ from .sweep_core import (
     PREVIEW_VALUES,
     TRUNCATED_NAME_LEN,
     build_combo_records,
+    counted,
     format_dim_value,
     next_versioned_path,
     safe_component,
@@ -431,7 +432,8 @@ class SweepAllInOne:
     def announce(dims_sorted, groups, total):
         print("=" * 60)
         print(
-            f"[Sweep All-in-One] {len(dims_sorted)} active axis(es) in {len(groups)} group(s), {total} image(s) total"
+            f"[Sweep All-in-One] {counted(len(dims_sorted), 'active axis', 'active axes')} in "
+            f"{counted(len(groups), 'group')}, {counted(total, 'image')} in total"
         )
         for d in dims_sorted:
             group_note = f" (zipped with group '{d['group']}')" if d.get("group") else ""
@@ -530,11 +532,15 @@ class SweepAllInOne:
 
     @staticmethod
     def summarize(count, dims_sorted, saved_paths, grid_paths, output_dir, safe_prefix, manifest=None):
-        lines = [f"SweepAllInOne: {count} image(s) generated across {len(dims_sorted)} axis(es)."]
+        lines = [
+            f"Sweep All-in-One: {counted(count, 'image')} made across {counted(len(dims_sorted), 'axis', 'axes')}."
+        ]
         if saved_paths:
-            lines.append(f"Saved {len(saved_paths)} individual file(s) under {os.path.join(output_dir, safe_prefix)}")
+            lines.append(f"Saved {counted(len(saved_paths), 'image')} under {os.path.join(output_dir, safe_prefix)}")
         if grid_paths:
-            lines.append(f"Saved {len(grid_paths)} grid(s) under {os.path.join(output_dir, safe_prefix, '_grids')}")
+            lines.append(
+                f"Saved {counted(len(grid_paths), 'grid')} under {os.path.join(output_dir, safe_prefix, '_grids')}"
+            )
         if manifest:
             lines.append(f"Run list (CSV): {manifest}")
         return "\n".join(lines)

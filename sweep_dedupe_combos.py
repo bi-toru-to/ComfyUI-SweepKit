@@ -18,7 +18,7 @@ sampling, once more to re-expand the sampled image list back out to the
 original length.
 """
 
-from .sweep_core import build_dedupe_keys, dedupe_indices
+from .sweep_core import build_dedupe_keys, counted, dedupe_indices
 
 
 class SweepDedupeCombos:
@@ -62,11 +62,11 @@ class SweepDedupeCombos:
         n, m = len(keys), len(unique_index_map)
         if m < n:
             print(
-                f"[Sweep Skip Repeats] {n} combo(s) -> {m} unique setting(s) "
-                f"({n - m} duplicate(s) will be reused instead of resampled)."
+                f"[Sweep Skip Repeats] {counted(n, 'combination')} -> {counted(m, 'different setting')} "
+                f"({counted(n - m, 'repeat')} will reuse an image instead of making a new one)."
             )
         else:
-            print(f"[Sweep Skip Repeats] {n} combo(s), no duplicates found.")
+            print(f"[Sweep Skip Repeats] {counted(n, 'combination')}, no repeats found.")
         return (unique_index_map, expand_indices, m)
 
 

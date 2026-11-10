@@ -802,7 +802,7 @@ try:
         _, summary = main_node.generate(**base_kwargs(dimensions=dims, create_grids=True))
     finally:
         sweep_image_mod.LiveGrid.render = orig_render
-    assert "4 image(s) generated" in summary and "grid(s)" in summary and not PB.previews
+    assert "4 images made" in summary and "Saved 1 grid under" in summary and not PB.previews
 finally:
     sweep_image_mod.PREVIEW_MIN_INTERVAL = old_interval
 print("PASS scenario 29 - live frames per image, rate-limited, and a preview failure is harmless")

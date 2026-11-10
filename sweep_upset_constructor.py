@@ -30,6 +30,7 @@ from PIL import Image, ImageDraw
 
 from .sweep_core import (
     GRID_AXIS_OPTIONS,
+    counted,
     dim_group_members,
     find_dim_by_id,
     format_group_value,
@@ -211,8 +212,8 @@ class SweepUpsetConstructor:
 
         dim_map = "; ".join(f"dim{d['index']}='{d['dim_id']}'" for d in dims_sorted) or "(no active axes)"
         summary = (
-            f"Sweep UpSet Matrix: {len(paths)} matrix image(s) for '{dim_id}' "
-            f"({n_cols} combo(s) of {len(target['base_values'])} base value(s)) "
+            f"Sweep UpSet Matrix: {counted(len(paths), 'matrix image')} for '{dim_id}' "
+            f"({counted(n_cols, 'subset')} of {counted(len(target['base_values']), 'item')}) "
             f"under {os.path.join(output_dir, prefix_folder, '_upset')} | {dim_map}"
         )
         print(f"[Sweep UpSet Matrix] {summary}")

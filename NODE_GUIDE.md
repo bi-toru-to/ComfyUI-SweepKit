@@ -919,7 +919,9 @@ node pack, which isn't installed. In ComfyUI, open **Manager → Custom Nodes Ma
 
 **"model.safetensors is missing", or "Value not in list: ckpt_name: 'model.safetensors'"** — The
 examples ship with a placeholder checkpoint name. In every **Load Checkpoint** (three in example 6),
-pick one of your own checkpoints, and pick your LoRA in example 3's **Load LoRA**.
+pick one of your own checkpoints, and pick your LoRA in example 3's **Load LoRA**. If your model
+comes as separate files (Flux and similar), the checkpoint list is empty: replace Load Checkpoint with
+**Load Diffusion Model**, **Load CLIP** and **Load VAE**, connected to the same inputs.
 
 **"… the range '1-20000' in values makes 20,000 values, more than the limit of 10,000"** (on the axis:
 *"'1-20000' is over 10,000 values: shorten it"*) — One range can give at most 10,000 values. Use a

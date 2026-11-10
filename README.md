@@ -24,8 +24,8 @@ follow the [Quick start](#quick-start) below (about 5 minutes).
   ComfyUI Manager: open **Manager → Custom Nodes Manager**, search for *ComfyUI-List-Utils*, and
   click **Install**. If your ComfyUI has no **Manager** menu, install
   [ComfyUI Manager](https://github.com/Comfy-Org/ComfyUI-Manager) first.
-- A checkpoint for the examples. Example 3 also needs a LoRA, and example 6 needs three
-  checkpoints.
+- A model for the examples: a checkpoint, or a model that comes as separate files (see Quick start
+  step 3). Example 3 also needs a LoRA, and example 6 needs three models.
 
 ### Steps
 
@@ -54,6 +54,9 @@ Then restart ComfyUI and reload the browser page. To update later, run `git pull
    also drag `1_quickstart_all_in_one.json` onto the canvas from the `example_workflows` folder inside
    the installed SweepKit folder (`ComfyUI\custom_nodes\ComfyUI-SweepKit`).
 3. In **Load Checkpoint**, pick your checkpoint.
+   - If your model comes as separate files (Flux and similar), it isn't in that list. Delete Load
+     Checkpoint, add **Load Diffusion Model**, **Load CLIP** and **Load VAE**, pick your files in
+     them, and connect them to Sweep All-in-One's `model`, `clip` and `vae`.
 4. Press **Run**. The grid fills in on the Sweep All-in-One node.
 5. Open ComfyUI's `output` folder, then `SweepKit_quickstart`. In the Windows portable build it is
    `ComfyUI_windows_portable\ComfyUI\output`; in other installs, the `output` folder inside the ComfyUI
@@ -81,8 +84,8 @@ makes every combination of the axes' values and runs one image for each.
   come out as 2 grids of 3 × 3.
 - **How long it takes:** counts grow fast. 3 axes of 10 values each are 1,000 images. On a mid-range
   laptop GPU at 25 steps, one 1024 × 1024 image can take over a minute, so 1,000 images could take
-  about a day. Small 512 × 512 images, like the quick start's, take seconds each. Your times depend
-  on your GPU and model.
+  about a day. Small 512 × 512 images, like the quick start's, take about 10 to 20 seconds each.
+  Your times depend on your GPU and model.
 - **Check the count on the node before you press Run.** Every axis shows *"3 values: 1 · 2 · 3"*, and
   Sweep All-in-One or Sweep Plan shows *"18 images: 3 × 3 × 2"*.
 - **How to stop:** cancel the run in ComfyUI's queue. Images already saved are kept.
@@ -193,6 +196,7 @@ comparison below is based on that node's public documentation.
 python tests/run_all.py     # all Python and JS test suites (needs numpy, Pillow, node)
 ruff check . && ruff format --check .
 python scripts/make_diagrams.py   # redraw docs/img/*.svg
+python scripts/make_thumbnails.py # redraw example_workflows/*.jpg (needs Pillow)
 ```
 
 The tests run without ComfyUI or torch: `tests/stubs/build_stubs.py` provides lightweight stand-ins.

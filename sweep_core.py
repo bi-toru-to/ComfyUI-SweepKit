@@ -28,6 +28,11 @@ class SweepError(ValueError):
         self.short = short
 
 
+def counted(n: int, singular: str, plural: str | None = None) -> str:
+    """'1 image', '12 images'. Pass the plural for irregular words: counted(2, 'axis', 'axes')."""
+    return f"{n:,} {singular if n == 1 else (plural or singular + 's')}"
+
+
 def short_message(exc: Exception) -> str:
     """The one-line form of an error: its short form, or the message without its [node] tag."""
     return getattr(exc, "short", None) or re.sub(r"^\[[^\]]+\]\s*('[^']*':\s*)?", "", str(exc))

@@ -787,9 +787,12 @@ def collect_kwargs(prefix, **o):
 images_u = [fake_image(0.05 * (i + 1)) for i in range(count_t)]
 grids_u, summary_u = CollectNode.collect(images=images_u, combo=[combo_t], **collect_kwargs("TestCollectA"))
 ui_u = CollectNode.last_ui
-assert "12 image(s) across 3 axis(es)" in summary_u and "Saved 12 image(s)" in summary_u and "grid(s)" in summary_u, (
-    summary_u
-)
+assert (
+    "12 images across 3 axes" in summary_u
+    and "Saved 12 images" in summary_u
+    and " under " in summary_u.split("Saved 12 images")[1]
+    and "_grids" in summary_u
+), summary_u
 assert "dim1='mood'" in summary_u, summary_u
 root_u = os.path.join(S.OUTPUT_DIR, "TestCollectA")
 files_u = [f for _, _, fs in os.walk(root_u) for f in fs if f.endswith(".png")]
@@ -822,12 +825,12 @@ assert not [f for _, _, fs in os.walk(os.path.join(S.OUTPUT_DIR, "TestCollectB")
 _, summary_ng = CollectNode.collect(
     images=images_u, combo=[combo_t], **collect_kwargs("TestCollectC", create_grids=False)
 )
-assert "grid(s)" not in summary_ng and not os.path.isdir(os.path.join(S.OUTPUT_DIR, "TestCollectC", "_grids"))
+assert "_grids" not in summary_ng and not os.path.isdir(os.path.join(S.OUTPUT_DIR, "TestCollectC", "_grids"))
 
 # A batch of several images in one entry is split, so each run still lines up (6 entries x 2 = 12 runs).
 batched = [S.FakeTensor(np.concatenate([i.arr, i.arr], axis=0)) for i in images_u[:6]]
 _, summary_b = CollectNode.collect(images=batched, combo=[combo_t], **collect_kwargs("TestCollectD"))
-assert "12 image(s)" in summary_b, summary_b
+assert "12 images" in summary_b, summary_b
 
 # Too few images: a clear error that says what to wire.
 try:
@@ -892,9 +895,7 @@ assert shown["type"] == "temp" and os.path.isfile(os.path.join(PB_dir, shown["fi
 frame_files = {r[0]["images"][0]["filename"] for r in results[:7]}
 assert len(frame_files) == 1, "one temp file per sweep, rewritten each time"
 ui_last, out_last = results[7]
-assert "8 image(s) across 3 axis(es)" in ui_last["text"][0] and "Saved 8 image(s)" in ui_last["text"][0], ui_last[
-    "text"
-]
+assert "8 images across 3 axes" in ui_last["text"][0] and "Saved 8 images" in ui_last["text"][0], ui_last["text"]
 assert ui_last["images"] and all(i["type"] == "output" for i in ui_last["images"])  # the final grids
 assert sweep_live._SESSIONS == {} or SESSION not in sweep_live._SESSIONS, "session closed after the last image"
 
@@ -1046,7 +1047,7 @@ out_x = CollectNode.collect(
     **collect_kwargs("TestReuse", grid_x_dim="cfg", grid_y_dim="seed", grid_title_dim="subject"),
 )
 ui_x = CollectNode.last_ui
-assert "8 image(s)" in ui_x["text"][0] and ui_x["images"], ui_x
+assert "8 images" in ui_x["text"][0] and ui_x["images"], ui_x
 assert pngs_under(root_x) == before_x, "same prefix: the saved images are not saved again"
 assert len(os.listdir(os.path.join(root_x, "_grids"))) > grids_before, "new grids written"
 # The rebuilt grids use the kept images, not the stand-in: same as a one-go run with the new picks.

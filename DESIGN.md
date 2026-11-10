@@ -157,6 +157,7 @@ structure) is the same engine as before — only how dimensions get
 | `web/sweepkit_soft.js` | "Sweep this setting": describing a setting, suggesting values, adding and wiring the axis, Plan outputs, collect, image count. Takes the graph and node factory as arguments | — |
 | `web/sweepkit_pick.js` | "Pick values from the list": the pure helpers plus a small dialog | — |
 | `scripts/run_sweep_api.py`, `scripts/make_diagrams.py` | Run a sweep without the browser; redraw `docs/img/*.svg` | No (stdlib only) |
+| `scripts/make_thumbnails.py` | Redraw the template-browser thumbnails `example_workflows/*.jpg` | No (Pillow) |
 
 Grid building lives in exactly one place, so `SweepAllInOne` and
 `SweepGridConstructor` can't drift apart; `SweepAllInOne` only differs in

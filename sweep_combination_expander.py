@@ -25,6 +25,7 @@ from .sweep_core import (
     PREVIEW_VALUES,
     axis_output_lists,
     build_combo_records,
+    counted,
     live_slice,
 )
 
@@ -122,7 +123,10 @@ class SweepCombinationExpander:
     @staticmethod
     def announce(lines, n_axes, n_groups, total):
         print("=" * 60)
-        print(f"[Sweep Plan] {n_axes} active axis(es) in {n_groups} group(s), {total} combination(s) total")
+        print(
+            f"[Sweep Plan] {counted(n_axes, 'active axis', 'active axes')} in {counted(n_groups, 'group')}, "
+            f"{counted(total, 'combination')} in total"
+        )
         for line in lines:
             print(f"   {line}")
         if total > LARGE_SWEEP_WARNING:

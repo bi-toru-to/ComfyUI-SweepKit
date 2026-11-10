@@ -242,6 +242,9 @@ def main():
     for path in paths:
         name = os.path.basename(path)
         problems = check_example(path)
+        # ComfyUI's template browser shows <name>.jpg beside each example (scripts/make_thumbnails.py).
+        if not os.path.isfile(path[: -len(".json")] + ".jpg"):
+            problems.append("no thumbnail: run scripts/make_thumbnails.py")
         for p in problems:
             if (name, p) in KNOWN_GAPS:
                 gaps_seen.add((name, p))

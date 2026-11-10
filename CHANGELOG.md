@@ -4,6 +4,9 @@
 
 **To upgrade:** nothing to do. Saved workflows keep loading.
 
+### Added
+- Each example has a thumbnail in ComfyUI's template browser.
+
 ### Changed
 - The README starts with installing and the quick start; "How it works" and the examples follow. It
   also says how paired settings are counted and where the output folder is in other installs.
@@ -14,6 +17,10 @@
   input of the second Sweep Gather.
 - The Node Guide gives a rough time for each task, and example 1 names the folder the example file
   saves to (`SweepKit_quickstart`).
+- The Quick start says what to do when your model comes as separate files (Flux and similar):
+  use Load Diffusion Model, Load CLIP and Load VAE in place of Load Checkpoint.
+- The text under Sweep All-in-One, Sweep Collect, Sweep Grid and Sweep UpSet Matrix after a run uses
+  the node names shown in ComfyUI and plain counts ("9 images across 2 axes").
 
 ### Fixed
 - Sweep All-in-One's live grid always shows its first preview. On a computer or container that had

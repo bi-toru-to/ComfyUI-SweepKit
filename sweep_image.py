@@ -25,6 +25,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 from .sweep_core import (
     Dimension,
+    counted,
     dim_group_members,
     format_group_value,
     next_versioned_path,
@@ -469,7 +470,7 @@ def build_grids(
     x_dim, y_dim, grouping = axes.x_dim, axes.y_dim, axes.grouping
     combos = list(itertools.product(*[range(len(d["values"])) for d in grouping]))
     print(
-        f"[{spec.node_tag}] Building {len(combos)} grid(s) (x={x_dim['dim_id'] if x_dim else '—'}, "
+        f"[{spec.node_tag}] Building {counted(len(combos), 'grid')} (x={x_dim['dim_id'] if x_dim else '—'}, "
         f"y={y_dim['dim_id'] if y_dim else '—'}{', title=' + axes.title_dim['dim_id'] if axes.title_dim else ''})"
     )
 

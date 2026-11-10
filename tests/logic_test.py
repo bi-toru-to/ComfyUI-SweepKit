@@ -608,7 +608,7 @@ def test_run_sweep_api_script():
         "status": {"status_str": "success", "messages": []},
         "outputs": {
             "7": {
-                "text": ["8 image(s) across 3 axis(es)"],
+                "text": ["8 images across 3 axes"],
                 "images": [{"filename": "g.png", "subfolder": "p/_grids", "type": "output"}],
             }
         },
@@ -644,7 +644,7 @@ def test_run_sweep_api_script():
     lines = api.summarize(entry)
     assert (
         lines[0] == "status: success"
-        and any("8 image(s)" in line for line in lines)
+        and any("8 images" in line for line in lines)
         and any("p/_grids/g.png" in line for line in lines)
     )
     failed = {
