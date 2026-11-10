@@ -75,8 +75,8 @@ PREFIX_START = "SweepKit_"
 # Core nodes with a filename_prefix setting: its position among the node's settings.
 CORE_PREFIX_INDEX = {"SaveImage": 0}
 
-# (example file, check) pairs still open. Phase 2 of the docs fix plan cleared the list; add
-# to it only for a known, tracked problem.
+# (example file, check) pairs still open. The list is empty; add to it only for a
+# known, tracked problem.
 KNOWN_GAPS: set[tuple[str, str]] = set()
 
 _WIDGET_TYPES = {"INT", "FLOAT", "STRING", "BOOLEAN", "COMBO"}

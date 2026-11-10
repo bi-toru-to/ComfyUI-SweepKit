@@ -573,8 +573,9 @@ print(
 )
 
 # ------------------------------------------------------------------
-# Regression scenarios for the 2026-11-06 quality audit (FIX_PLAN Phase 1).
-# Each one failed (or was silently wrong) before the fix.
+# Regression scenarios for wrong results and crashes fixed in 1.0.0
+# (stacked LoRAs, duplicate axes, regex order, shared zips, socket cap,
+# reserved names). Each one failed (or was silently wrong) before the fix.
 # ------------------------------------------------------------------
 
 
@@ -691,7 +692,7 @@ assert any(os.sep + "_CON" + os.sep in p for p in saved) and any(os.sep + "_aux"
 print(f"PASS scenario 26 - prefix 'NUL' saved under '_NUL' ({len(saved)} files)")
 
 # ------------------------------------------------------------------
-# Regression scenarios for FIX_PLAN Phase 2.
+# Regression scenarios for memory use and on-node output, fixed in 1.0.0.
 # ------------------------------------------------------------------
 import gc  # noqa: E402
 import weakref  # noqa: E402

@@ -558,7 +558,8 @@ assert grid_files == ["grid_00001.png", "grid_00002.png"], grid_files
 print("PASS scenario O -", upset_files, grid_files)
 
 # ------------------------------------------------------------------
-# Regression scenarios for FIX_PLAN Phase 2.
+# Regression scenarios for grid and UpSet output fixed in 1.0.0 (progress and
+# interrupts, padding, on-node output, title_dim='auto').
 # ------------------------------------------------------------------
 from PIL import Image  # noqa: E402
 
