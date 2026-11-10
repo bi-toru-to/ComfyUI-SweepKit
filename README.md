@@ -13,15 +13,54 @@ follow the [Quick start](#quick-start) below (about 5 minutes).
   <br><sub>One grid out of a sweep: seed across, cfg down. The prompt is on the title line. (SweepKit 1.1, generated 2026-11)</sub>
 </p>
 
-## What can I do with it?
+## Install
 
-| I want to know... | Sweep this | You get |
-|---|---|---|
-| Which **cfg or steps** looks best | `cfg` 4, 7, 10 × `steps` 15, 25, 35 | one grid, every pairing |
-| How strong my **LoRA** should be | LoRA strength 0.2 … 1.0 (model and clip paired) | a row per strength |
-| Which **sampler or checkpoint** suits a prompt | tick them from the list | one image each, same seed |
-| How **prompt wording** changes the result | several prompt versions | one grid per prompt |
-| Which **styles work together** | every pair and triple of a list | a chart of which styles each image uses |
+### Requirements
+
+- ComfyUI (tested with 0.31.0, frontend 1.48.7). Nothing else to install: SweepKit only uses what
+  ComfyUI already includes.
+- Only examples 4–6 (styles that work together, skipping repeats, a list of models) need the
+  [ComfyUI-List-Utils](https://github.com/godmt/ComfyUI-List-Utils) node pack. Install it the same
+  way as SweepKit.
+- A checkpoint for the examples. Example 3 also needs a LoRA, and example 6 needs three
+  checkpoints.
+
+### Steps
+
+1. In ComfyUI, open **Manager → Custom Nodes Manager**, search for *SweepKit*, and click **Install**.
+2. Restart ComfyUI, then reload the browser page.
+
+If your ComfyUI has no **Manager** menu, install
+[ComfyUI Manager](https://github.com/Comfy-Org/ComfyUI-Manager) first, or use the terminal route
+below.
+
+**If you use a terminal (optional):** go to ComfyUI's `custom_nodes` folder (in the Windows portable
+build: `ComfyUI_windows_portable\ComfyUI\custom_nodes`) and run:
+
+```bash
+git clone https://github.com/bi-toru-to/ComfyUI-SweepKit ComfyUI-SweepKit
+```
+
+Then restart ComfyUI and reload the browser page.
+
+## Quick start
+
+1. In ComfyUI, open the main menu (the ComfyUI logo, top left) and choose **Browse Templates**.
+2. Under **Extensions**, choose **ComfyUI-SweepKit**, then **1_quickstart_all_in_one**. You can
+   also drag `1_quickstart_all_in_one.json` onto the canvas from the `example_workflows` folder inside
+   the installed SweepKit folder (`ComfyUI\custom_nodes\ComfyUI-SweepKit`).
+3. In **Load Checkpoint**, pick your checkpoint.
+4. Press **Run**. The grid fills in on the Sweep All-in-One node.
+5. Open ComfyUI's `output` folder, then `SweepKit_quickstart`. In the Windows portable build it is
+   `ComfyUI_windows_portable\ComfyUI\output`; in other installs, the `output` folder inside the ComfyUI
+   folder, or the folder given to ComfyUI's `--output-directory` option. It holds 9 images named by
+   their values, a 3 × 3 grid in `_grids`, and a run list (`sweep_manifest_00001.csv`) you can open
+   in a spreadsheet.
+
+Next: change an axis's values, or right-click any setting in your own workflow and choose
+**Sweep "…"**. Then right-click your **VAE Decode** and choose **Sweep: collect results here**.
+How to type values (lists, ranges, LoRA strengths): see
+[Typing values](NODE_GUIDE.md#typing-values).
 
 ## How it works
 
@@ -31,6 +70,8 @@ makes every combination of the axes' values and runs one image for each.
 <p align="center"><img src="docs/img/flow_quickstart.svg" alt="Two Sweep Axis nodes feed Sweep All-in-One, which produces 9 images, a grid and a run list"></p>
 
 - **How many images:** the counts multiply. Seed 1–3 × cfg 4, 7, 10 × 2 prompts = 3 × 3 × 2 = 18 images.
+  Paired axes (Sweep Pair Axes) move together, so they count once: 5 paired LoRA strengths × 3 cfg
+  values = 15 images.
 - **How many grids:** two axes form each grid (columns and rows). Every value of any further axis makes
   another grid; by default a text axis, such as the prompt, is the one that splits. So those 18 images
   come out as 2 grids of 3 × 3.
@@ -55,6 +96,7 @@ The blue nodes say what to vary; the green node makes or collects the images.
 | Word | Meaning |
 |---|---|
 | **axis** | One setting to vary, with the list of values to try. |
+| **text axis** | An axis whose values are text, such as prompt versions. |
 | **Sweep Plan** | The node that turns your axes into the list of combinations. |
 | **Sweep Collect** | The node that receives every image, saves it, and builds the grids. |
 | **run list** | A spreadsheet file listing each image, its file name and its values. |
@@ -74,47 +116,15 @@ The blue nodes say what to vary; the green node makes or collects the images.
 Change only grid settings (which axis goes across, cell size…) and queue again: the grids are rebuilt
 without making new images.
 
-## Install
+## What can I do with it?
 
-### Requirements
-
-- ComfyUI (tested with 0.31.0, frontend 1.48.7). Nothing else to install: SweepKit only uses what
-  ComfyUI already includes.
-- Only examples 4–6 (styles that work together, skipping repeats, a list of models) need the
-  [ComfyUI-List-Utils](https://github.com/godmt/ComfyUI-List-Utils) node pack. Install it the same
-  way as SweepKit.
-
-### Steps
-
-1. In ComfyUI, open **Manager → Custom Nodes Manager**, search for *SweepKit*, and click **Install**.
-2. Restart ComfyUI, then reload the browser page.
-
-**If you use a terminal (optional):** go to ComfyUI's `custom_nodes` folder (in the Windows portable
-build: `ComfyUI_windows_portable\ComfyUI\custom_nodes`) and run:
-
-```bash
-git clone https://github.com/bi-toru-to/ComfyUI-SweepKit ComfyUI-SweepKit
-```
-
-Then restart ComfyUI and reload the browser page.
-
-## Quick start
-
-1. In ComfyUI, open the main menu (the ComfyUI logo, top left) and choose **Browse Templates**.
-2. Under **Extensions**, choose **ComfyUI-SweepKit**, then **1_quickstart_all_in_one**. You can
-   also drag `1_quickstart_all_in_one.json` onto the canvas from the `example_workflows` folder inside
-   the installed SweepKit folder (`ComfyUI\custom_nodes\ComfyUI-SweepKit`).
-3. In **Load Checkpoint**, pick your checkpoint.
-4. Press **Run**. The grid fills in on the Sweep All-in-One node.
-5. Open ComfyUI's `output` folder (in the Windows portable build:
-   `ComfyUI_windows_portable\ComfyUI\output`), then `SweepKit_quickstart`. It holds 9 images named by
-   their values, a 3 × 3 grid in `_grids`, and a run list (`sweep_manifest_00001.csv`) you can open
-   in a spreadsheet.
-
-Next: change an axis's values, or right-click any setting in your own workflow and choose
-**Sweep "…"**. Then right-click your **VAE Decode** and choose **Sweep: collect results here**.
-How to type values (lists, ranges, LoRA strengths): see
-[Typing values](NODE_GUIDE.md#typing-values).
+| I want to know... | Sweep this | You get |
+|---|---|---|
+| Which **cfg or steps** looks best | `cfg` 4, 7, 10 × `steps` 15, 25, 35 | one grid, every pairing |
+| How strong my **LoRA** should be | LoRA strength 0.2 … 1.0 (model and clip paired) | a row per strength |
+| Which **sampler or checkpoint** suits a prompt | tick them from the list | one image each, same seed |
+| How **prompt wording** changes the result | several prompt versions | one grid per prompt |
+| Which **styles work together** | every pair and triple of a list | a chart of which styles each image uses |
 
 ## Beyond a plain grid
 

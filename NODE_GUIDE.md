@@ -23,7 +23,8 @@ ID follows in parentheses, for searching older workflows: Sweep Axis (`SweepDime
 ## Sweeping a setting from the right-click menu
 
 Right-click a number, choice or text setting on any node and choose **Sweep "name"…**. This works on
-any node except SweepKit's own, for a setting that has no wire connected yet.
+any node except SweepKit's own, for a setting that has no wire connected yet. Each setting takes
+about a minute to set up; collecting the results takes one more right-click.
 
 For a text box that spans several lines, such as a prompt, right-click the node's title bar or its
 edge instead. Inside the text box, the browser's own menu opens. The menu then lists every text box of
@@ -622,8 +623,8 @@ its name), and "connect" means drag from an output to an input.
 
 ### 1. Quickest start: the all-in-one node
 
-A first sweep: 3 seeds × 3 cfg values = 9 images and one grid. No extra node packs.
-(`1_quickstart_all_in_one.json`)
+A first sweep: 3 seeds × 3 cfg values = 9 images and one grid. No extra node packs. About 5 minutes
+to build by hand, or open the example file. (`1_quickstart_all_in_one.json`)
 
 1. Add a **Load Checkpoint**.
    - Pick your checkpoint in it.
@@ -643,7 +644,8 @@ A first sweep: 3 seeds × 3 cfg values = 9 images and one grid. No extra node pa
    - Connect this axis's `dimensions` to Sweep All-in-One's `dimensions`. The node now reads
      *"9 images: 3 × 3"*.
 6. Press **Run**. You get 9 images and one 3 × 3 grid (seed across, cfg down) in ComfyUI's output
-   folder, under `SweepKit` (the default `filename_prefix`).
+   folder, under `SweepKit` (the default `filename_prefix`). The example file sets `filename_prefix` to
+   `SweepKit_quickstart`, so its results go there instead.
 
 To sweep prompt text too: put `{}` in the prompt where the words go, and add a Sweep Axis of type
 `text` to the chain.
@@ -651,8 +653,8 @@ To sweep prompt text too: put `{}` in the prompt where the words go, and add a S
 ### 2. Sweep any setting of your own workflow
 
 Seed, cfg and the prompt of an ordinary text-to-image workflow: 2 seeds × 3 cfg values × 2 prompt
-versions = 12 images, with one grid per prompt. Nothing from SweepKit touches the sampler.
-(`2_sweep_any_setting.json`)
+versions = 12 images, with one grid per prompt. Nothing from SweepKit touches the sampler. About 5
+minutes on a workflow you already have. (`2_sweep_any_setting.json`)
 
 1. Open or build an ordinary workflow: **Load Checkpoint**, two **CLIP Text Encode**, **Empty Latent
    Image**, **KSampler** and **VAE Decode**.
@@ -677,7 +679,7 @@ and height, or a LoRA's strength or file name. For the sampler, use **Pick value
 ### 3. Pair two LoRA strengths
 
 5 paired LoRA strengths (model and clip), each tried with 3 cfg values: 15 images, not 75. Uses a real
-Load LoRA node. (`3_pair_lora_strengths.json`)
+Load LoRA node. About 10 minutes to build by hand. (`3_pair_lora_strengths.json`)
 
 1. Build the workflow of example 2.
 2. Add a **Load LoRA**.
@@ -712,6 +714,8 @@ Load LoRA node. (`3_pair_lora_strengths.json`)
    - Connect the Plan's `combo` to `combo`.
 9. Press **Run**. Load LoRA and the KSampler each run 15 times. One grid comes out (the paired
    strengths are one axis, cfg the other), with the named images and the run list.
+
+Next: to pair more than two settings, connect Sweep Pair Axes' output to another Sweep Pair Axes.
 
 ### 4. Style combinations and an UpSet matrix
 
@@ -855,8 +859,8 @@ Axis's own model inputs. Needs ComfyUI-List-Utils. (`6_model_list_pylist.json`)
 8. Save the images and build the grid as at the end of example 4.
 
 File names, grid labels and the run list name each model after its file (for example
-`my_model`). For models that come as separate files (Flux and similar), use **Load
-Diffusion Model** nodes instead of Load Checkpoint.
+`my_model`). For models that come as separate files (Flux and similar), use **Load Diffusion
+Model** nodes instead of Load Checkpoint.
 
 ---
 
@@ -914,7 +918,7 @@ examples ship with a placeholder checkpoint name. In every **Load Checkpoint** (
 pick one of your own checkpoints, and pick your LoRA in example 3's **Load LoRA**.
 
 **"… the range '1-20000' in values makes 20,000 values, more than the limit of 10,000"** (on the axis:
-*"'1-20000' is over 10,000 values: shorten it"*) — One range may give at most 10,000 values. Use a
+*"'1-20000' is over 10,000 values: shorten it"*) — One range can give at most 10,000 values. Use a
 shorter range, or fewer values. The limit protects you from a sweep far larger than intended.
 
 **There is no "Sweep …" item when I right-click a setting** — Only a number, choice or text setting
@@ -953,7 +957,7 @@ Sweep Subsets of a List adds ` (combinations)` or ` (permutations)` to the name.
 **"dim_id is 'X', but 2 axes have that name"** — Two Sweep Axis nodes have the same `dim_id`, or both
 are blank with the same type. Give each its own name.
 
-**"list N in axis_values holds models or other objects, which can't be compared directly"** — You
+**"list N in axis_values holds models or LoRAs, which can't be compared directly"** — You
 connected a model or LoRA axis's values to Sweep Skip Repeats. Pair a text axis holding the file
 names with that axis (Sweep Pair Axes), and connect the text axis's values instead.
 

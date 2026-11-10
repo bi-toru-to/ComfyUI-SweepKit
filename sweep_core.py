@@ -765,7 +765,7 @@ def build_dedupe_keys(axis_value_lists: Sequence[Sequence[Any]], float_precision
             if not isinstance(v, _DEDUPE_KEY_TYPES):
                 log.info("axis_values list %d item %d is a %s, not str/int/float/bool", ai + 1, i, type(v).__name__)
                 raise ValueError(
-                    f"[Sweep Skip Repeats] list {ai + 1} in axis_values holds models or other objects, which "
+                    f"[Sweep Skip Repeats] list {ai + 1} in axis_values holds models or LoRAs, which "
                     f"can't be compared directly. Pair a text axis holding the file names with that axis "
                     f"(Sweep Pair Axes), and connect the text axis's values instead."
                 )

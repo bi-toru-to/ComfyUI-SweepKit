@@ -86,7 +86,7 @@ def quickstart() -> Svg:
     s.box(330, 258, 250, 44, "user", ["your checkpoint + prompt"], size=14)
     s.box(690, 70, 250, 58, "result", ["9 images", "named by the values used"])
     s.box(690, 146, 250, 58, "result", ["1 labelled 3 × 3 grid", "fills in live while it runs"])
-    s.box(690, 222, 250, 58, "result", ["run list (CSV)", "one row per image"])
+    s.box(690, 222, 250, 58, "result", ["run list", "one row per image"])
     s.arrow([(230, 111), (280, 111), (280, 150), (330, 150)])
     s.arrow([(230, 221), (280, 221), (280, 190), (330, 190)])
     s.arrow([(455, 258), (455, 220)])
@@ -125,7 +125,7 @@ def any_setting() -> Svg:
     s.arrow([(780, 113), (900, 113), (900, 200)], "which values made each image", (905, 100))
     s.box(630, 350, 190, 54, "result", ["named images", "seed1_cfg4_….png"], size=14)
     s.box(840, 350, 170, 54, "result", ["labelled grids", "one per prompt"], size=14)
-    s.box(420, 350, 190, 54, "result", ["run list (CSV)", "values for every image"], size=14)
+    s.box(420, 350, 190, 54, "result", ["run list", "values for every image"], size=14)
     for tx in (725, 925, 515):
         s.arrow([(900, 280), (900, 312), (tx, 312), (tx, 350)])
     s.text(

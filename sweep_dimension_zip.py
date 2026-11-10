@@ -155,7 +155,7 @@ def zip_length(mode, len_a, len_b, label_a, label_b):
             f"[Sweep Pair Axes] mode is strict, but '{label_a}' has {len_a} values and '{label_b}' has {len_b}. "
             f"Give both the same number of values, or set mode to shortest (drop the extras) or longest "
             f"(repeat the last value).",
-            f"{len_a} vs {len_b} paired values: use mode shortest",
+            f"{len_a} vs {len_b} values: Pair Axes mode to shortest",
         )
     if mode == "longest":
         target = max(len_a, len_b)

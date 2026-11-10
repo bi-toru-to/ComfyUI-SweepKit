@@ -990,7 +990,7 @@ nodes = {
     "z": {"kind": "zip", "a": "a", "b": "b", "mode": "strict"},
 }
 r = chain_response({"root": "z", "nodes": nodes})
-assert r["ok"] is False and "use mode shortest" in r["error"] and "[Sweep" not in r["error"], r
+assert r["ok"] is False and "Pair Axes mode to shortest" in r["error"] and "[Sweep" not in r["error"], r
 r = chain_response({"root": "a", "nodes": {"a": axis_spec("int", "n", "1, x")}})
 assert r["ok"] is False and "x" in r["error"], r
 r = chain_response({"root": "a", "nodes": {"a": axis_spec("seed", "seed", "", pylist=True)}})

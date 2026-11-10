@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+**To upgrade:** nothing to do. Saved workflows keep loading.
+
+### Changed
+- The README starts with installing and the quick start; "How it works" and the examples follow. It
+  also says how paired settings are counted, where the output folder is in other installs, and what
+  to do when ComfyUI Manager is missing.
+- Clearer messages: a Sweep Pair Axes length mismatch says to set Sweep Pair Axes' `mode` to
+  `shortest`, and an image-count mismatch after Sweep Skip Repeats says which output goes to which
+  input of the second Sweep Gather.
+- The Node Guide gives a rough time for each task, and example 1 names the folder the example file
+  saves to (`SweepKit_quickstart`).
+
 ### Fixed
 - Sweep All-in-One's live grid always shows its first preview. On a computer or container that had
   only just started, the first preview could be skipped.

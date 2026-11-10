@@ -321,7 +321,7 @@ def make_grid(
 
 
 UNPACK_HINT = (
-    "If you use Sweep Skip Repeats, connect the images through the second Sweep Gather (with expand_indices), "
+    "If you use Sweep Skip Repeats, connect Sweep Skip Repeats' expand_indices output to the second Sweep Gather's indices, and pass the images through that Gather, "
     "so every combination gets its image back."
 )
 
