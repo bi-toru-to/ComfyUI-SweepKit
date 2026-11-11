@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+- SweepKit is now in ComfyUI Manager's list. The README installs it from **Manager → Custom Nodes
+  Manager** first; downloading the ZIP from GitHub stays as the route without Manager.
+
 ## 1.2.0 — 2026-11-10
 
 **To upgrade:** nothing to do. Saved workflows keep loading.

@@ -913,7 +913,8 @@ pass it on.
 folder in `custom_nodes` must be named `ComfyUI-SweepKit`. A downloaded ZIP unzips as
 `ComfyUI-SweepKit-main`: rename it, restart ComfyUI, and reload the page. Also check that the folder
 holds SweepKit's files directly (`README.md`, `__init__.py`…), not a second folder inside it: Windows'
-**Extract All** can add one. If it did, move the inner folder up into `custom_nodes`.
+**Extract All** can add one. If it did, move the inner folder up into `custom_nodes`. Installing from ComfyUI Manager avoids both
+problems.
 
 **Red or missing nodes when I open example 4, 5 or 6** — Those examples use the ComfyUI-List-Utils
 node pack, which isn't installed. In ComfyUI, open **Manager → Custom Nodes Manager**, search for

@@ -27,9 +27,20 @@ follow the [Quick start](#quick-start) below (about 5 minutes).
 - A model for the examples: a checkpoint, or a model that comes as separate files (see Quick start
   step 3). Example 3 also needs a LoRA, and example 6 needs three models.
 
-### Steps
+### Steps with ComfyUI Manager
 
-SweepKit isn't in ComfyUI Manager's list yet, so you install it from this page.
+1. In ComfyUI, open **Manager → Custom Nodes Manager**. If your ComfyUI has no **Manager** menu,
+   install [ComfyUI Manager](https://github.com/Comfy-Org/ComfyUI-Manager) first, or follow the
+   steps without it below.
+2. Search for *SweepKit*, and click **Install** next to it.
+3. Restart ComfyUI. If you use ComfyUI in a web browser, reload the page too.
+4. Check that it worked: open the main menu (the ComfyUI logo, top left), choose **Browse
+   Templates**, and look under **Extensions** for **ComfyUI-SweepKit**. If it isn't there, see
+   [Troubleshooting](NODE_GUIDE.md#troubleshooting).
+
+To update later, open **Custom Nodes Manager** again and update SweepKit there.
+
+### Steps without ComfyUI Manager
 
 1. At the top of this page, click the green **Code** button above the file list, then
    **Download ZIP**. Your browser saves `ComfyUI-SweepKit-main.zip`, usually in your Downloads folder.
